@@ -1,0 +1,384 @@
+@import "tailwindcss";
+
+/* ============================================================
+   TEMPO DESIGN SYSTEM
+   Ported from the original prototype — same palette, same soul.
+   ============================================================ */
+
+@theme {
+  /* Surfaces */
+  --color-bg-primary: #0a0f1c;
+  --color-bg-secondary: #0d1b2a;
+  --color-bg-card: #141e2c;
+  --color-bg-elevated: #1e293b;
+
+  /* Type */
+  --color-ink: #f1f5f9;
+  --color-ink-soft: #94a3b8;
+  --color-ink-muted: #7c8ba1; /* lifted from #64748b to pass WCAG AA (4.5:1) */
+
+  /* Brand */
+  --color-green: #00e676;
+  --color-green-deep: #00c853;
+  --color-orange: #ff7043;
+  --color-purple: #9c27b0;
+  --color-blue: #29b6f6;
+  --color-gold: #ffb300;
+  --color-red: #ef4444;
+
+  /* Glass */
+  --color-glass: rgba(255, 255, 255, 0.06);
+  --color-glass-border: rgba(255, 255, 255, 0.12);
+
+  --radius-card: 16px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", "Noto Sans", Arial, sans-serif;
+
+  --animate-pulse-ring: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-flame: flame 2.4s ease-in-out infinite;
+  --animate-tick: tick 1s steps(1) infinite;
+  --animate-shimmer: shimmer 2.2s linear infinite;
+  --animate-rise: rise 0.7s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.5); }
+  70% { box-shadow: 0 0 0 12px rgba(0, 230, 118, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 230, 118, 0); }
+}
+@keyframes flame {
+  0%, 100% { transform: scale(1) rotate(-2deg); opacity: 0.9; }
+  50% { transform: scale(1.12) rotate(2deg); opacity: 1; }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- BASE ---------- */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background-color: #0a0a1a;
+  background-image:
+    radial-gradient(100% 60% at 10% 10%, rgba(0, 230, 118, 0.35), rgba(0, 0, 0, 0) 55%),
+    radial-gradient(80% 50% at 90% 20%, rgba(41, 182, 246, 0.3), rgba(0, 0, 0, 0) 50%),
+    radial-gradient(90% 60% at 50% 80%, rgba(156, 39, 176, 0.25), rgba(0, 0, 0, 0) 55%),
+    radial-gradient(70% 50% at 5% 70%, rgba(255, 112, 67, 0.25), rgba(0, 0, 0, 0) 50%),
+    radial-gradient(80% 50% at 95% 85%, rgba(0, 230, 118, 0.2), rgba(0, 0, 0, 0) 50%),
+    radial-gradient(60% 40% at 40% 35%, rgba(41, 182, 246, 0.15), rgba(0, 0, 0, 0) 45%),
+    radial-gradient(50% 40% at 70% 55%, rgba(156, 39, 176, 0.12), rgba(0, 0, 0, 0) 40%),
+    linear-gradient(135deg, #0a0a1a 0%, #0d1025 25%, #0a0f1f 50%, #0d0a20 75%, #0a0a1a 100%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: #0a0f1c; }
+::-webkit-scrollbar-thumb { background: #1a2332; border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: #2a3342; }
+
+/* Visible focus for keyboard users — was missing entirely in the prototype */
+:focus-visible {
+  outline: 2px solid var(--color-green);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Respect users who don't want motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- COMPONENT LAYER ---------- */
+
+@layer components {
+  .container-t {
+    width: 100%;
+    max-width: 1200px;
+    margin-inline: auto;
+    padding-inline: 24px;
+  }
+
+  .card-t {
+    background: var(--color-glass);
+    border: 0.8px solid var(--color-glass-border);
+    border-radius: var(--radius-card);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition:
+      transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1),
+      box-shadow 0.28s,
+      border-color 0.28s;
+  }
+
+  .card-t-hover:hover {
+    transform: translateY(-6px);
+    border-color: rgba(0, 230, 118, 0.35);
+    box-shadow:
+      0 18px 44px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  .btn-t {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-weight: 600;
+    border-radius: 999px;
+    transition: 0.22s;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .btn-t:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+
+  .btn-green-t {
+    background: linear-gradient(135deg, #00e676 0%, #00c853 100%);
+    color: #04150c;
+    padding: 16px 30px;
+    font-size: 15.2px;
+    box-shadow: 0 6px 20px rgba(0, 200, 83, 0.28);
+  }
+  .btn-green-t:hover:not(:disabled) {
+    filter: brightness(1.06);
+    box-shadow: 0 10px 28px rgba(0, 200, 83, 0.42);
+    transform: translateY(-2px);
+  }
+
+  .btn-ghost-t {
+    border: 1px solid var(--color-glass-border);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 16px 30px;
+    font-size: 15.2px;
+    color: var(--color-ink);
+  }
+  .btn-ghost-t:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.09);
+    transform: translateY(-2px);
+  }
+
+  .btn-outline-t {
+    border: 1px solid rgba(0, 230, 118, 0.45);
+    color: var(--color-green);
+    background: transparent;
+    padding: 9px 22px;
+    font-size: 14px;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+  .btn-outline-t:hover:not(:disabled) {
+    background: rgba(0, 230, 118, 0.12);
+  }
+
+  .chip-t {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--color-glass-border);
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--color-ink-soft);
+  }
+
+  .spokes-t {
+    position: absolute;
+    inset: 0;
+    opacity: 0.5;
+    pointer-events: none;
+    background: repeating-conic-gradient(
+      from 0deg at 50% 50%,
+      rgba(0, 230, 118, 0.05) 0deg 7deg,
+      rgba(0, 0, 0, 0) 7deg 22deg
+    );
+    -webkit-mask-image: radial-gradient(60% 60% at 50% 45%, #000, transparent 78%);
+    mask-image: radial-gradient(60% 60% at 50% 45%, #000, transparent 78%);
+  }
+
+  /* Form field with floating label */
+  .field-t {
+    position: relative;
+  }
+  .field-t input,
+  .field-t select,
+  .field-t textarea {
+    width: 100%;
+    padding: 18px 16px 18px 48px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--color-glass-border);
+    color: var(--color-ink);
+    font-size: 15px;
+    transition: 0.2s;
+  }
+  .field-t textarea {
+    padding-left: 16px;
+    min-height: 96px;
+    resize: vertical;
+  }
+  .field-t input:focus,
+  .field-t select:focus,
+  .field-t textarea:focus {
+    border-color: rgba(0, 230, 118, 0.5);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .field-t label.floating {
+    position: absolute;
+    left: 48px;
+    top: 18px;
+    color: var(--color-ink-muted);
+    font-size: 15px;
+    pointer-events: none;
+    transition: 0.18s;
+    background: transparent;
+  }
+  .field-t input:focus + .field-icon + label.floating,
+  .field-t input:not(:placeholder-shown) + .field-icon + label.floating {
+    top: -9px;
+    left: 14px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--color-green);
+    background: #101828;
+    padding: 0 7px;
+    border-radius: 4px;
+  }
+  .field-icon {
+    position: absolute;
+    left: 16px;
+    top: 17px;
+    color: var(--color-ink-muted);
+    pointer-events: none;
+  }
+
+  .reveal-t {
+    animation: var(--animate-rise);
+  }
+}
+
+/* Utility: the animated fill bar used across match cards */
+.fill-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.fill-bar {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.9s cubic-bezier(0.2, 0.8, 0.3, 1);
+  background: linear-gradient(90deg, #00e676, #00c853);
+}
+.fill-bar[data-heat="warm"] {
+  background: linear-gradient(90deg, #ffb300, #ff8f00);
+}
+.fill-bar[data-heat="hot"] {
+  background: linear-gradient(90deg, #ff7043, #f4511e);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+.fill-bar[data-heat="full"] {
+  background: linear-gradient(90deg, #64748b, #475569);
+}
+
+/* Live dot */
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-green);
+  animation: var(--animate-pulse-ring);
+}
+
+/* ---------- LEGAL PROSE ---------- */
+.legal-prose h1 {
+  font-size: clamp(28px, 5vw, 40px);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+.legal-prose h2 {
+  font-size: 21px;
+  font-weight: 700;
+  margin-top: 40px;
+  margin-bottom: 12px;
+}
+.legal-prose h3 {
+  font-size: 16.5px;
+  font-weight: 700;
+  margin-top: 24px;
+  margin-bottom: 8px;
+}
+.legal-prose p,
+.legal-prose li {
+  font-size: 15.5px;
+  line-height: 1.75;
+  color: var(--color-ink-soft);
+}
+.legal-prose p { margin-bottom: 14px; }
+.legal-prose ul,
+.legal-prose ol {
+  margin: 0 0 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.legal-prose ul { list-style: disc; }
+.legal-prose ol { list-style: decimal; }
+.legal-prose strong { color: var(--color-ink); font-weight: 600; }
+.legal-prose a { color: var(--color-green); text-decoration: underline; text-underline-offset: 3px; }
+.legal-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 18px 0;
+  font-size: 14.5px;
+}
+.legal-prose th,
+.legal-prose td {
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--color-ink-soft);
+}
+.legal-prose th { background: rgba(255, 255, 255, 0.04); color: var(--color-ink); font-weight: 600; }
+.legal-prose .meta {
+  font-size: 13.5px;
+  color: var(--color-ink-muted);
+  margin-top: 10px;
+}
