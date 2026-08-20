@@ -1,16 +1,15 @@
 import Link from "next/link";
-import { formatNaira, formatDistance, formatTime, formatRelativeDay } from "@/lib/format";
+import Image from "next/image";
+import { formatNaira, formatDistance } from "@/lib/format";
 import {
   PinIcon,
   StarIcon,
   ShieldIcon,
-  BallDetailedIcon,
   LightsIcon,
   ShowerIcon,
   ParkingIcon,
-  ClockIcon,
 } from "@/components/icons";
-import type { PitchWithVenue } from "@/lib/data/repo";
+import type { PitchWithVenue } from "@/lib/mock";
 
 const AMENITY_ICON: Record<string, typeof LightsIcon> = {
   Floodlights: LightsIcon,
@@ -27,33 +26,32 @@ const SURFACE_LABEL: Record<string, string> = {
 
 export function PitchCard({ pitch }: { pitch: PitchWithVenue }) {
   const { venue } = pitch;
-  const open = pitch.nextOpenSlot;
+  const photo = venue.photos[0];
 
   return (
     <article className="card-t card-t-hover overflow-hidden">
-      {/* Media band — the ball motif from the original, kept */}
-      <div className="relative grid h-[150px] place-items-center overflow-hidden bg-gradient-to-br from-[#132033] to-[#0d1523]">
-        <span className="spokes-t" />
-        <BallDetailedIcon size={76} className="relative text-green/25" />
+      <div className="relative h-[150px] overflow-hidden bg-bg-elevated">
+        {photo && (
+          <Image
+            src={photo}
+            alt=""
+            fill
+            unoptimized
+            className="object-cover"
+            sizes="(min-width: 1024px) 33vw, 100vw"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
 
         <span className="absolute left-3 top-3">
-          <span className="chip-t">{pitch.size}</span>
+          <span className="chip-t !bg-black/40">{pitch.size}</span>
         </span>
 
-        <span className="absolute right-3 top-3 flex gap-1.5">
-          {venue.verified && (
-            <span className="chip-t !border-green/35 !bg-green/12 !text-green" title="Inspected by Tempo">
+        {venue.verified && (
+          <span className="absolute right-3 top-3">
+            <span className="chip-t !border-green/35 !bg-black/40 !text-green" title="Inspected by Tempo">
               <ShieldIcon size={12} />
               Verified
-            </span>
-          )}
-        </span>
-
-        {open && (
-          <span className="absolute bottom-3 left-3">
-            <span className="chip-t !border-green/30 !bg-black/40 !text-green">
-              <span className="live-dot" />
-              Next: {formatRelativeDay(open.startsAt)} {formatTime(open.startsAt)}
             </span>
           </span>
         )}
@@ -98,7 +96,7 @@ export function PitchCard({ pitch }: { pitch: PitchWithVenue }) {
           })}
         </div>
 
-        <div className="mt-5 flex items-end justify-between gap-3 border-t border-white/8 pt-4">
+        <div className="mt-5 flex items-end justify-between gap-3 border-t border-glass-border pt-4">
           <div>
             <div className="text-[11px] uppercase tracking-wide text-ink-muted">From</div>
             <div className="text-[20px] font-bold">
@@ -107,16 +105,9 @@ export function PitchCard({ pitch }: { pitch: PitchWithVenue }) {
             </div>
           </div>
           <Link href={`/pitches/${pitch.slug}`} className="btn-t btn-green-t !px-6 !py-3 !text-[14px]">
-            {open ? "Book" : "View"}
+            View
           </Link>
         </div>
-
-        {!open && (
-          <p className="mt-3 flex items-center gap-1.5 text-[12.5px] text-ink-muted">
-            <ClockIcon size={13} />
-            No open slots in the next 7 days
-          </p>
-        )}
       </div>
     </article>
   );

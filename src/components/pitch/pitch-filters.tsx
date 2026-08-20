@@ -9,10 +9,11 @@ const AREAS = [
   "Lekki Phase 1",
   "Ikoyi",
   "Victoria Island",
-  "Onikan",
+  "Lagos Island",
   "Surulere",
   "Ikeja GRA",
   "Yaba",
+  "Gbagada",
 ];
 
 const SIZES = ["all", "5-a-side", "7-a-side", "11-a-side"];
@@ -21,7 +22,6 @@ const SORTS = [
   { key: "near", label: "Nearest" },
   { key: "cheap", label: "Cheapest" },
   { key: "rated", label: "Top rated" },
-  { key: "soonest", label: "Free soonest" },
 ];
 
 export function PitchFilters({ resultCount }: { resultCount: number }) {
@@ -100,7 +100,7 @@ export function PitchFilters({ resultCount }: { resultCount: number }) {
             type="search"
             placeholder="Search by venue or area…"
             aria-label="Search pitches"
-            className="w-full rounded-full border border-white/12 bg-white/5 py-3.5 pl-12 pr-4 text-[15px] outline-none transition focus:border-green/50"
+            className="w-full rounded-full border border-glass-border bg-glass py-3.5 pl-12 pr-4 text-[15px] outline-none transition focus:border-green/50"
           />
         </div>
         <button
@@ -109,7 +109,7 @@ export function PitchFilters({ resultCount }: { resultCount: number }) {
           className={`btn-t !rounded-full border px-5 py-3.5 text-[14px] font-semibold transition ${
             hasOrigin
               ? "border-green/45 bg-green/12 text-green"
-              : "border-white/12 bg-white/5 text-ink-soft hover:border-white/25"
+              : "border-glass-border bg-glass text-ink-soft hover:border-ink-muted/50"
           }`}
         >
           <PinIcon size={16} />
@@ -132,7 +132,7 @@ export function PitchFilters({ resultCount }: { resultCount: number }) {
             className={`rounded-full border px-4 py-2 text-[13.5px] transition ${
               area === a
                 ? "border-green/45 bg-green/14 font-semibold text-green"
-                : "border-white/12 bg-white/4 text-ink-soft hover:border-white/25"
+                : "border-glass-border bg-glass text-ink-soft hover:border-ink-muted/50"
             }`}
           >
             {a === "all" ? "All areas" : a}
@@ -150,7 +150,7 @@ export function PitchFilters({ resultCount }: { resultCount: number }) {
               className={`rounded-full border px-3.5 py-1.5 text-[12.5px] transition ${
                 size === s
                   ? "border-green/45 bg-green/14 font-semibold text-green"
-                  : "border-white/12 bg-white/4 text-ink-soft hover:border-white/25"
+                  : "border-glass-border bg-glass text-ink-soft hover:border-ink-muted/50"
               }`}
             >
               {s === "all" ? "Any size" : s}
@@ -170,7 +170,7 @@ export function PitchFilters({ resultCount }: { resultCount: number }) {
               className={`rounded-full border px-3.5 py-1.5 text-[12.5px] transition disabled:opacity-40 ${
                 sort === s.key
                   ? "border-green/45 bg-green/14 font-semibold text-green"
-                  : "border-white/12 bg-white/4 text-ink-soft hover:border-white/25"
+                  : "border-glass-border bg-glass text-ink-soft hover:border-ink-muted/50"
               }`}
             >
               {s.label}

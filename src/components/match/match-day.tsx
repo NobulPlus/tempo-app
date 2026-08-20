@@ -110,7 +110,7 @@ export function SpotPips({
         <span
           key={i}
           className={`h-2.5 w-2.5 rounded-[3px] transition-colors duration-500 ${
-            i < filled ? "bg-green" : "border border-white/20 bg-white/5"
+            i < filled ? "bg-green" : "border border-glass-border bg-glass"
           }`}
           style={{ transitionDelay: `${i * 35}ms` }}
         />

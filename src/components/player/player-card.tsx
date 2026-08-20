@@ -60,7 +60,7 @@ export function TraitRadar({
             key={i}
             points={pts}
             fill="none"
-            stroke="rgba(148,163,184,.14)"
+            stroke="rgba(139,151,138,.18)"
             strokeWidth={1}
           />
         ))}
@@ -73,7 +73,7 @@ export function TraitRadar({
               y1={cy}
               x2={x}
               y2={y}
-              stroke="rgba(148,163,184,.12)"
+              stroke="rgba(139,151,138,.16)"
               strokeWidth={1}
             />
           );
@@ -81,14 +81,14 @@ export function TraitRadar({
 
         <polygon
           points={shape}
-          fill="rgba(0,230,118,.22)"
-          stroke="#00e676"
+          fill="rgba(23,185,92,.24)"
+          stroke="#17b95c"
           strokeWidth={2}
           strokeLinejoin="round"
         />
         {TRAIT_ORDER.map((k, i) => {
           const [x, y] = point(i, traits[k]);
-          return <circle key={k} cx={x} cy={y} r={3} fill="#00e676" />;
+          return <circle key={k} cx={x} cy={y} r={3} fill="#17b95c" />;
         })}
 
         {TRAIT_ORDER.map((k, i) => {
@@ -102,7 +102,7 @@ export function TraitRadar({
               dominantBaseline="middle"
               fontSize="10"
               fontWeight="700"
-              fill="#94a3b8"
+              fill="#8b978a"
             >
               {TRAIT_LABEL[k]}
             </text>
@@ -118,7 +118,7 @@ export function TraitRadar({
 export function StreakBadge({ weeks, longest }: { weeks: number; longest: number }) {
   if (weeks === 0) {
     return (
-      <div className="rounded-xl border border-white/10 bg-white/4 p-3">
+      <div className="rounded-xl border border-glass-border bg-glass p-3">
         <div className="text-[12px] text-ink-muted">Streak</div>
         <div className="mt-0.5 text-[15px] font-semibold text-ink-soft">Not playing</div>
         <div className="mt-0.5 text-[11.5px] text-ink-muted">Best: {longest} weeks</div>
@@ -153,7 +153,7 @@ export function PunctualityRing({ score, size = 64 }: { score: number; size?: nu
   const r = size / 2 - 5;
   const c = 2 * Math.PI * r;
   const offset = c - (score / 100) * c;
-  const colour = score >= 90 ? "#00e676" : score >= 75 ? "#ffb300" : "#ff7043";
+  const colour = score >= 90 ? "#17b95c" : score >= 75 ? "#f5a623" : "#ff5a45";
 
   return (
     <div className="relative grid place-items-center" style={{ width: size, height: size }}>
@@ -201,7 +201,7 @@ export function PlayerCard({ player }: { player: PlayerProfile }) {
           <span className="grid h-20 w-20 place-items-center rounded-full border-2 border-green bg-green/10 text-[26px] font-extrabold">
             {player.initials}
           </span>
-          <span className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full border-2 border-[#0d1425] bg-gradient-to-br from-[#00e676] to-[#00c853] text-[12px] font-extrabold text-[#04150c]">
+          <span className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full border-2 border-bg-primary bg-green text-[12px] font-extrabold text-[#04150c]">
             {overall}
           </span>
         </div>
@@ -242,7 +242,7 @@ export function PlayerCard({ player }: { player: PlayerProfile }) {
           sub={player.peerRatingCount ? `${player.peerRatingCount} votes` : "No votes yet"}
         />
         <Stat icon={<ShieldIcon size={14} />} label="MOTM" value={String(player.motmCount)} />
-        <div className="rounded-xl border border-white/10 bg-white/4 p-3">
+        <div className="rounded-xl border border-glass-border bg-glass p-3">
           <div className="text-[12px] text-ink-muted">Punctuality</div>
           <div className="mt-1 flex items-center gap-2">
             <PunctualityRing score={player.punctualityScore} size={44} />
@@ -269,7 +269,7 @@ function Stat({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/4 p-3">
+    <div className="rounded-xl border border-glass-border bg-glass p-3">
       <div className="flex items-center gap-1.5 text-[12px] text-ink-muted">
         {icon}
         {label}
@@ -286,7 +286,7 @@ export function PlayerChip({ player, note }: { player: PlayerProfile; note?: str
   return (
     <Link
       href={`/players/${player.handle}`}
-      className="group flex items-center gap-2.5 rounded-xl border border-white/8 bg-white/3 p-2.5 transition hover:border-green/30 hover:bg-green/6"
+      className="group flex items-center gap-2.5 rounded-xl border border-glass-border bg-glass p-2.5 transition hover:border-green/30 hover:bg-green/6"
     >
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-green/35 bg-green/10 text-[12px] font-bold">
         {player.initials}

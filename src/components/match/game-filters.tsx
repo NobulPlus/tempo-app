@@ -62,7 +62,7 @@ export function GameFilters({ resultCount }: { resultCount: number }) {
         className={`rounded-full border px-4 py-2 text-[13.5px] transition ${
           current === i.key
             ? "border-green/45 bg-green/14 font-semibold text-green"
-            : "border-white/12 bg-white/4 text-ink-soft hover:border-white/25"
+            : "border-glass-border bg-glass text-ink-soft hover:border-ink-muted/50"
         }`}
       >
         {i.label}
@@ -82,7 +82,7 @@ export function GameFilters({ resultCount }: { resultCount: number }) {
           type="search"
           placeholder="Search games, venues or hosts…"
           aria-label="Search games"
-          className="w-full rounded-full border border-white/12 bg-white/5 py-3.5 pl-12 pr-4 text-[15px] outline-none transition focus:border-green/50"
+          className="w-full rounded-full border border-glass-border bg-glass py-3.5 pl-12 pr-4 text-[15px] outline-none transition focus:border-green/50"
         />
       </div>
 

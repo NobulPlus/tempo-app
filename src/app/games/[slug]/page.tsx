@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getGameBySlug } from "@/lib/data/repo";
-import { getCurrentUser } from "@/lib/session";
+import { getGameBySlug, getCurrentUser } from "@/lib/mock";
 import { getMatchState, estimateTravelMinutes, leaveByTime } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime, splitKobo } from "@/lib/format";
 import { Countdown, FillBar, SpotPips, HeatPill, GuaranteePill } from "@/components/match/match-day";
@@ -19,15 +18,13 @@ import {
   CheckIcon,
 } from "@/components/icons";
 
-export const dynamic = "force-dynamic";
-
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const game = await getGameBySlug(slug);
+  const game = getGameBySlug(slug);
   if (!game) return { title: "Game not found" };
 
   return {
@@ -48,15 +45,15 @@ export default async function GamePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const game = await getGameBySlug(slug);
+  const game = getGameBySlug(slug);
   if (!game) notFound();
 
-  const user = await getCurrentUser();
+  const user = getCurrentUser();
   const state = getMatchState(game);
 
   const confirmed = game.participants.filter((p) => p.status === "confirmed");
   const waitlist = game.participants.filter((p) => p.status === "waitlist");
-  const mine = game.participants.find((p) => p.userId === user?.id);
+  const mine = game.participants.find((p) => p.userId === user.id);
 
   const kickoff = new Date(game.startsAt);
   const travel = estimateTravelMinutes(
@@ -85,22 +82,18 @@ export default async function GamePage({
         </nav>
 
         <div className="grid gap-6 lg:grid-cols-[1.55fr_1fr]">
-          {/* -------------------------------------------------- main column */}
           <div>
             <div className="card-t relative overflow-hidden p-6 md:p-8">
               <span className="spokes-t" />
 
               <div className="relative flex flex-wrap items-center gap-2">
                 <HeatPill state={state} />
-                <GuaranteePill
-                  guaranteed={state.guaranteed}
-                  minimum={game.minimumToGuarantee}
-                />
+                <GuaranteePill guaranteed={state.guaranteed} minimum={game.minimumToGuarantee} />
                 <span className="chip-t capitalize">{game.level}</span>
                 {game.bibsProvided && <span className="chip-t">Bibs provided</span>}
               </div>
 
-              <h1 className="relative mt-4 text-[clamp(26px,4.5vw,40px)] font-extrabold leading-tight tracking-[-.02em]">
+              <h1 className="relative mt-4 font-display text-[clamp(26px,4.5vw,40px)] font-extrabold leading-tight tracking-[-.02em]">
                 {game.title}
               </h1>
 
@@ -127,8 +120,7 @@ export default async function GamePage({
                 {LEVEL_COPY[game.level]}
               </p>
 
-              {/* Live fill */}
-              <div className="relative mt-7 rounded-2xl border border-white/10 bg-black/20 p-5">
+              <div className="relative mt-7 rounded-2xl border border-glass-border bg-bg-primary/40 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="text-[13px] text-ink-muted">Squad</div>
@@ -139,11 +131,7 @@ export default async function GamePage({
                       </span>
                     </div>
                   </div>
-                  <Countdown
-                    to={game.startsAt}
-                    endsAt={game.endsAt}
-                    className="text-[15px] font-semibold"
-                  />
+                  <Countdown to={game.startsAt} endsAt={game.endsAt} className="text-[15px] font-semibold" />
                 </div>
 
                 <div className="mt-3">
@@ -167,16 +155,13 @@ export default async function GamePage({
               </div>
             </div>
 
-            {/* -------------------------------------------------- the squad */}
             <section className="card-t mt-6 p-6 md:p-7">
               <div className="flex items-center justify-between">
                 <h2 className="flex items-center gap-2 text-[19px] font-bold">
                   <UsersIcon size={19} className="text-green" />
                   Who&apos;s playing
                 </h2>
-                <span className="text-[13px] text-ink-muted">
-                  {confirmed.length} confirmed
-                </span>
+                <span className="text-[13px] text-ink-muted">{confirmed.length} confirmed</span>
               </div>
 
               <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
@@ -196,9 +181,9 @@ export default async function GamePage({
                   .map((_, i) => (
                     <div
                       key={`empty-${i}`}
-                      className="flex items-center gap-2.5 rounded-xl border border-dashed border-white/12 p-2.5 text-[13px] text-ink-muted"
+                      className="flex items-center gap-2.5 rounded-xl border border-dashed border-glass-border p-2.5 text-[13px] text-ink-muted"
                     >
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-dashed border-white/15">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-dashed border-glass-border">
                         ?
                       </span>
                       Open spot
@@ -207,7 +192,7 @@ export default async function GamePage({
               </div>
 
               {waitlist.length > 0 && (
-                <div className="mt-6 border-t border-white/8 pt-5">
+                <div className="mt-6 border-t border-glass-border pt-5">
                   <h3 className="text-[14px] font-semibold text-ink-soft">
                     Waitlist ({waitlist.length})
                   </h3>
@@ -221,17 +206,12 @@ export default async function GamePage({
             </section>
           </div>
 
-          {/* -------------------------------------------------- side column */}
           <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
             <div className="card-t p-6">
               <div className="flex items-end justify-between">
                 <div>
-                  <div className="text-[12px] uppercase tracking-wide text-ink-muted">
-                    Per player
-                  </div>
-                  <div className="text-[30px] font-extrabold">
-                    {formatNaira(game.pricePerPlayerKobo)}
-                  </div>
+                  <div className="text-[12px] uppercase tracking-wide text-ink-muted">Per player</div>
+                  <div className="text-[30px] font-extrabold">{formatNaira(game.pricePerPlayerKobo)}</div>
                 </div>
                 <div className="text-right text-[12.5px] text-ink-muted">
                   {confirmed.length > 0 && (
@@ -246,14 +226,10 @@ export default async function GamePage({
 
               <div className="mt-5">
                 <JoinButton
-                  gameId={game.id}
-                  slug={game.slug}
                   priceKobo={game.pricePerPlayerKobo}
-                  isMember={Boolean(mine)}
-                  isWaitlisted={mine?.status === "waitlist"}
                   spotsLeft={state.spotsLeft}
-                  signedIn={Boolean(user)}
                   hasEnded={state.hasEnded}
+                  initialJoined={Boolean(mine)}
                 />
               </div>
 
@@ -268,7 +244,6 @@ export default async function GamePage({
               </a>
             </div>
 
-            {/* Leave-by card — the Lagos-specific touch */}
             <div className="card-t p-6">
               <h3 className="flex items-center gap-2 text-[15px] font-bold">
                 <CarIcon size={17} className="text-orange" />
@@ -278,21 +253,17 @@ export default async function GamePage({
                 {formatTime(leaveBy.toISOString())}
               </div>
               <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
-                About {travel} minutes in {kickoff.getHours() >= 16 ? "evening" : "current"}{" "}
-                traffic, plus 10 to change.
+                About {travel} minutes in {kickoff.getHours() >= 16 ? "evening" : "current"} traffic,
+                plus 10 to change.
                 {game.pitch.venue.side === "island"
                   ? " This one's on the Island — add time if you're crossing."
                   : " Mainland venue."}
               </p>
             </div>
 
-            {/* Host */}
             <div className="card-t p-6">
               <h3 className="text-[15px] font-bold">Your host</h3>
-              <Link
-                href={`/players/${game.host.handle}`}
-                className="group mt-3 flex items-center gap-3"
-              >
+              <Link href={`/players/${game.host.handle}`} className="group mt-3 flex items-center gap-3">
                 <span className="grid h-12 w-12 place-items-center rounded-full border border-green/40 bg-green/10 text-[15px] font-bold">
                   {game.host.initials}
                 </span>
@@ -302,14 +273,13 @@ export default async function GamePage({
                   </span>
                   <span className="flex items-center gap-1.5 text-[12.5px] text-ink-muted">
                     <StarIcon size={11} className="text-gold" />
-                    {game.host.peerRating?.toFixed(1) ?? "New"} ·{" "}
-                    {game.host.gamesPlayed} games · {game.host.punctualityScore}% punctual
+                    {game.host.peerRating?.toFixed(1) ?? "New"} · {game.host.gamesPlayed} games ·{" "}
+                    {game.host.punctualityScore}% punctual
                   </span>
                 </span>
               </Link>
             </div>
 
-            {/* What's included */}
             <div className="card-t p-6">
               <h3 className="text-[15px] font-bold">What&apos;s included</h3>
               <ul className="mt-3 space-y-2 text-[13.5px] text-ink-soft">

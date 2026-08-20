@@ -1,51 +1,56 @@
 @import "tailwindcss";
 
 /* ============================================================
-   TEMPO DESIGN SYSTEM
-   Ported from the original prototype — same palette, same soul.
+   TEMPO v2 — DESIGN SYSTEM
+   "Matchday, not SaaS dashboard." Grounded in Footy Addicts
+   (editorial photography, bold stat callouts, hand-drawn energy),
+   Playtomic (confident colour-blocked sections, numbered steps),
+   and v1's own pitch-green identity — retired: neon gradient blobs,
+   glassmorphic blur on every surface.
    ============================================================ */
 
 @theme {
   /* Surfaces */
-  --color-bg-primary: #0a0f1c;
-  --color-bg-secondary: #0d1b2a;
-  --color-bg-card: #141e2c;
-  --color-bg-elevated: #1e293b;
+  --color-bg-primary: #0b0f0c;
+  --color-bg-secondary: #0f2318; /* full-bleed alternating section band */
+  --color-bg-card: #141a15;
+  --color-bg-elevated: #1b2119;
 
   /* Type */
-  --color-ink: #f1f5f9;
-  --color-ink-soft: #94a3b8;
-  --color-ink-muted: #7c8ba1; /* lifted from #64748b to pass WCAG AA (4.5:1) */
+  --color-ink: #f3f6f1;
+  --color-ink-soft: #b7c2b4;
+  --color-ink-muted: #8b978a; /* WCAG AA on --color-bg-primary */
 
   /* Brand */
-  --color-green: #00e676;
-  --color-green-deep: #00c853;
-  --color-orange: #ff7043;
-  --color-purple: #9c27b0;
-  --color-blue: #29b6f6;
-  --color-gold: #ffb300;
-  --color-red: #ef4444;
+  --color-green: #17b95c;
+  --color-green-deep: #0e8a44;
+  --color-gold: #f5a623; /* floodlight / "warm" heat */
+  --color-orange: #ff5a45; /* coral / "hot" heat */
+  --color-blue: #4c8dff; /* "cold" heat, casual tag */
+  --color-purple: #a78bfa; /* competitive tag */
+  --color-red: #f04438; /* destructive / errors */
 
-  /* Glass */
-  --color-glass: rgba(255, 255, 255, 0.06);
-  --color-glass-border: rgba(255, 255, 255, 0.12);
+  --color-glass: rgba(255, 255, 255, 0.05);
+  --color-glass-border: rgba(255, 255, 255, 0.1);
 
-  --radius-card: 16px;
+  --radius-card: 14px;
 
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+  --font-sans: var(--font-figtree), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", "Noto Sans", Arial, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-sans);
+  --font-accent: var(--font-caveat), cursive;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   --animate-pulse-ring: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-flame: flame 2.4s ease-in-out infinite;
-  --animate-tick: tick 1s steps(1) infinite;
   --animate-shimmer: shimmer 2.2s linear infinite;
   --animate-rise: rise 0.7s cubic-bezier(0.2, 0.8, 0.3, 1) both;
 }
 
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.5); }
-  70% { box-shadow: 0 0 0 12px rgba(0, 230, 118, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(0, 230, 118, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(23, 185, 92, 0.5); }
+  70% { box-shadow: 0 0 0 12px rgba(23, 185, 92, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(23, 185, 92, 0); }
 }
 @keyframes flame {
   0%, 100% { transform: scale(1) rotate(-2deg); opacity: 0.9; }
@@ -57,10 +62,6 @@
 }
 @keyframes rise {
   from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes countUp {
-  from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: none; }
 }
 
@@ -77,44 +78,49 @@ html {
 body {
   font-family: var(--font-sans);
   color: var(--color-ink);
-  background-color: #0a0a1a;
-  background-image:
-    radial-gradient(100% 60% at 10% 10%, rgba(0, 230, 118, 0.35), rgba(0, 0, 0, 0) 55%),
-    radial-gradient(80% 50% at 90% 20%, rgba(41, 182, 246, 0.3), rgba(0, 0, 0, 0) 50%),
-    radial-gradient(90% 60% at 50% 80%, rgba(156, 39, 176, 0.25), rgba(0, 0, 0, 0) 55%),
-    radial-gradient(70% 50% at 5% 70%, rgba(255, 112, 67, 0.25), rgba(0, 0, 0, 0) 50%),
-    radial-gradient(80% 50% at 95% 85%, rgba(0, 230, 118, 0.2), rgba(0, 0, 0, 0) 50%),
-    radial-gradient(60% 40% at 40% 35%, rgba(41, 182, 246, 0.15), rgba(0, 0, 0, 0) 45%),
-    radial-gradient(50% 40% at 70% 55%, rgba(156, 39, 176, 0.12), rgba(0, 0, 0, 0) 40%),
-    linear-gradient(135deg, #0a0a1a 0%, #0d1025 25%, #0a0f1f 50%, #0d0a20 75%, #0a0a1a 100%);
-  background-attachment: fixed;
+  background: var(--color-bg-primary);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   min-height: 100vh;
 }
 
 ::-webkit-scrollbar { width: 10px; }
-::-webkit-scrollbar-track { background: #0a0f1c; }
-::-webkit-scrollbar-thumb { background: #1a2332; border-radius: 5px; }
-::-webkit-scrollbar-thumb:hover { background: #2a3342; }
+::-webkit-scrollbar-track { background: var(--color-bg-primary); }
+::-webkit-scrollbar-thumb { background: #223026; border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: #2e4033; }
 
-/* Visible focus for keyboard users — was missing entirely in the prototype */
 :focus-visible {
   outline: 2px solid var(--color-green);
   outline-offset: 3px;
   border-radius: 6px;
 }
 
-/* Respect users who don't want motion */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ---------- LIGHT MODE (v1 never had one) ---------- */
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg-primary: #f5f4ee;
+    --color-bg-secondary: #e8f0ea;
+    --color-bg-card: #ffffff;
+    --color-bg-elevated: #eef1ea;
+    --color-ink: #11201a;
+    --color-ink-soft: #46564a;
+    --color-ink-muted: #647065;
+    --color-glass: rgba(17, 32, 26, 0.04);
+    --color-glass-border: rgba(17, 32, 26, 0.1);
+  }
+  body { background: var(--color-bg-primary); }
+  ::-webkit-scrollbar-track { background: var(--color-bg-primary); }
+  ::-webkit-scrollbar-thumb { background: #d3d9cf; }
 }
 
 /* ---------- COMPONENT LAYER ---------- */
@@ -127,25 +133,25 @@ body {
     padding-inline: 24px;
   }
 
+  .band-t {
+    background: var(--color-bg-secondary);
+  }
+
+  /* Crisp, bordered surface — retired glass blur in favour of a solid card
+     with a thin accent top edge, matching the Footy Addicts / Playtomic refs. */
   .card-t {
-    background: var(--color-glass);
-    border: 0.8px solid var(--color-glass-border);
+    position: relative;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-glass-border);
     border-radius: var(--radius-card);
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    transition:
-      transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1),
-      box-shadow 0.28s,
-      border-color 0.28s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.3, 1), border-color 0.25s, box-shadow 0.25s;
   }
 
   .card-t-hover:hover {
-    transform: translateY(-6px);
-    border-color: rgba(0, 230, 118, 0.35);
-    box-shadow:
-      0 18px 44px rgba(0, 0, 0, 0.35),
-      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    transform: translateY(-4px);
+    border-color: rgba(23, 185, 92, 0.4);
+    box-shadow: 0 16px 32px -12px rgba(0, 0, 0, 0.35);
   }
 
   .btn-t {
@@ -153,9 +159,9 @@ body {
     align-items: center;
     justify-content: center;
     gap: 10px;
-    font-weight: 600;
+    font-weight: 700;
     border-radius: 999px;
-    transition: 0.22s;
+    transition: 0.2s;
     white-space: nowrap;
     cursor: pointer;
   }
@@ -166,42 +172,42 @@ body {
   }
 
   .btn-green-t {
-    background: linear-gradient(135deg, #00e676 0%, #00c853 100%);
+    background: var(--color-green);
     color: #04150c;
     padding: 16px 30px;
     font-size: 15.2px;
-    box-shadow: 0 6px 20px rgba(0, 200, 83, 0.28);
+    box-shadow: 0 6px 18px rgba(23, 185, 92, 0.32);
   }
   .btn-green-t:hover:not(:disabled) {
-    filter: brightness(1.06);
-    box-shadow: 0 10px 28px rgba(0, 200, 83, 0.42);
+    background: #1dcc67;
+    box-shadow: 0 10px 24px rgba(23, 185, 92, 0.42);
     transform: translateY(-2px);
   }
 
   .btn-ghost-t {
     border: 1px solid var(--color-glass-border);
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--color-glass);
     padding: 16px 30px;
     font-size: 15.2px;
     color: var(--color-ink);
   }
   .btn-ghost-t:hover:not(:disabled) {
-    border-color: rgba(255, 255, 255, 0.3);
-    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(23, 185, 92, 0.4);
+    background: rgba(23, 185, 92, 0.08);
     transform: translateY(-2px);
   }
 
   .btn-outline-t {
-    border: 1px solid rgba(0, 230, 118, 0.45);
+    border: 1.5px solid var(--color-green);
     color: var(--color-green);
     background: transparent;
     padding: 9px 22px;
     font-size: 14px;
     border-radius: 999px;
-    font-weight: 600;
+    font-weight: 700;
   }
   .btn-outline-t:hover:not(:disabled) {
-    background: rgba(0, 230, 118, 0.12);
+    background: rgba(23, 185, 92, 0.1);
   }
 
   .chip-t {
@@ -211,27 +217,27 @@ body {
     padding: 5px 11px;
     border-radius: 999px;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
     border: 1px solid var(--color-glass-border);
-    background: rgba(255, 255, 255, 0.07);
+    background: var(--color-glass);
     color: var(--color-ink-soft);
   }
 
+  /* Decorative pitch-marking overlay — kept from v1, redrawn thinner */
   .spokes-t {
     position: absolute;
     inset: 0;
-    opacity: 0.5;
+    opacity: 0.35;
     pointer-events: none;
     background: repeating-conic-gradient(
       from 0deg at 50% 50%,
-      rgba(0, 230, 118, 0.05) 0deg 7deg,
-      rgba(0, 0, 0, 0) 7deg 22deg
+      rgba(23, 185, 92, 0.05) 0deg 6deg,
+      rgba(0, 0, 0, 0) 6deg 20deg
     );
     -webkit-mask-image: radial-gradient(60% 60% at 50% 45%, #000, transparent 78%);
     mask-image: radial-gradient(60% 60% at 50% 45%, #000, transparent 78%);
   }
 
-  /* Form field with floating label */
   .field-t {
     position: relative;
   }
@@ -239,52 +245,23 @@ body {
   .field-t select,
   .field-t textarea {
     width: 100%;
-    padding: 18px 16px 18px 48px;
+    padding: 16px 16px;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--color-glass);
     border: 1px solid var(--color-glass-border);
     color: var(--color-ink);
     font-size: 15px;
     transition: 0.2s;
   }
   .field-t textarea {
-    padding-left: 16px;
     min-height: 96px;
     resize: vertical;
   }
   .field-t input:focus,
   .field-t select:focus,
   .field-t textarea:focus {
-    border-color: rgba(0, 230, 118, 0.5);
-    background: rgba(255, 255, 255, 0.06);
-  }
-  .field-t label.floating {
-    position: absolute;
-    left: 48px;
-    top: 18px;
-    color: var(--color-ink-muted);
-    font-size: 15px;
-    pointer-events: none;
-    transition: 0.18s;
-    background: transparent;
-  }
-  .field-t input:focus + .field-icon + label.floating,
-  .field-t input:not(:placeholder-shown) + .field-icon + label.floating {
-    top: -9px;
-    left: 14px;
-    font-size: 11.5px;
-    font-weight: 600;
-    color: var(--color-green);
-    background: #101828;
-    padding: 0 7px;
-    border-radius: 4px;
-  }
-  .field-icon {
-    position: absolute;
-    left: 16px;
-    top: 17px;
-    color: var(--color-ink-muted);
-    pointer-events: none;
+    border-color: rgba(23, 185, 92, 0.55);
+    background: var(--color-bg-elevated);
   }
 
   .reveal-t {
@@ -296,28 +273,23 @@ body {
 .fill-track {
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--color-glass);
   overflow: hidden;
 }
 .fill-bar {
   height: 100%;
   border-radius: 999px;
   transition: width 0.9s cubic-bezier(0.2, 0.8, 0.3, 1);
-  background: linear-gradient(90deg, #00e676, #00c853);
+  background: var(--color-green);
 }
-.fill-bar[data-heat="warm"] {
-  background: linear-gradient(90deg, #ffb300, #ff8f00);
-}
+.fill-bar[data-heat="warm"] { background: var(--color-gold); }
 .fill-bar[data-heat="hot"] {
-  background: linear-gradient(90deg, #ff7043, #f4511e);
+  background: linear-gradient(90deg, var(--color-orange), #e0432f);
   background-size: 200% 100%;
   animation: var(--animate-shimmer);
 }
-.fill-bar[data-heat="full"] {
-  background: linear-gradient(90deg, #64748b, #475569);
-}
+.fill-bar[data-heat="full"] { background: var(--color-ink-muted); }
 
-/* Live dot */
 .live-dot {
   width: 7px;
   height: 7px;
@@ -328,12 +300,14 @@ body {
 
 /* ---------- LEGAL PROSE ---------- */
 .legal-prose h1 {
+  font-family: var(--font-display);
   font-size: clamp(28px, 5vw, 40px);
   font-weight: 800;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
   line-height: 1.15;
 }
 .legal-prose h2 {
+  font-family: var(--font-display);
   font-size: 21px;
   font-weight: 700;
   margin-top: 40px;
@@ -371,12 +345,12 @@ body {
 }
 .legal-prose th,
 .legal-prose td {
-  border: 1px solid rgba(148, 163, 184, 0.15);
+  border: 1px solid var(--color-glass-border);
   padding: 10px 12px;
   text-align: left;
   color: var(--color-ink-soft);
 }
-.legal-prose th { background: rgba(255, 255, 255, 0.04); color: var(--color-ink); font-weight: 600; }
+.legal-prose th { background: var(--color-glass); color: var(--color-ink); font-weight: 600; }
 .legal-prose .meta {
   font-size: 13.5px;
   color: var(--color-ink-muted);

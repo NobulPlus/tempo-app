@@ -1,10 +1,32 @@
 import type { Metadata, Viewport } from "next";
+import { Bricolage_Grotesque, Figtree, Caveat, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/mock";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tempo.ng";
+
+const display = Bricolage_Grotesque({
+  subsets: ["latin"],
+  variable: "--font-bricolage",
+  weight: ["600", "700", "800"],
+});
+const body = Figtree({
+  subsets: ["latin"],
+  variable: "--font-figtree",
+  weight: ["400", "500", "600", "700"],
+});
+const accent = Caveat({
+  subsets: ["latin"],
+  variable: "--font-caveat",
+  weight: ["600", "700"],
+});
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains",
+  weight: ["500", "600"],
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
@@ -42,18 +64,18 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0f1c",
+  themeColor: "#0b0f0c",
   width: "device-width",
   initialScale: 1,
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const user = await getCurrentUser();
+  const user = getCurrentUser();
 
   return (
-    <html lang="en-NG">
+    <html lang="en-NG" className={`${display.variable} ${body.variable} ${accent.variable} ${mono.variable}`}>
       <body className="antialiased">
         <a
           href="#main"
