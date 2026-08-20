@@ -25,12 +25,10 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  // Close the drawer on navigation — the prototype's burger had no handler at all
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
-  // Lock scroll behind the drawer
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => {
@@ -43,17 +41,19 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
 
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-[1100] h-[71px] border-b border-white/8 bg-white/5 backdrop-blur-[20px]">
+      <header className="fixed inset-x-0 top-0 z-[1100] h-[71px] border-b border-glass-border bg-bg-primary/90 backdrop-blur-md">
         <div className="mx-auto flex h-full max-w-[1400px] items-center gap-6 px-6">
           <Link href="/" className="flex items-center gap-3" aria-label="Tempo home">
-            <span className="grid h-[38px] w-[38px] place-items-center rounded-[11px] bg-gradient-to-br from-[#00e676] to-[#00c853] shadow-[0_4px_14px_rgba(0,200,83,.35)]">
-              <TempoMark size={20} className="text-[#06210f]" />
+            <span className="grid h-[38px] w-[38px] place-items-center rounded-[11px] bg-green shadow-[0_4px_14px_rgba(23,185,92,.35)]">
+              <TempoMark size={20} className="text-[#04150c]" />
             </span>
-            <span className="text-[22px] font-extrabold tracking-[0.5px] text-green">TEMPO</span>
+            <span className="font-display text-[22px] font-extrabold tracking-[0.3px] text-green">
+              TEMPO
+            </span>
           </Link>
 
           {/* Desktop nav */}
-          <nav className="mx-auto hidden items-center gap-1 rounded-full bg-white/3 p-1 md:flex">
+          <nav className="mx-auto hidden items-center gap-1 rounded-full border border-glass-border bg-glass p-1 md:flex">
             {LINKS.map(({ href, label, Icon }) => (
               <Link
                 key={href}
@@ -62,7 +62,7 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
                 className={`flex items-center gap-2 rounded-full px-[18px] py-[9px] text-[14.5px] transition ${
                   isActive(href)
                     ? "bg-green/14 font-semibold text-green"
-                    : "font-medium text-ink-soft hover:bg-white/5 hover:text-ink"
+                    : "font-medium text-ink-soft hover:bg-glass hover:text-ink"
                 }`}
               >
                 <Icon size={17} />
@@ -75,7 +75,7 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
               className={`flex items-center gap-2 rounded-full px-[18px] py-[9px] text-[14.5px] transition ${
                 isActive("/dashboard")
                   ? "bg-green/14 font-semibold text-green"
-                  : "font-medium text-ink-soft hover:bg-white/5 hover:text-ink"
+                  : "font-medium text-ink-soft hover:bg-glass hover:text-ink"
               }`}
             >
               <UserIcon size={17} />
@@ -88,7 +88,7 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
               <>
                 <Link
                   href="/dashboard"
-                  className="hidden h-[34px] w-[34px] place-items-center rounded-full text-ink-soft transition hover:bg-white/6 hover:text-ink sm:grid"
+                  className="hidden h-[34px] w-[34px] place-items-center rounded-full text-ink-soft transition hover:bg-glass hover:text-ink sm:grid"
                   aria-label="Notifications"
                 >
                   <BellIcon size={18} />
@@ -108,7 +108,7 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
             )}
 
             <button
-              className="grid h-[34px] w-[34px] place-items-center rounded-full text-ink-soft transition hover:bg-white/6 hover:text-ink md:hidden"
+              className="grid h-[34px] w-[34px] place-items-center rounded-full text-ink-soft transition hover:bg-glass hover:text-ink md:hidden"
               aria-label={open ? "Close menu" : "Open menu"}
               aria-expanded={open}
               onClick={() => setOpen((v) => !v)}
@@ -119,7 +119,7 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
         </div>
       </header>
 
-      {/* Mobile drawer — this is the feature the prototype advertised and never wired up */}
+      {/* Mobile drawer */}
       {open && (
         <div className="fixed inset-0 z-[1090] md:hidden">
           <button
@@ -127,7 +127,7 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
             aria-label="Close menu"
             onClick={() => setOpen(false)}
           />
-          <nav className="absolute inset-x-0 top-[71px] border-b border-white/10 bg-[#0d1425]/95 p-4 backdrop-blur-xl">
+          <nav className="absolute inset-x-0 top-[71px] border-b border-glass-border bg-bg-card/98 p-4 backdrop-blur-xl">
             <ul className="flex flex-col gap-1">
               {[...LINKS, { href: user ? "/dashboard" : "/login", label: user ? "My Games" : "Sign in", Icon: UserIcon }].map(
                 ({ href, label, Icon }) => (
@@ -137,7 +137,7 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
                       className={`flex items-center gap-3 rounded-xl px-4 py-3.5 text-[15px] transition ${
                         isActive(href)
                           ? "bg-green/14 font-semibold text-green"
-                          : "text-ink-soft hover:bg-white/5"
+                          : "text-ink-soft hover:bg-glass"
                       }`}
                     >
                       <Icon size={19} />

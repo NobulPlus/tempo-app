@@ -3,12 +3,12 @@ import { getMatchState } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { PinIcon, ClockIcon, StarIcon, BallDetailedIcon } from "@/components/icons";
 import { Countdown, FillBar, HeatPill, GuaranteePill, SpotPips } from "./match-day";
-import type { GameFull } from "@/lib/data/repo";
+import type { GameFull } from "@/lib/mock";
 
 const LEVEL_STYLE: Record<string, string> = {
   casual: "!border-blue/30 !bg-blue/10 !text-blue",
   intermediate: "!border-green/30 !bg-green/10 !text-green",
-  competitive: "!border-purple/35 !bg-purple/14 !text-[#ce93d8]",
+  competitive: "!border-purple/35 !bg-purple/14 !text-purple",
 };
 
 export function GameCard({ game }: { game: GameFull }) {
@@ -61,7 +61,7 @@ export function GameCard({ game }: { game: GameFull }) {
         <FillBar percent={state.percent} heat={state.heat} />
       </div>
 
-      <div className="relative mt-4 flex items-center justify-between border-t border-white/8 pt-4">
+      <div className="relative mt-4 flex items-center justify-between border-t border-glass-border pt-4">
         <Link href={`/players/${game.host.handle}`} className="group flex items-center gap-2.5">
           <span className="grid h-9 w-9 place-items-center rounded-full border border-green/40 bg-green/10 text-[12px] font-bold">
             {game.host.initials}

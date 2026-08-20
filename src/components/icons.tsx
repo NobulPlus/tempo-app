@@ -220,6 +220,40 @@ export const CarIcon = (p: P) => (
   </svg>
 );
 
+export const QuoteIcon = (p: P) => (
+  <svg {...base(p)} fill="currentColor">
+    <path d="M4 8.5C4 6 6 4 9 4v2.6c-1.5.3-2.4 1.2-2.6 2.4H9V13H4V8.5zm9 0C13 6 15 4 18 4v2.6c-1.5.3-2.4 1.2-2.6 2.4H18V13h-5V8.5z" />
+  </svg>
+);
+
+/**
+ * Doodle set — deliberately looser, hand-drawn line weight, reserved for the
+ * "how it works" storytelling section only (the Footy Addicts pattern).
+ * Everything else keeps the precise functional set above.
+ */
+export const DoodleFindIcon = (p: P) => (
+  <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3.5 17 8 8.5c1-.3 2 .2 2.6 1.2l3 6" />
+    <circle cx="16.5" cy="7.5" r="3.2" />
+    <path d="M14.7 5.8c.6.6 1.7.6 2.3 0M14.9 8.6c1.1.5 2.2.3 3-.4" />
+    <path d="M4 19.5c4-1.5 12-1.5 16 0" strokeDasharray="1 3.2" />
+  </svg>
+);
+
+export const DoodleBookIcon = (p: P) => (
+  <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3.5c-1 3-1 14 0 17M8.5 4.2c1.5 1 1.5 15.6 0 16.6M15.5 4.2c-1.5 1-1.5 15.6 0 16.6" />
+    <path d="M12.4 11.6 15 9.2M12.4 12.4 15 14.8" />
+  </svg>
+);
+
+export const DoodlePlayIcon = (p: P) => (
+  <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 6.5c3-2.5 9-2.5 12 .3M4.5 12c3.8-2.8 11.2-2.8 15 0M7 17.3c2.2-1.8 7.8-1.8 10 0" />
+    <path d="M17.5 6.5 19 5M18 12.2h2M16.7 17.6l1.3 1.2" />
+  </svg>
+);
+
 export const WhatsAppIcon = (p: P) => (
   <svg {...base(p)} fill="currentColor">
     <path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1 0 12 2zm5.5 14.1c-.2.7-1.3 1.3-1.9 1.3-.5 0-1.1.2-3.6-.8-3-1.3-4.9-4.4-5-4.6-.2-.2-1.2-1.6-1.2-3s.8-2.1 1-2.4c.3-.3.6-.4.8-.4h.6c.2 0 .5 0 .7.5l.9 2.2c.1.2.1.4 0 .6l-.5.7c-.1.2-.3.3-.1.6.2.3.8 1.4 1.8 2.3 1.3 1.1 2.3 1.5 2.6 1.6.3.1.4.1.6-.1l.9-1c.2-.2.4-.2.6-.1l2.1 1c.2.1.4.2.4.3.1.2.1.6-.1 1.3z" />

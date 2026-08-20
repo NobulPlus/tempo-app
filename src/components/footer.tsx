@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TempoMark } from "./icons";
+import { listAreas, listPitches } from "@/lib/mock";
 
 const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
@@ -30,17 +31,54 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   },
 ];
 
+/** Footy-Addicts-style "play football in [area]" link block, area-based. */
+function AreaLinks() {
+  const areas = listAreas();
+  return (
+    <div className="band-t border-t border-glass-border py-14">
+      <div className="container-t">
+        <h4 className="mb-6 font-display text-[13px] font-bold tracking-[1.2px] text-ink-muted">
+          PLAY FOOTBALL BY AREA
+        </h4>
+        <div className="grid grid-cols-2 gap-x-8 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
+          {areas.map((area) => (
+            <div key={area}>
+              <div className="mb-2.5 text-[13.5px] font-bold text-ink">Play football in {area}</div>
+              <ul className="flex flex-col gap-1.5">
+                {listPitches({ area })
+                  .slice(0, 4)
+                  .map((p) => (
+                    <li key={p.id}>
+                      <Link
+                        href={`/pitches/${p.slug}`}
+                        className="text-[13px] text-ink-soft transition hover:text-green"
+                      >
+                        {p.venue.name}
+                      </Link>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Footer() {
   return (
-    <footer className="mt-24 border-t border-white/8 bg-black/20 py-14">
-      <div className="container-t">
+    <footer className="mt-24 border-t border-glass-border">
+      <AreaLinks />
+
+      <div className="container-t py-14">
         <div className="grid gap-10 md:grid-cols-[1.6fr_1fr_1fr_1fr]">
           <div>
             <Link href="/" className="flex items-center gap-3">
-              <span className="grid h-[38px] w-[38px] place-items-center rounded-[11px] bg-gradient-to-br from-[#00e676] to-[#00c853]">
-                <TempoMark size={20} className="text-[#06210f]" />
+              <span className="grid h-[38px] w-[38px] place-items-center rounded-[11px] bg-green">
+                <TempoMark size={20} className="text-[#04150c]" />
               </span>
-              <span className="text-[22px] font-extrabold tracking-[0.5px] text-green">
+              <span className="font-display text-[22px] font-extrabold tracking-[0.3px] text-green">
                 TEMPO
               </span>
             </Link>
@@ -74,7 +112,7 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col gap-3 border-t border-white/8 pt-6 text-[13px] text-ink-muted sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-12 flex flex-col gap-3 border-t border-glass-border pt-6 text-[13px] text-ink-muted sm:flex-row sm:items-center sm:justify-between">
           <div>
             © {new Date().getFullYear()} Tempo. Built in Lagos, Nigeria by Paul Adeleye.
           </div>

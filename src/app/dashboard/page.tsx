@@ -1,45 +1,24 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/session";
-import { getGamesForUser, getBookingsForUser } from "@/lib/data/repo";
+import { getCurrentUser, getGamesForUser } from "@/lib/mock";
 import { getMatchState } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { Countdown, FillBar, HeatPill } from "@/components/match/match-day";
 import { StreakBadge, PunctualityRing } from "@/components/player/player-card";
-import { signOut } from "@/app/actions";
-import {
-  PinIcon,
-  ClockIcon,
-  BallIcon,
-  CalendarIcon,
-  ArrowRightIcon,
-  StarIcon,
-} from "@/components/icons";
-
-export const dynamic = "force-dynamic";
+import { PinIcon, ClockIcon, BallIcon, CalendarIcon, ArrowRightIcon, StarIcon } from "@/components/icons";
 
 export const metadata: Metadata = {
   title: "My games",
   robots: { index: false, follow: false },
 };
 
-export default async function DashboardPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login?next=/dashboard");
-
-  const [games, bookings] = await Promise.all([
-    getGamesForUser(user.id),
-    getBookingsForUser(user.id),
-  ]);
+export default function DashboardPage() {
+  const user = getCurrentUser();
+  const games = getGamesForUser(user.id);
 
   const upcoming = games.filter((g) => new Date(g.endsAt).getTime() > Date.now());
   const hosting = upcoming.filter((g) => g.hostId === user.id);
   const playing = upcoming.filter((g) => g.hostId !== user.id);
-  const upcomingBookings = bookings.filter(
-    (b) => b.slot && new Date(b.slot.endsAt).getTime() > Date.now(),
-  );
-
   const nextUp = upcoming[0];
 
   return (
@@ -47,7 +26,7 @@ export default async function DashboardPage() {
       <div className="container-t">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-[clamp(28px,5vw,42px)] font-extrabold tracking-[-.025em]">
+            <h1 className="font-display text-[clamp(28px,5vw,42px)] font-extrabold tracking-[-.02em]">
               {greeting()}, {user.fullName.split(" ")[0]}
             </h1>
             <p className="mt-2 text-[16px] text-ink-soft">
@@ -56,17 +35,11 @@ export default async function DashboardPage() {
                 : "Nothing in the diary. Let's fix that."}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Link href={`/players/${user.handle}`} className="btn-t btn-ghost-t !py-3 !text-[14px]">
-              My player card
-            </Link>
-            <form action={signOut}>
-              <button className="btn-t btn-ghost-t !py-3 !text-[14px]">Sign out</button>
-            </form>
-          </div>
+          <Link href={`/players/${user.handle}`} className="btn-t btn-ghost-t !py-3 !text-[14px]">
+            My player card
+          </Link>
         </div>
 
-        {/* Reputation strip */}
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="card-t flex items-center gap-4 p-5">
             <PunctualityRing score={user.punctualityScore} />
@@ -97,16 +70,11 @@ export default async function DashboardPage() {
             <div className="flex items-center gap-1.5 text-[12px] text-ink-muted">
               <StarIcon size={13} className="text-gold" /> Peer rating
             </div>
-            <div className="mt-1 text-[26px] font-extrabold">
-              {user.peerRating?.toFixed(1) ?? "—"}
-            </div>
-            <div className="text-[11.5px] text-ink-muted">
-              {user.peerRatingCount} votes
-            </div>
+            <div className="mt-1 text-[26px] font-extrabold">{user.peerRating?.toFixed(1) ?? "—"}</div>
+            <div className="text-[11.5px] text-ink-muted">{user.peerRatingCount} votes</div>
           </div>
         </div>
 
-        {/* Next game hero */}
         {nextUp && (
           <section className="mt-10">
             <h2 className="text-[20px] font-bold">Next up</h2>
@@ -135,30 +103,19 @@ export default async function DashboardPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <Countdown
-                    to={nextUp.startsAt}
-                    endsAt={nextUp.endsAt}
-                    className="text-[17px] font-bold"
-                  />
-                  <Link
-                    href={`/games/${nextUp.slug}`}
-                    className="btn-t btn-green-t mt-3 !px-6 !py-3 !text-[14px]"
-                  >
+                  <Countdown to={nextUp.startsAt} endsAt={nextUp.endsAt} className="text-[17px] font-bold" />
+                  <Link href={`/games/${nextUp.slug}`} className="btn-t btn-green-t mt-3 !px-6 !py-3 !text-[14px]">
                     Open game
                   </Link>
                 </div>
               </div>
               <div className="relative mt-5">
-                <FillBar
-                  percent={getMatchState(nextUp).percent}
-                  heat={getMatchState(nextUp).heat}
-                />
+                <FillBar percent={getMatchState(nextUp).percent} heat={getMatchState(nextUp).heat} />
               </div>
             </div>
           </section>
         )}
 
-        {/* Lists */}
         <div className="mt-10 grid gap-8 lg:grid-cols-2">
           <Section
             title="Games you've joined"
@@ -189,20 +146,7 @@ export default async function DashboardPage() {
             })}
           />
 
-          <Section
-            title="Pitch bookings"
-            empty="No pitch bookings yet."
-            cta={{ href: "/pitches", label: "Book a pitch" }}
-            items={upcomingBookings.map((b) => ({
-              key: b.id,
-              href: `/bookings/${b.reference}`,
-              title: b.slot!.pitch.venue.name,
-              meta: `${formatRelativeDay(b.slot!.startsAt)} ${formatTime(b.slot!.startsAt)} · ${b.reference}`,
-              right: formatNaira(b.paidKobo),
-            }))}
-          />
-
-          <div className="card-t p-6">
+          <div className="card-t p-6 lg:col-span-2">
             <h2 className="text-[18px] font-bold">Keep your streak alive</h2>
             <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
               {user.streakWeeks > 0
@@ -257,10 +201,7 @@ function Section({
         <ul className="mt-4 space-y-2.5">
           {items.map((i) => (
             <li key={i.key}>
-              <Link
-                href={i.href}
-                className="card-t flex items-center gap-4 p-4 transition hover:border-green/30"
-              >
+              <Link href={i.href} className="card-t flex items-center gap-4 p-4 transition hover:border-green/30">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[15px] font-semibold">{i.title}</div>
                   <div className="truncate text-[12.5px] text-ink-muted">{i.meta}</div>

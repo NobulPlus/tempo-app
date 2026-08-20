@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
-import { listGames } from "@/lib/data/repo";
+import { listGames } from "@/lib/mock";
 import { GameCard } from "@/components/match/game-card";
 import { GameFilters } from "@/components/match/game-filters";
 import type { SkillLevel } from "@/lib/types";
-
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Join an open game in Lagos",
@@ -22,7 +20,7 @@ export default async function GamesPage({
   const sp = await searchParams;
   const one = (k: string) => (Array.isArray(sp[k]) ? sp[k][0] : sp[k]) as string | undefined;
 
-  const games = await listGames({
+  const games = listGames({
     q: one("q"),
     level: (one("level") as SkillLevel) ?? "all",
     when: (one("when") as "all" | "today" | "tomorrow" | "week") ?? "all",
@@ -34,7 +32,7 @@ export default async function GamesPage({
       <div className="container-t">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-[clamp(32px,6vw,50px)] font-extrabold tracking-[-.03em]">
+            <h1 className="font-display text-[clamp(32px,6vw,50px)] font-extrabold tracking-[-.02em]">
               Join a <span className="text-orange">game</span>
             </h1>
             <p className="mt-3 max-w-2xl text-[17px] text-ink-soft">

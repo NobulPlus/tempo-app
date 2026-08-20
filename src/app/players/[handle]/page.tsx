@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getProfile, getGamesForUser } from "@/lib/data/repo";
+import { getProfile, getGamesForUser } from "@/lib/mock";
 import { PlayerCard } from "@/components/player/player-card";
 import { GameCard } from "@/components/match/game-card";
 import { formatRelativeDay } from "@/lib/format";
-
-export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -14,7 +12,7 @@ export async function generateMetadata({
   params: Promise<{ handle: string }>;
 }): Promise<Metadata> {
   const { handle } = await params;
-  const player = await getProfile(handle);
+  const player = getProfile(handle);
   if (!player) return { title: "Player not found" };
 
   return {
@@ -29,10 +27,10 @@ export default async function PlayerPage({
   params: Promise<{ handle: string }>;
 }) {
   const { handle } = await params;
-  const player = await getProfile(handle);
+  const player = getProfile(handle);
   if (!player) notFound();
 
-  const games = await getGamesForUser(player.id);
+  const games = getGamesForUser(player.id);
   const upcoming = games.filter((g) => new Date(g.endsAt).getTime() > Date.now());
 
   return (
@@ -81,8 +79,7 @@ export default async function PlayerPage({
               <div className="mt-4 grid gap-2 text-[13.5px] text-ink-muted">
                 <div>Member since {formatRelativeDay(player.joinedAt)}</div>
                 <div>
-                  Rated by {player.peerRatingCount} teammates across{" "}
-                  {player.gamesPlayed} games
+                  Rated by {player.peerRatingCount} teammates across {player.gamesPlayed} games
                 </div>
               </div>
             </section>

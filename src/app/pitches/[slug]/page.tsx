@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getPitchBySlug, getSlotsForPitch, listGames } from "@/lib/data/repo";
-import { SlotPicker } from "@/components/pitch/slot-picker";
+import Image from "next/image";
+import { getPitchBySlug, listGames } from "@/lib/mock";
 import { GameCard } from "@/components/match/game-card";
 import { formatNaira } from "@/lib/format";
 import { estimateTravelMinutes } from "@/lib/match";
@@ -10,7 +10,6 @@ import {
   PinIcon,
   StarIcon,
   ShieldIcon,
-  BallDetailedIcon,
   LightsIcon,
   ShowerIcon,
   ParkingIcon,
@@ -18,8 +17,6 @@ import {
   CarIcon,
   CheckIcon,
 } from "@/components/icons";
-
-export const dynamic = "force-dynamic";
 
 const AMENITY_ICON: Record<string, typeof LightsIcon> = {
   Floodlights: LightsIcon,
@@ -40,16 +37,12 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const pitch = await getPitchBySlug(slug);
+  const pitch = getPitchBySlug(slug);
   if (!pitch) return { title: "Pitch not found" };
 
   return {
     title: `${pitch.venue.name}, ${pitch.venue.area}`,
-    description: `Book ${pitch.name} at ${pitch.venue.name} in ${pitch.venue.area}, Lagos. ${pitch.size} ${SURFACE_LABEL[pitch.surface]} from ${formatNaira(pitch.pricePerHourKobo)} per hour.`,
-    openGraph: {
-      title: `${pitch.venue.name} — ${pitch.venue.area}`,
-      description: pitch.venue.description,
-    },
+    description: `${pitch.name} at ${pitch.venue.name} in ${pitch.venue.area}, Lagos. ${pitch.size} ${SURFACE_LABEL[pitch.surface]} from ${formatNaira(pitch.pricePerHourKobo)} per hour.`,
   };
 }
 
@@ -59,19 +52,13 @@ export default async function PitchPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const pitch = await getPitchBySlug(slug);
+  const pitch = getPitchBySlug(slug);
   if (!pitch) notFound();
 
-  const [slots, allGames] = await Promise.all([
-    getSlotsForPitch(pitch.id),
-    listGames(),
-  ]);
-  const gamesHere = allGames.filter((g) => g.pitchId === pitch.id);
-
+  const gamesHere = listGames().filter((g) => g.pitchId === pitch.id);
   const { venue } = pitch;
+  const photo = venue.photos[0];
 
-  // Rough travel estimate from a central Lagos reference point, so the number
-  // is illustrative rather than fake-precise.
   const travel = estimateTravelMinutes(
     venue.side === "island" ? 8 : 11,
     new Date(new Date().setHours(19, 0, 0, 0)),
@@ -91,19 +78,20 @@ export default async function PitchPage({
           <span className="text-ink">{venue.name}</span>
         </nav>
 
-        {/* Hero band */}
         <div className="card-t relative overflow-hidden">
-          <div className="relative grid h-[210px] place-items-center bg-gradient-to-br from-[#132033] to-[#0d1523] md:h-[260px]">
-            <span className="spokes-t" />
-            <BallDetailedIcon size={120} className="relative text-green/20" />
+          <div className="relative h-[210px] md:h-[280px]">
+            {photo && (
+              <Image src={photo} alt="" fill unoptimized className="object-cover" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/10 to-transparent" />
             <div className="absolute left-5 top-5 flex flex-wrap gap-2">
-              <span className="chip-t">{pitch.size}</span>
-              <span className="chip-t">{SURFACE_LABEL[pitch.surface]}</span>
-              {pitch.covered && <span className="chip-t">Covered</span>}
+              <span className="chip-t !bg-black/40">{pitch.size}</span>
+              <span className="chip-t !bg-black/40">{SURFACE_LABEL[pitch.surface]}</span>
+              {pitch.covered && <span className="chip-t !bg-black/40">Covered</span>}
             </div>
             {venue.verified && (
               <span className="absolute right-5 top-5">
-                <span className="chip-t !border-green/35 !bg-green/12 !text-green">
+                <span className="chip-t !border-green/35 !bg-black/40 !text-green">
                   <ShieldIcon size={13} />
                   Verified by Tempo
                 </span>
@@ -114,7 +102,7 @@ export default async function PitchPage({
           <div className="p-6 md:p-8">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h1 className="text-[clamp(26px,4.5vw,38px)] font-extrabold tracking-[-.02em]">
+                <h1 className="font-display text-[clamp(26px,4.5vw,38px)] font-extrabold tracking-[-.02em]">
                   {venue.name}
                 </h1>
                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[14.5px] text-ink-soft">
@@ -132,13 +120,9 @@ export default async function PitchPage({
                 <div className="text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <StarIcon size={18} className="text-gold" />
-                    <span className="text-[22px] font-extrabold">
-                      {pitch.rating?.toFixed(1)}
-                    </span>
+                    <span className="text-[22px] font-extrabold">{pitch.rating?.toFixed(1)}</span>
                   </div>
-                  <div className="text-[13px] text-ink-muted">
-                    {pitch.reviewCount} reviews
-                  </div>
+                  <div className="text-[13px] text-ink-muted">{pitch.reviewCount} reviews</div>
                 </div>
               )}
             </div>
@@ -171,16 +155,11 @@ export default async function PitchPage({
           </div>
         </div>
 
-        {/* Booking */}
         <div className="mt-8 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
           <div>
-            <SlotPicker slots={slots} pitchSlug={pitch.slug} />
-
             {gamesHere.length > 0 && (
-              <section className="mt-8">
-                <h2 className="text-[20px] font-bold">
-                  Open games at {venue.name}
-                </h2>
+              <section>
+                <h2 className="text-[20px] font-bold">Open games at {venue.name}</h2>
                 <p className="mt-1.5 text-[14.5px] text-ink-soft">
                   Don&apos;t want the whole pitch? Join one of these instead.
                 </p>
@@ -205,11 +184,7 @@ export default async function PitchPage({
               <div className="mt-3 space-y-2 text-[13.5px] text-ink-soft">
                 <div className="flex justify-between">
                   <span>Peak (weekday 5–9pm)</span>
-                  <b>
-                    {formatNaira(
-                      Math.round(pitch.pricePerHourKobo * pitch.peakMultiplier),
-                    )}
-                  </b>
+                  <b>{formatNaira(Math.round(pitch.pricePerHourKobo * pitch.peakMultiplier))}</b>
                 </div>
                 <div className="flex justify-between">
                   <span>Pitch</span>
@@ -220,6 +195,7 @@ export default async function PitchPage({
                   <b>{pitch.floodlights ? "Yes" : "No"}</b>
                 </div>
               </div>
+              <button className="btn-t btn-green-t mt-5 w-full">Check availability</button>
             </div>
 
             {venue.verified && (
@@ -234,29 +210,8 @@ export default async function PitchPage({
                   <li>Contact details confirmed with the operator.</li>
                   <li>Re-checked every 6 months.</li>
                 </ul>
-                <Link
-                  href="/verification"
-                  className="mt-4 inline-block text-[13.5px] font-semibold text-green"
-                >
-                  How verification works →
-                </Link>
               </div>
             )}
-
-            <div className="card-t p-6">
-              <h3 className="text-[15px] font-bold">Cancellations</h3>
-              <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
-                Free cancellation up to 24 hours before kickoff. Between 24 and 6
-                hours you get 50% back. Under 6 hours the slot is non-refundable —
-                the venue has already turned other bookings away.
-              </p>
-              <Link
-                href="/legal/refunds"
-                className="mt-3 inline-block text-[13.5px] font-semibold text-green"
-              >
-                Full policy →
-              </Link>
-            </div>
           </aside>
         </div>
       </div>
