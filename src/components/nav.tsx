@@ -11,8 +11,9 @@ import {
   UserIcon,
   MenuIcon,
   CloseIcon,
-  BellIcon,
 } from "./icons";
+import { ThemeToggle } from "./theme-toggle";
+import { NotificationBell } from "./notification-bell";
 import type { PlayerProfile } from "@/lib/types";
 
 const LINKS = [
@@ -44,8 +45,8 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
       <header className="fixed inset-x-0 top-0 z-[1100] h-[71px] border-b border-glass-border bg-bg-primary/90 backdrop-blur-md">
         <div className="mx-auto flex h-full max-w-[1400px] items-center gap-6 px-6">
           <Link href="/" className="flex items-center gap-3" aria-label="Tempo home">
-            <span className="grid h-[38px] w-[38px] place-items-center rounded-[11px] bg-green shadow-[0_4px_14px_rgba(23,185,92,.35)]">
-              <TempoMark size={20} className="text-[#04150c]" />
+            <span className="grid h-[38px] w-[38px] place-items-center rounded-[11px] bg-green shadow-[0_4px_14px_rgba(76,141,255,.35)]">
+              <TempoMark size={20} className="text-[#051530]" />
             </span>
             <span className="font-display text-[22px] font-extrabold tracking-[0.3px] text-green">
               TEMPO
@@ -84,15 +85,13 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
           </nav>
 
           <div className="ml-auto flex items-center gap-3">
+            <ThemeToggle />
+
             {user ? (
               <>
-                <Link
-                  href="/dashboard"
-                  className="hidden h-[34px] w-[34px] place-items-center rounded-full text-ink-soft transition hover:bg-glass hover:text-ink sm:grid"
-                  aria-label="Notifications"
-                >
-                  <BellIcon size={18} />
-                </Link>
+                <span className="hidden sm:block">
+                  <NotificationBell />
+                </span>
                 <Link
                   href={`/players/${user.handle}`}
                   className="grid h-9 w-9 place-items-center rounded-full border-[1.5px] border-green bg-green/8 text-[13px] font-bold"

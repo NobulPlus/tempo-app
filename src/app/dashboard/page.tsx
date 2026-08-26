@@ -5,6 +5,7 @@ import { getMatchState } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { Countdown, FillBar, HeatPill } from "@/components/match/match-day";
 import { StreakBadge, PunctualityRing } from "@/components/player/player-card";
+import { NotificationPreferences } from "@/components/notification-preferences";
 import { PinIcon, ClockIcon, BallIcon, CalendarIcon, ArrowRightIcon, StarIcon } from "@/components/icons";
 
 export const metadata: Metadata = {
@@ -146,7 +147,7 @@ export default function DashboardPage() {
             })}
           />
 
-          <div className="card-t p-6 lg:col-span-2">
+          <div className="card-t p-6">
             <h2 className="text-[18px] font-bold">Keep your streak alive</h2>
             <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
               {user.streakWeeks > 0
@@ -160,6 +161,8 @@ export default function DashboardPage() {
               Browse this week&apos;s games
             </Link>
           </div>
+
+          <NotificationPreferences email={`${user.handle}@example.com`} />
         </div>
       </div>
     </div>

@@ -75,11 +75,23 @@ export default function RootLayout({
   const user = getCurrentUser();
 
   return (
-    <html lang="en-NG" className={`${display.variable} ${body.variable} ${accent.variable} ${mono.variable}`}>
+    <html
+      lang="en-NG"
+      suppressHydrationWarning
+      className={`${display.variable} ${body.variable} ${accent.variable} ${mono.variable}`}
+    >
       <body className="antialiased">
+        <script
+          // Runs before paint so a returning visitor's saved theme applies
+          // immediately — no flash of the wrong theme. Kept tiny and inline
+          // deliberately; this is the one script allowed to run before React.
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("tempo-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;}catch(e){}})();`,
+          }}
+        />
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[2000] focus:rounded-lg focus:bg-green focus:px-4 focus:py-2 focus:font-semibold focus:text-[#04150c]"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[2000] focus:rounded-lg focus:bg-green focus:px-4 focus:py-2 focus:font-semibold focus:text-[#051530]"
         >
           Skip to content
         </a>

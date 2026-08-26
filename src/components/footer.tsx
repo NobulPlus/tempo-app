@@ -76,7 +76,7 @@ export function Footer() {
           <div>
             <Link href="/" className="flex items-center gap-3">
               <span className="grid h-[38px] w-[38px] place-items-center rounded-[11px] bg-green">
-                <TempoMark size={20} className="text-[#04150c]" />
+                <TempoMark size={20} className="text-[#051530]" />
               </span>
               <span className="font-display text-[22px] font-extrabold tracking-[0.3px] text-green">
                 TEMPO

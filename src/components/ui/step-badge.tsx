@@ -2,7 +2,7 @@
 export function StepBadge({ n, size = 40 }: { n: number; size?: number }) {
   return (
     <span
-      className="grid shrink-0 place-items-center rounded-full bg-green font-display text-[16px] font-extrabold text-[#04150c]"
+      className="grid shrink-0 place-items-center rounded-full bg-green font-display text-[16px] font-extrabold text-[#051530]"
       style={{ width: size, height: size }}
     >
       {n}

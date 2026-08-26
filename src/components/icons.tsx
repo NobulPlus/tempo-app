@@ -220,6 +220,19 @@ export const CarIcon = (p: P) => (
   </svg>
 );
 
+export const SunIcon = (p: P) => (
+  <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+    <circle cx="12" cy="12" r="4.2" />
+    <path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7" />
+  </svg>
+);
+
+export const MoonIcon = (p: P) => (
+  <svg {...base(p)} fill="currentColor">
+    <path d="M20.7 14.3a8.5 8.5 0 0 1-11-11 8.5 8.5 0 1 0 11 11z" />
+  </svg>
+);
+
 export const QuoteIcon = (p: P) => (
   <svg {...base(p)} fill="currentColor">
     <path d="M4 8.5C4 6 6 4 9 4v2.6c-1.5.3-2.4 1.2-2.6 2.4H9V13H4V8.5zm9 0C13 6 15 4 18 4v2.6c-1.5.3-2.4 1.2-2.6 2.4H18V13h-5V8.5z" />
