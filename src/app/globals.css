@@ -10,23 +10,24 @@
    ============================================================ */
 
 @theme {
-  /* Surfaces */
-  --color-bg-primary: #0b0f0c;
-  --color-bg-secondary: #0f2318; /* full-bleed alternating section band */
-  --color-bg-card: #141a15;
-  --color-bg-elevated: #1b2119;
+  /* Surfaces — cool, blue-leaning neutrals to match the brand accent */
+  --color-bg-primary: #0a0e14;
+  --color-bg-secondary: #0d1a2e; /* full-bleed alternating section band */
+  --color-bg-card: #131a24;
+  --color-bg-elevated: #19212e;
 
   /* Type */
-  --color-ink: #f3f6f1;
-  --color-ink-soft: #b7c2b4;
-  --color-ink-muted: #8b978a; /* WCAG AA on --color-bg-primary */
+  --color-ink: #f2f5fa;
+  --color-ink-soft: #b8c2d4;
+  --color-ink-muted: #8b96ac; /* WCAG AA on --color-bg-primary */
 
-  /* Brand */
-  --color-green: #17b95c;
-  --color-green-deep: #0e8a44;
+  /* Brand — Derby Blue, chosen from the client-reviewed Design Lab presets */
+  --color-green: #4c8dff; /* kept this token name: renaming would mean touching
+                              every deferred v1-styled page that still reads it */
+  --color-green-deep: #2f6fe0;
   --color-gold: #f5a623; /* floodlight / "warm" heat */
   --color-orange: #ff5a45; /* coral / "hot" heat */
-  --color-blue: #4c8dff; /* "cold" heat, casual tag */
+  --color-blue: #7c93b0; /* "cold" heat, casual tag — muted, distinct from the brand blue above */
   --color-purple: #a78bfa; /* competitive tag */
   --color-red: #f04438; /* destructive / errors */
 
@@ -48,9 +49,9 @@
 }
 
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(23, 185, 92, 0.5); }
-  70% { box-shadow: 0 0 0 12px rgba(23, 185, 92, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(23, 185, 92, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(76, 141, 255, 0.5); }
+  70% { box-shadow: 0 0 0 12px rgba(76, 141, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(76, 141, 255, 0); }
 }
 @keyframes flame {
   0%, 100% { transform: scale(1) rotate(-2deg); opacity: 0.9; }
@@ -82,12 +83,13 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   min-height: 100vh;
+  transition: background-color .25s, color .25s;
 }
 
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-track { background: var(--color-bg-primary); }
-::-webkit-scrollbar-thumb { background: #223026; border-radius: 5px; }
-::-webkit-scrollbar-thumb:hover { background: #2e4033; }
+::-webkit-scrollbar-thumb { background: #1c2636; border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: #2a3a52; }
 
 :focus-visible {
   outline: 2px solid var(--color-green);
@@ -104,24 +106,46 @@ body {
   }
 }
 
-/* ---------- LIGHT MODE (v1 never had one) ---------- */
+/* ---------- LIGHT MODE (v1 never had one) ----------
+   Three states: unstamped follows the OS; an explicit toggle (data-theme
+   on <html>, set by ThemeToggle + persisted in localStorage) always wins,
+   in either direction. */
 
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
     --color-bg-primary: #f5f4ee;
-    --color-bg-secondary: #e8f0ea;
+    --color-bg-secondary: #e9eef8;
     --color-bg-card: #ffffff;
-    --color-bg-elevated: #eef1ea;
+    --color-bg-elevated: #edf1f8;
     --color-ink: #11201a;
     --color-ink-soft: #46564a;
     --color-ink-muted: #647065;
     --color-glass: rgba(17, 32, 26, 0.04);
     --color-glass-border: rgba(17, 32, 26, 0.1);
   }
-  body { background: var(--color-bg-primary); }
-  ::-webkit-scrollbar-track { background: var(--color-bg-primary); }
-  ::-webkit-scrollbar-thumb { background: #d3d9cf; }
 }
+
+:root[data-theme="light"] {
+  --color-bg-primary: #f5f4ee;
+  --color-bg-secondary: #e9eef8;
+  --color-bg-card: #ffffff;
+  --color-bg-elevated: #edf1f8;
+  --color-ink: #11201a;
+  --color-ink-soft: #46564a;
+  --color-ink-muted: #647065;
+  --color-glass: rgba(17, 32, 26, 0.04);
+  --color-glass-border: rgba(17, 32, 26, 0.1);
+}
+
+::-webkit-scrollbar-track { background: var(--color-bg-primary); }
+:root:not([data-theme="dark"]) ::-webkit-scrollbar-thumb,
+:root[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #d3dae6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) ::-webkit-scrollbar-thumb { background: #1c2636; }
+}
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #1c2636; }
 
 /* ---------- COMPONENT LAYER ---------- */
 
@@ -150,7 +174,7 @@ body {
 
   .card-t-hover:hover {
     transform: translateY(-4px);
-    border-color: rgba(23, 185, 92, 0.4);
+    border-color: rgba(76, 141, 255, 0.4);
     box-shadow: 0 16px 32px -12px rgba(0, 0, 0, 0.35);
   }
 
@@ -173,14 +197,14 @@ body {
 
   .btn-green-t {
     background: var(--color-green);
-    color: #04150c;
+    color: #051530;
     padding: 16px 30px;
     font-size: 15.2px;
-    box-shadow: 0 6px 18px rgba(23, 185, 92, 0.32);
+    box-shadow: 0 6px 18px rgba(76, 141, 255, 0.32);
   }
   .btn-green-t:hover:not(:disabled) {
-    background: #1dcc67;
-    box-shadow: 0 10px 24px rgba(23, 185, 92, 0.42);
+    background: #6da3ff;
+    box-shadow: 0 10px 24px rgba(76, 141, 255, 0.42);
     transform: translateY(-2px);
   }
 
@@ -192,8 +216,8 @@ body {
     color: var(--color-ink);
   }
   .btn-ghost-t:hover:not(:disabled) {
-    border-color: rgba(23, 185, 92, 0.4);
-    background: rgba(23, 185, 92, 0.08);
+    border-color: rgba(76, 141, 255, 0.4);
+    background: rgba(76, 141, 255, 0.08);
     transform: translateY(-2px);
   }
 
@@ -207,7 +231,7 @@ body {
     font-weight: 700;
   }
   .btn-outline-t:hover:not(:disabled) {
-    background: rgba(23, 185, 92, 0.1);
+    background: rgba(76, 141, 255, 0.1);
   }
 
   .chip-t {
@@ -231,7 +255,7 @@ body {
     pointer-events: none;
     background: repeating-conic-gradient(
       from 0deg at 50% 50%,
-      rgba(23, 185, 92, 0.05) 0deg 6deg,
+      rgba(76, 141, 255, 0.05) 0deg 6deg,
       rgba(0, 0, 0, 0) 6deg 20deg
     );
     -webkit-mask-image: radial-gradient(60% 60% at 50% 45%, #000, transparent 78%);
@@ -260,7 +284,7 @@ body {
   .field-t input:focus,
   .field-t select:focus,
   .field-t textarea:focus {
-    border-color: rgba(23, 185, 92, 0.55);
+    border-color: rgba(76, 141, 255, 0.55);
     background: var(--color-bg-elevated);
   }
 

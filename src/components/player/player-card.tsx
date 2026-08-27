@@ -81,14 +81,14 @@ export function TraitRadar({
 
         <polygon
           points={shape}
-          fill="rgba(23,185,92,.24)"
-          stroke="#17b95c"
+          fill="rgba(76,141,255,.24)"
+          stroke="#4c8dff"
           strokeWidth={2}
           strokeLinejoin="round"
         />
         {TRAIT_ORDER.map((k, i) => {
           const [x, y] = point(i, traits[k]);
-          return <circle key={k} cx={x} cy={y} r={3} fill="#17b95c" />;
+          return <circle key={k} cx={x} cy={y} r={3} fill="#4c8dff" />;
         })}
 
         {TRAIT_ORDER.map((k, i) => {
@@ -153,7 +153,7 @@ export function PunctualityRing({ score, size = 64 }: { score: number; size?: nu
   const r = size / 2 - 5;
   const c = 2 * Math.PI * r;
   const offset = c - (score / 100) * c;
-  const colour = score >= 90 ? "#17b95c" : score >= 75 ? "#f5a623" : "#ff5a45";
+  const colour = score >= 90 ? "#4c8dff" : score >= 75 ? "#f5a623" : "#ff5a45";
 
   return (
     <div className="relative grid place-items-center" style={{ width: size, height: size }}>
@@ -201,7 +201,7 @@ export function PlayerCard({ player }: { player: PlayerProfile }) {
           <span className="grid h-20 w-20 place-items-center rounded-full border-2 border-green bg-green/10 text-[26px] font-extrabold">
             {player.initials}
           </span>
-          <span className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full border-2 border-bg-primary bg-green text-[12px] font-extrabold text-[#04150c]">
+          <span className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full border-2 border-bg-primary bg-green text-[12px] font-extrabold text-[#051530]">
             {overall}
           </span>
         </div>
