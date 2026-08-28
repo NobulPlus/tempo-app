@@ -8,7 +8,7 @@ export type PitchSize = "5-a-side" | "7-a-side" | "11-a-side";
 export type SkillLevel = "casual" | "intermediate" | "competitive";
 export type Position = "GK" | "DEF" | "MID" | "FWD";
 export type Foot = "left" | "right" | "both";
-export type UserRole = "player" | "host" | "venue_owner";
+export type UserRole = "player" | "host" | "venue_owner" | "admin";
 export type BookingStatus =
   | "pending"
   | "confirmed"
@@ -125,6 +125,8 @@ export interface PlayerProfile {
   foot: Foot | null;
   bio: string | null;
   role: UserRole;
+  /** Set only by admin_set_suspended() — never client-writable. */
+  suspended: boolean;
   joinedAt: string;
 
   /* --- Identity & reputation --- */

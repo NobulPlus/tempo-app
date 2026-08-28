@@ -199,6 +199,115 @@ export async function createGameAction(
 
 /* ------------------------------------------------------------------ auth -- */
 
+const signUpSchema = z
+  .object({
+    fullName: z.string().min(2, "Enter your full name").max(80),
+    email: z.string().email("Enter a valid email"),
+    phone: z.string().optional(),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    password2: z.string(),
+    terms: z.literal("on", { message: "You have to accept the terms to continue" }),
+  })
+  .refine((v) => v.password === v.password2, {
+    message: "Passwords don't match",
+    path: ["password2"],
+  });
+
+/**
+ * Real registration. Deliberately never sends a `role` — every new account
+ * is a player; 0002_auth_hardening.sql hardcodes that server-side too, so
+ * this isn't the only thing standing between a signup and an admin role.
+ */
+export async function signUpAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  if (!isSupabaseConfigured()) {
+    return {
+      ok: false,
+      error: "This deploy has no database connected yet — use demo sign-in from the login page instead.",
+    };
+  }
+
+  const parsed = signUpSchema.safeParse({
+    fullName: formData.get("fullName"),
+    email: formData.get("email"),
+    phone: formData.get("phone") || undefined,
+    password: formData.get("password"),
+    password2: formData.get("password2"),
+    terms: formData.get("terms"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
+  }
+
+  const { fullName, email, password } = parsed.data;
+  const phone = parsed.data.phone ? normalisePhone(parsed.data.phone) : null;
+  if (parsed.data.phone && !phone) {
+    return { ok: false, error: "That doesn't look like a Nigerian phone number." };
+  }
+
+  const sb = await createClient();
+  const { data, error } = await sb.auth.signUp({
+    email,
+    password,
+    options: { data: { full_name: fullName, phone } },
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      error: error.message.includes("already registered")
+        ? "An account already exists with that email — try signing in instead."
+        : error.message,
+    };
+  }
+
+  if (!data.session) {
+    return {
+      ok: true,
+      message: "Check your email to confirm your account, then sign in.",
+    };
+  }
+
+  revalidatePath("/", "layout");
+  redirect("/dashboard");
+}
+
+const signInSchema = z.object({
+  email: z.string().email("Enter a valid email"),
+  password: z.string().min(1, "Enter your password"),
+  next: z.string().optional(),
+});
+
+export async function signInAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  if (!isSupabaseConfigured()) {
+    return {
+      ok: false,
+      error: "This deploy has no database connected yet — use demo sign-in below instead.",
+    };
+  }
+
+  const parsed = signInSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+    next: formData.get("next") || undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
+  }
+
+  const sb = await createClient();
+  const { error } = await sb.auth.signInWithPassword({
+    email: parsed.data.email,
+    password: parsed.data.password,
+  });
+
+  if (error) {
+    return { ok: false, error: "Incorrect email or password." };
+  }
+
+  revalidatePath("/", "layout");
+  redirect(parsed.data.next || "/dashboard");
+}
+
 /**
  * Demo sign-in. With Supabase configured this is replaced by real password
  * auth — see /login. Demo mode lets you inhabit any seeded player so you can

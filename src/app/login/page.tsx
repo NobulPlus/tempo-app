@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { listProfiles, demoMode } from "@/lib/data/repo";
 import { getCurrentUser } from "@/lib/session";
 import { DemoSignIn } from "@/components/auth/demo-signin";
-import { TempoMark, MailIcon, LockIcon } from "@/components/icons";
+import { LoginForm } from "@/components/auth/login-form";
+import { TempoMark } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -42,57 +43,7 @@ export default async function LoginPage({
           </div>
 
           <div className="relative mt-7">
-            {isDemo ? (
-              <DemoSignIn profiles={profiles} next={next} />
-            ) : (
-              <form className="space-y-4">
-                <div className="field-t">
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
-                    autoComplete="email"
-                    placeholder=" "
-                  />
-                  <span className="field-icon">
-                    <MailIcon size={19} />
-                  </span>
-                  <label htmlFor="email" className="floating">
-                    Email
-                  </label>
-                </div>
-
-                <div className="field-t">
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    required
-                    minLength={8}
-                    autoComplete="current-password"
-                    placeholder=" "
-                  />
-                  <span className="field-icon">
-                    <LockIcon size={19} />
-                  </span>
-                  <label htmlFor="password" className="floating">
-                    Password
-                  </label>
-                </div>
-
-                <button type="submit" className="btn-t btn-green-t w-full">
-                  Sign in
-                </button>
-
-                <Link
-                  href="/reset"
-                  className="block text-center text-[13.5px] text-ink-soft transition hover:text-green"
-                >
-                  Forgot your password?
-                </Link>
-              </form>
-            )}
+            {isDemo ? <DemoSignIn profiles={profiles} next={next} /> : <LoginForm next={next} />}
           </div>
 
           <p className="relative mt-7 border-t border-white/8 pt-5 text-center text-[14px] text-ink-soft">

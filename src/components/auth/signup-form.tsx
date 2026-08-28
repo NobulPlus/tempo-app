@@ -1,64 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
-import {
-  UserIcon,
-  MailIcon,
-  PhoneIcon,
-  LockIcon,
-  EyeIcon,
-  GroupIcon,
-  BuildingIcon,
-  CheckIcon,
-} from "@/components/icons";
+import { UserIcon, MailIcon, PhoneIcon, LockIcon, EyeIcon } from "@/components/icons";
 import { normalisePhone } from "@/lib/format";
+import { signUpAction, type ActionState } from "@/app/actions";
 
-const ROLES = [
-  {
-    key: "player",
-    label: "Player",
-    desc: "Join games, book pitches, build a reputation",
-    Icon: UserIcon,
-  },
-  {
-    key: "host",
-    label: "Host",
-    desc: "Organise games, manage rosters, get paid automatically",
-    Icon: GroupIcon,
-  },
-  {
-    key: "venue_owner",
-    label: "Venue owner",
-    desc: "List your pitch, fill empty hours, manage bookings",
-    Icon: BuildingIcon,
-  },
-] as const;
+const initial: ActionState = {};
 
 /**
- * Real client-side validation. The prototype's form had no `name` attributes,
- * no `required`, no password match check and an unenforced terms box.
+ * Real client-side validation plus a real server action. Role is no longer
+ * chosen here — every signup is a player; 0002_auth_hardening.sql enforces
+ * that server-side too, so this form isn't the only thing standing between
+ * a signup and an elevated role.
  */
 export function SignupForm() {
-  const [role, setRole] = useState<string>("player");
+  const [state, formAction, pending] = useActionState(signUpAction, initial);
   const [show, setShow] = useState(false);
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [phone, setPhone] = useState("");
-  const [touched, setTouched] = useState(false);
 
   const phoneValid = phone === "" || Boolean(normalisePhone(phone));
   const pwStrength = strength(pw);
   const pwMatch = pw2 === "" || pw === pw2;
 
+  if (state.ok && state.message) {
+    return (
+      <div className="rounded-xl border border-green/30 bg-green/10 p-5 text-[14.5px] text-ink">
+        {state.message}
+      </div>
+    );
+  }
+
   return (
-    <form
-      className="space-y-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        setTouched(true);
-      }}
-    >
+    <form className="space-y-4" action={formAction}>
       <div className="field-t">
         <input id="fullName" name="fullName" type="text" required autoComplete="name" placeholder=" " />
         <span className="field-icon">
@@ -176,54 +152,8 @@ export function SignupForm() {
         )}
       </div>
 
-      <fieldset>
-        <legend className="mb-2.5 text-[13px] font-semibold text-ink-soft">
-          I want to join as
-        </legend>
-        <div
-          role="radiogroup"
-          aria-label="Account type"
-          className="grid gap-2"
-        >
-          {ROLES.map(({ key, label, desc, Icon }) => (
-            <button
-              type="button"
-              role="radio"
-              aria-checked={role === key}
-              key={key}
-              onClick={() => setRole(key)}
-              className={`flex items-center gap-3.5 rounded-xl border p-3.5 text-left transition ${
-                role === key
-                  ? "border-green/50 bg-green/10"
-                  : "border-white/10 bg-white/4 hover:border-white/25"
-              }`}
-            >
-              <span
-                className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
-                  role === key ? "bg-green/18 text-green" : "bg-white/6 text-ink-soft"
-                }`}
-              >
-                <Icon size={19} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[14.5px] font-semibold">{label}</span>
-                <span className="block text-[12px] leading-snug text-ink-muted">{desc}</span>
-              </span>
-              <span
-                className={`ml-auto grid h-5 w-5 shrink-0 place-items-center rounded-full border ${
-                  role === key ? "border-green bg-green text-[#04150c]" : "border-white/25"
-                }`}
-              >
-                {role === key && <CheckIcon size={11} />}
-              </span>
-            </button>
-          ))}
-        </div>
-        <input type="hidden" name="role" value={role} />
-      </fieldset>
-
       <label className="flex items-start gap-3 text-[13.5px] leading-relaxed text-ink-soft">
-        <input type="checkbox" name="terms" required className="mt-0.5 h-4 w-4 shrink-0 accent-[#00e676]" />
+        <input type="checkbox" name="terms" required className="mt-0.5 h-4 w-4 shrink-0 accent-green" />
         <span>
           I agree to Tempo&apos;s{" "}
           <Link href="/legal/terms" className="text-green underline underline-offset-2">
@@ -237,14 +167,13 @@ export function SignupForm() {
         </span>
       </label>
 
-      <button type="submit" className="btn-t btn-green-t w-full">
-        Create account
+      <button type="submit" disabled={pending} className="btn-t btn-green-t w-full">
+        {pending ? "Creating account…" : "Create account"}
       </button>
 
-      {touched && (
-        <p role="status" className="rounded-lg border border-gold/25 bg-gold/10 px-4 py-3 text-[13px] text-gold">
-          Demo mode — account creation needs Supabase. Add your keys, then this form
-          creates a real user with a hashed password and a profile row.
+      {state.error && (
+        <p role="alert" className="rounded-lg border border-orange/30 bg-orange/10 px-4 py-3 text-[13.5px] text-orange">
+          {state.error}
         </p>
       )}
     </form>
