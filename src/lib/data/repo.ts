@@ -1,8 +1,9 @@
 import "server-only";
 import { store } from "./store";
+import { camelize } from "./case";
 import { isSupabaseConfigured, createClient } from "@/lib/supabase/server";
 import { getMatchState } from "@/lib/match";
-import { distanceKm, generateReference } from "@/lib/format";
+import { distanceKm, generateReference, initialsOf } from "@/lib/format";
 import type {
   Venue,
   Pitch,
@@ -13,6 +14,43 @@ import type {
   Booking,
   SkillLevel,
 } from "@/lib/types";
+
+/** The shape a `profiles` row has right after `camelize` — flat trait_*
+ * columns, no `initials` column at all (only ever hand-set in seed data). */
+interface RawProfileRow extends Omit<PlayerProfile, "initials" | "traits" | "joinedAt"> {
+  /** The column is `created_at` — there is no `joined_at` in the schema. */
+  createdAt: string;
+  traitPace: number;
+  traitPassing: number;
+  traitFinishing: number;
+  traitDefending: number;
+  traitStamina: number;
+  traitTeamwork: number;
+}
+
+/**
+ * Postgres stores traits as flat trait_pace/trait_passing/... columns and
+ * has no `initials` column at all (v1's seed data set it by hand). This is
+ * the one place a raw profiles row becomes a real PlayerProfile. Idempotent
+ * on already-camelCased input, so it's safe to call again on a sub-object
+ * a parent mapper already ran through `camelize`.
+ */
+export function mapProfileRow(row: Record<string, unknown>): PlayerProfile {
+  const c = camelize<RawProfileRow>(row);
+  return {
+    ...c,
+    joinedAt: c.createdAt,
+    initials: initialsOf(c.fullName),
+    traits: {
+      pace: c.traitPace,
+      passing: c.traitPassing,
+      finishing: c.traitFinishing,
+      defending: c.traitDefending,
+      stamina: c.traitStamina,
+      teamwork: c.traitTeamwork,
+    },
+  } as PlayerProfile;
+}
 
 /**
  * The single data access layer for the app.
@@ -33,6 +71,8 @@ export interface PitchWithVenue extends Pitch {
   distance?: number;
   nextOpenSlot?: Slot;
 }
+
+const PITCH_SELECT = "*, venue:venues(*)";
 
 function hydratePitch(p: Pitch): PitchWithVenue {
   const s = store();
@@ -61,12 +101,9 @@ export interface PitchQuery {
 export async function listPitches(query: PitchQuery = {}): Promise<PitchWithVenue[]> {
   if (!demoMode()) {
     const sb = await createClient();
-    const { data } = await sb
-      .from("pitches")
-      .select("*, venue:venues(*)")
-      .eq("active", true);
+    const { data } = await sb.from("pitches").select(PITCH_SELECT).eq("active", true);
     // Filtering/sorting below is shared so behaviour matches demo mode exactly.
-    return applyPitchQuery((data ?? []) as unknown as PitchWithVenue[], query);
+    return applyPitchQuery(camelize<PitchWithVenue[]>(data ?? []), query);
   }
 
   const list = store().pitches.map(hydratePitch);
@@ -113,12 +150,8 @@ function applyPitchQuery(list: PitchWithVenue[], query: PitchQuery): PitchWithVe
 export async function getPitchBySlug(slug: string): Promise<PitchWithVenue | null> {
   if (!demoMode()) {
     const sb = await createClient();
-    const { data } = await sb
-      .from("pitches")
-      .select("*, venue:venues(*)")
-      .eq("slug", slug)
-      .maybeSingle();
-    return (data as unknown as PitchWithVenue) ?? null;
+    const { data } = await sb.from("pitches").select(PITCH_SELECT).eq("slug", slug).maybeSingle();
+    return data ? camelize<PitchWithVenue>(data) : null;
   }
   const p = store().pitches.find((x) => x.slug === slug);
   return p ? hydratePitch(p) : null;
@@ -132,8 +165,10 @@ export async function getSlotsForPitch(pitchId: string, days = 7): Promise<Slot[
       .from("slots")
       .select("*")
       .eq("pitch_id", pitchId)
-      .order("during");
-    return (data ?? []) as unknown as Slot[];
+      .gte("starts_at", new Date().toISOString())
+      .lte("starts_at", new Date(horizon).toISOString())
+      .order("starts_at");
+    return camelize<Slot[]>(data ?? []);
   }
   return store()
     .slots.filter(
@@ -146,6 +181,15 @@ export async function getSlotsForPitch(pitchId: string, days = 7): Promise<Slot[
 }
 
 export async function getSlot(id: string): Promise<(Slot & { pitch: PitchWithVenue }) | null> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb
+      .from("slots")
+      .select(`*, pitch:pitches(${PITCH_SELECT})`)
+      .eq("id", id)
+      .maybeSingle();
+    return data ? camelize<Slot & { pitch: PitchWithVenue }>(data) : null;
+  }
   const s = store();
   const slot = s.slots.find((x) => x.id === id);
   if (!slot) return null;
@@ -161,6 +205,35 @@ export interface GameFull extends Game {
   host: PlayerProfile;
   participants: (GameParticipant & { player: PlayerProfile })[];
   filled: number;
+}
+
+const GAME_SELECT = `*, pitch:pitches(${PITCH_SELECT}), host:profiles(*), game_participants(*, player:profiles(*))`;
+
+interface RawParticipantRow extends Omit<GameParticipant, "player"> {
+  player: Record<string, unknown>;
+}
+
+interface RawGameRow extends Omit<Game, "participants" | "filled" | "host" | "pitch"> {
+  pitch: PitchWithVenue;
+  host: Record<string, unknown>;
+  gameParticipants?: RawParticipantRow[];
+}
+
+/** Reshapes a raw `games` row (with embedded pitch/host/participants) into
+ * a GameFull — the real-mode counterpart to `hydrateGame` below. */
+function mapGameRow(row: Record<string, unknown>): GameFull {
+  const c = camelize<RawGameRow>(row);
+  const participants = (c.gameParticipants ?? [])
+    .filter((p) => p.status !== "withdrawn")
+    .map((p) => ({ ...p, player: mapProfileRow(p.player) }))
+    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt));
+
+  return {
+    ...c,
+    host: mapProfileRow(c.host),
+    participants,
+    filled: participants.filter((p) => p.status === "confirmed").length,
+  };
 }
 
 function hydrateGame(g: Omit<Game, "participants" | "filled">): GameFull {
@@ -192,8 +265,19 @@ export interface GameQuery {
 }
 
 export async function listGames(query: GameQuery = {}): Promise<GameFull[]> {
+  const all = !demoMode()
+    ? await (async () => {
+        const sb = await createClient();
+        const { data } = await sb.from("games").select(GAME_SELECT);
+        return (data ?? []).map(mapGameRow);
+      })()
+    : store().games.map(hydrateGame);
+
+  return applyGameQuery(all, query);
+}
+
+function applyGameQuery(all: GameFull[], query: GameQuery): GameFull[] {
   const { q, level = "all", when = "all", side = "all" } = query;
-  const all = store().games.map(hydrateGame);
   const now = Date.now();
 
   const startOfDay = (offset: number) => {
@@ -226,11 +310,21 @@ export async function listGames(query: GameQuery = {}): Promise<GameFull[]> {
 }
 
 export async function getGameBySlug(slug: string): Promise<GameFull | null> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb.from("games").select(GAME_SELECT).eq("slug", slug).maybeSingle();
+    return data ? mapGameRow(data) : null;
+  }
   const g = store().games.find((x) => x.slug === slug);
   return g ? hydrateGame(g) : null;
 }
 
 export async function getGameById(id: string): Promise<GameFull | null> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb.from("games").select(GAME_SELECT).eq("id", id).maybeSingle();
+    return data ? mapGameRow(data) : null;
+  }
   const g = store().games.find((x) => x.id === id);
   return g ? hydrateGame(g) : null;
 }
@@ -287,10 +381,14 @@ export async function joinGame(gameId: string, userId: string): Promise<JoinResu
   return { ok: true, status };
 }
 
-export async function leaveGame(gameId: string, userId: string): Promise<{ ok: boolean }> {
+export async function leaveGame(
+  gameId: string,
+  userId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!demoMode()) {
     const sb = await createClient();
-    await sb.rpc("leave_game", { p_game_id: gameId });
+    const { error } = await sb.rpc("leave_game", { p_game_id: gameId });
+    if (error) return { ok: false, error: error.message };
     return { ok: true };
   }
 
@@ -311,11 +409,44 @@ export async function leaveGame(gameId: string, userId: string): Promise<{ ok: b
   return { ok: true };
 }
 
+/** 5% service fee. The real source of truth is create_booking() in
+ * supabase/migrations/0006_create_booking.sql, which computes the same rate
+ * independently in SQL — this is for display, and must stay in sync. */
+export const SERVICE_FEE_RATE = 0.05;
+
+export function computeBookingTotal(priceKobo: number): { feeKobo: number; totalKobo: number } {
+  const feeKobo = Math.round(priceKobo * SERVICE_FEE_RATE);
+  return { feeKobo, totalKobo: priceKobo + feeKobo };
+}
+
+const BOOKING_SELECT = `*, slot:slots(*, pitch:pitches(${PITCH_SELECT}))`;
+
+function mapBookingRow(row: Record<string, unknown>): Booking & { slot: Slot & { pitch: PitchWithVenue } } {
+  return camelize<Booking & { slot: Slot & { pitch: PitchWithVenue } }>(row);
+}
+
 export async function createBooking(
   slotId: string,
   userId: string,
   paymentMethod: Booking["paymentMethod"],
 ): Promise<{ ok: true; booking: Booking } | { ok: false; error: string }> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("create_booking", {
+      p_slot_id: slotId,
+      p_method: paymentMethod,
+    });
+    if (error) {
+      return {
+        ok: false,
+        error: error.message.includes("no longer available")
+          ? "Sorry — someone just took that slot."
+          : error.message,
+      };
+    }
+    return { ok: true, booking: camelize<Booking>(data) };
+  }
+
   const s = store();
   const slot = s.slots.find((x) => x.id === slotId);
   if (!slot) return { ok: false, error: "That slot no longer exists." };
@@ -325,14 +456,15 @@ export async function createBooking(
     return { ok: false, error: "That time has already passed." };
 
   slot.status = "booked";
+  const { totalKobo } = computeBookingTotal(slot.priceKobo);
   const booking: Booking = {
     id: `b-${Date.now()}`,
     reference: generateReference(),
     slotId,
     userId,
     status: "confirmed",
-    totalKobo: slot.priceKobo,
-    paidKobo: slot.priceKobo,
+    totalKobo,
+    paidKobo: totalKobo,
     paymentMethod,
     createdAt: new Date().toISOString(),
   };
@@ -343,6 +475,15 @@ export async function createBooking(
 export async function getBookingByReference(
   reference: string,
 ): Promise<(Booking & { slot: Slot & { pitch: PitchWithVenue } }) | null> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb
+      .from("bookings")
+      .select(BOOKING_SELECT)
+      .eq("reference", reference)
+      .maybeSingle();
+    return data ? mapBookingRow(data) : null;
+  }
   const s = store();
   const b = s.bookings.find((x) => x.reference === reference);
   if (!b) return null;
@@ -352,6 +493,15 @@ export async function getBookingByReference(
 }
 
 export async function getBookingsForUser(userId: string) {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb
+      .from("bookings")
+      .select(BOOKING_SELECT)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    return (data ?? []).map(mapBookingRow);
+  }
   const s = store();
   const rows = s.bookings.filter((b) => b.userId === userId);
   return Promise.all(
@@ -362,18 +512,56 @@ export async function getBookingsForUser(userId: string) {
 /* ----------------------------------------------------------------- players */
 
 export async function getProfile(handle: string): Promise<PlayerProfile | null> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb.from("profiles").select("*").eq("handle", handle).maybeSingle();
+    return data ? mapProfileRow(data) : null;
+  }
   return store().profiles.find((p) => p.handle === handle) ?? null;
 }
 
 export async function getProfileById(id: string): Promise<PlayerProfile | null> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb.from("profiles").select("*").eq("id", id).maybeSingle();
+    return data ? mapProfileRow(data) : null;
+  }
   return store().profiles.find((p) => p.id === id) ?? null;
 }
 
 export async function listProfiles(): Promise<PlayerProfile[]> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb.from("profiles").select("*");
+    return (data ?? []).map(mapProfileRow);
+  }
   return store().profiles;
 }
 
 export async function getGamesForUser(userId: string): Promise<GameFull[]> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const [{ data: hosted }, { data: joined }] = await Promise.all([
+      sb.from("games").select(GAME_SELECT).eq("host_id", userId),
+      sb
+        .from("game_participants")
+        .select(`game:games(${GAME_SELECT})`)
+        .eq("user_id", userId)
+        .neq("status", "withdrawn"),
+    ]);
+
+    const byId = new Map<string, Record<string, unknown>>();
+    (hosted ?? []).forEach((g: Record<string, unknown>) => byId.set(g.id as string, g));
+    const joinedRows = (joined ?? []) as unknown as { game: Record<string, unknown> | null }[];
+    joinedRows.forEach((row) => {
+      if (row.game) byId.set(row.game.id as string, row.game);
+    });
+
+    return Array.from(byId.values())
+      .map(mapGameRow)
+      .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  }
+
   const s = store();
   const mine = new Set(
     s.participants.filter((p) => p.userId === userId && p.status !== "withdrawn").map((p) => p.gameId),
@@ -387,14 +575,62 @@ export async function getGamesForUser(userId: string): Promise<GameFull[]> {
 /* ------------------------------------------------------------------ venues */
 
 export async function listVenues(): Promise<Venue[]> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb.from("venues").select("*");
+    return camelize<Venue[]>(data ?? []);
+  }
   return store().venues;
 }
 
 export async function getVenueBySlug(slug: string): Promise<Venue | null> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb.from("venues").select("*").eq("slug", slug).maybeSingle();
+    return data ? camelize<Venue>(data) : null;
+  }
   return store().venues.find((v) => v.slug === slug) ?? null;
 }
 
+/** Distinct venue areas — powers the area-based footer. */
+export async function listAreas(): Promise<string[]> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb.from("venues").select("area");
+    return Array.from(new Set((data ?? []).map((v) => v.area as string))).sort();
+  }
+  return Array.from(new Set(store().venues.map((v) => v.area))).sort();
+}
+
 export async function getVenueStats(venueId: string) {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data: pitchRows } = await sb.from("pitches").select("id").eq("venue_id", venueId);
+    const pitchIds = (pitchRows ?? []).map((p) => p.id as string);
+    if (pitchIds.length === 0) {
+      return { pitchCount: 0, upcomingSlots: 0, bookedSlots: 0, utilisation: 0, projectedRevenueKobo: 0, gamesHosted: 0 };
+    }
+
+    const nowIso = new Date().toISOString();
+    const [{ data: upcomingRows }, { count: gamesHosted }] = await Promise.all([
+      sb.from("slots").select("status, price_kobo").in("pitch_id", pitchIds).gte("starts_at", nowIso),
+      sb.from("games").select("id", { count: "exact", head: true }).in("pitch_id", pitchIds),
+    ]);
+
+    const upcoming = upcomingRows ?? [];
+    const booked = upcoming.filter((s) => s.status === "booked");
+    const revenueKobo = booked.reduce((sum, s) => sum + (s.price_kobo as number), 0);
+
+    return {
+      pitchCount: pitchIds.length,
+      upcomingSlots: upcoming.length,
+      bookedSlots: booked.length,
+      utilisation: upcoming.length ? Math.round((booked.length / upcoming.length) * 100) : 0,
+      projectedRevenueKobo: revenueKobo,
+      gamesHosted: gamesHosted ?? 0,
+    };
+  }
+
   const s = store();
   const pitchIds = s.pitches.filter((p) => p.venueId === venueId).map((p) => p.id);
   const slots = s.slots.filter((sl) => pitchIds.includes(sl.pitchId));
@@ -417,6 +653,35 @@ export async function getVenueStats(venueId: string) {
 
 /** Honest platform numbers, computed — never invented. */
 export async function getPlatformStats() {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const nowIso = new Date().toISOString();
+
+    const [{ count: verifiedVenues }, { count: pitches }, { data: upcomingGameRows }, { data: venueAreaRows }] =
+      await Promise.all([
+        sb.from("venues").select("id", { count: "exact", head: true }).eq("verified", true),
+        sb.from("pitches").select("id", { count: "exact", head: true }).eq("active", true),
+        sb.from("games").select("id, capacity, game_participants(status)").gte("ends_at", nowIso),
+        sb.from("venues").select("area"),
+      ]);
+
+    const openSpots = (upcomingGameRows ?? []).reduce(
+      (sum, g: { capacity: number; game_participants: { status: string }[] | null }) => {
+        const filled = (g.game_participants ?? []).filter((p) => p.status === "confirmed").length;
+        return sum + Math.max(0, g.capacity - filled);
+      },
+      0,
+    );
+
+    return {
+      verifiedVenues: verifiedVenues ?? 0,
+      pitches: pitches ?? 0,
+      upcomingGames: (upcomingGameRows ?? []).length,
+      openSpots,
+      areas: new Set((venueAreaRows ?? []).map((v: { area: string }) => v.area)).size,
+    };
+  }
+
   const s = store();
   const verifiedVenues = s.venues.filter((v) => v.verified).length;
   const upcoming = s.games.filter((g) => new Date(g.endsAt).getTime() > Date.now());

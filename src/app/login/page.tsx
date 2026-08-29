@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { listProfiles, demoMode } from "@/lib/data/repo";
 import { getCurrentUser } from "@/lib/session";
+import { safeNext } from "@/lib/url";
 import { DemoSignIn } from "@/components/auth/demo-signin";
 import { LoginForm } from "@/components/auth/login-form";
 import { TempoMark } from "@/components/icons";
@@ -19,7 +20,8 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
-  const { next = "/dashboard" } = await searchParams;
+  const { next: rawNext } = await searchParams;
+  const next = safeNext(rawNext);
   const user = await getCurrentUser();
   if (user) redirect(next);
 

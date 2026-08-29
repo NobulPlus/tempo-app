@@ -1,7 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { isSupabaseConfigured, createClient } from "@/lib/supabase/server";
-import { getProfileById } from "@/lib/data/repo";
+import { getProfileById, mapProfileRow } from "@/lib/data/repo";
 import type { PlayerProfile } from "@/lib/types";
 
 export const DEMO_COOKIE = "tempo_demo_user";
@@ -21,7 +21,15 @@ export async function getCurrentUser(): Promise<PlayerProfile | null> {
     } = await sb.auth.getUser();
     if (!user) return null;
     const { data } = await sb.from("profiles").select("*").eq("id", user.id).maybeSingle();
-    return (data as unknown as PlayerProfile) ?? null;
+    if (!data) return null;
+    if (data.suspended) {
+      // Enforced session-wide here so every action gating on getCurrentUser()
+      // returning non-null already blocks a suspended user for free. The SQL
+      // functions also check `suspended` directly as defense in depth.
+      await sb.auth.signOut();
+      return null;
+    }
+    return mapProfileRow(data);
   }
 
   const jar = await cookies();

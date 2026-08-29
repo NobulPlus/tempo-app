@@ -10,6 +10,7 @@ import { normalisePhone } from "@/lib/format";
 import { isSupabaseConfigured, createClient } from "@/lib/supabase/server";
 import { store } from "@/lib/data/store";
 import { redirect } from "next/navigation";
+import { safeNext } from "@/lib/url";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
 
@@ -84,7 +85,9 @@ export async function leaveGameAction(gameId: string, slug: string): Promise<Act
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
 
-  await leaveGame(gameId, user.id);
+  const result = await leaveGame(gameId, user.id);
+  if (!result.ok) return { ok: false, error: result.error };
+
   revalidatePath(`/games/${slug}`);
   revalidatePath("/games");
   revalidatePath("/dashboard");
@@ -152,49 +155,75 @@ export async function createGameAction(
     return { ok: false, error: "The guarantee number can't be higher than capacity." };
   }
 
-  const s = store();
-  const slot = s.slots.find((x) => x.id === v.slotId);
-  if (!slot) return { ok: false, error: "That slot no longer exists." };
-  if (slot.status !== "open") return { ok: false, error: "Someone just booked that slot." };
+  if (!isSupabaseConfigured()) {
+    const s = store();
+    const slot = s.slots.find((x) => x.id === v.slotId);
+    if (!slot) return { ok: false, error: "That slot no longer exists." };
+    if (slot.status !== "open") return { ok: false, error: "Someone just booked that slot." };
 
-  slot.status = "booked";
+    slot.status = "booked";
 
-  const gameId = `g-${Date.now()}`;
-  const slug = `${v.title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")}-${Date.now().toString(36).slice(-4)}`;
+    const gameId = `g-${Date.now()}`;
+    const slug = `${v.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")}-${Date.now().toString(36).slice(-4)}`;
 
-  s.games.push({
-    id: gameId,
-    slug,
-    pitchId: slot.pitchId,
-    hostId: user.id,
-    title: v.title,
-    description: v.description ?? "",
-    level: v.level,
-    startsAt: slot.startsAt,
-    endsAt: slot.endsAt,
-    capacity: v.capacity,
-    minimumToGuarantee: v.minimumToGuarantee,
-    pricePerPlayerKobo: v.pricePerPlayerNaira * 100,
-    status: "open",
-    bibsProvided: Boolean(v.bibsProvided),
-    createdAt: new Date().toISOString(),
+    s.games.push({
+      id: gameId,
+      slug,
+      pitchId: slot.pitchId,
+      hostId: user.id,
+      title: v.title,
+      description: v.description ?? "",
+      level: v.level,
+      startsAt: slot.startsAt,
+      endsAt: slot.endsAt,
+      capacity: v.capacity,
+      minimumToGuarantee: v.minimumToGuarantee,
+      pricePerPlayerKobo: v.pricePerPlayerNaira * 100,
+      status: "open",
+      bibsProvided: Boolean(v.bibsProvided),
+      createdAt: new Date().toISOString(),
+    });
+
+    // The host is automatically the first player.
+    s.participants.push({
+      id: `gp-${slug}-${user.id}`,
+      gameId,
+      userId: user.id,
+      joinedAt: new Date().toISOString(),
+      paidKobo: 0,
+      status: "confirmed",
+    });
+
+    revalidatePath("/games");
+    redirect(`/games/${slug}`);
+  }
+
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("host_game", {
+    p_slot_id: v.slotId,
+    p_title: v.title,
+    p_description: v.description ?? "",
+    p_level: v.level,
+    p_capacity: v.capacity,
+    p_minimum_to_guarantee: v.minimumToGuarantee,
+    p_price_per_player_kobo: v.pricePerPlayerNaira * 100,
+    p_bibs_provided: Boolean(v.bibsProvided),
   });
 
-  // The host is automatically the first player.
-  s.participants.push({
-    id: `gp-${slug}-${user.id}`,
-    gameId,
-    userId: user.id,
-    joinedAt: new Date().toISOString(),
-    paidKobo: 0,
-    status: "confirmed",
-  });
+  if (error) {
+    return {
+      ok: false,
+      error: error.message.includes("no longer available")
+        ? "Someone just booked that slot."
+        : error.message,
+    };
+  }
 
   revalidatePath("/games");
-  redirect(`/games/${slug}`);
+  redirect(`/games/${(data as { slug: string }).slug}`);
 }
 
 /* ------------------------------------------------------------------ auth -- */
@@ -305,7 +334,7 @@ export async function signInAction(_prev: ActionState, formData: FormData): Prom
   }
 
   revalidatePath("/", "layout");
-  redirect(parsed.data.next || "/dashboard");
+  redirect(safeNext(parsed.data.next));
 }
 
 /**
