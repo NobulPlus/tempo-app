@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { getPitchBySlug, listGames } from "@/lib/mock";
+import { getPitchBySlug, listGames, getSlotsForPitch } from "@/lib/data/repo";
 import { GameCard } from "@/components/match/game-card";
+import { SlotPicker } from "@/components/pitch/slot-picker";
 import { formatNaira } from "@/lib/format";
 import { estimateTravelMinutes } from "@/lib/match";
 import {
@@ -24,6 +25,8 @@ const AMENITY_ICON: Record<string, typeof LightsIcon> = {
   Parking: ParkingIcon,
 };
 
+export const dynamic = "force-dynamic";
+
 const SURFACE_LABEL: Record<string, string> = {
   astro: "Astro turf",
   grass: "Natural grass",
@@ -37,7 +40,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const pitch = getPitchBySlug(slug);
+  const pitch = await getPitchBySlug(slug);
   if (!pitch) return { title: "Pitch not found" };
 
   return {
@@ -52,10 +55,11 @@ export default async function PitchPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const pitch = getPitchBySlug(slug);
+  const pitch = await getPitchBySlug(slug);
   if (!pitch) notFound();
 
-  const gamesHere = listGames().filter((g) => g.pitchId === pitch.id);
+  const [allGames, slots] = await Promise.all([listGames(), getSlotsForPitch(pitch.id)]);
+  const gamesHere = allGames.filter((g) => g.pitchId === pitch.id);
   const { venue } = pitch;
   const photo = venue.photos[0];
 
@@ -156,7 +160,11 @@ export default async function PitchPage({
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-          <div>
+          <div className="space-y-8">
+            <section id="availability">
+              <SlotPicker slots={slots} pitchSlug={slug} />
+            </section>
+
             {gamesHere.length > 0 && (
               <section>
                 <h2 className="text-[20px] font-bold">Open games at {venue.name}</h2>
@@ -195,7 +203,9 @@ export default async function PitchPage({
                   <b>{pitch.floodlights ? "Yes" : "No"}</b>
                 </div>
               </div>
-              <button className="btn-t btn-green-t mt-5 w-full">Check availability</button>
+              <a href="#availability" className="btn-t btn-green-t mt-5 w-full">
+                Check availability
+              </a>
             </div>
 
             {venue.verified && (

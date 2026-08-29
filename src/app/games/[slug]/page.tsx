@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getGameBySlug, getCurrentUser } from "@/lib/mock";
+import { getGameBySlug } from "@/lib/data/repo";
+import { getCurrentUser } from "@/lib/session";
 import { getMatchState, estimateTravelMinutes, leaveByTime } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime, splitKobo } from "@/lib/format";
 import { Countdown, FillBar, SpotPips, HeatPill, GuaranteePill } from "@/components/match/match-day";
@@ -24,7 +25,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const game = getGameBySlug(slug);
+  const game = await getGameBySlug(slug);
   if (!game) return { title: "Game not found" };
 
   return {
@@ -32,6 +33,8 @@ export async function generateMetadata({
     description: `${game.level} ${game.pitch.size} at ${game.pitch.venue.name}, ${formatRelativeDay(game.startsAt)} ${formatTime(game.startsAt)}. ${formatNaira(game.pricePerPlayerKobo)} per player.`,
   };
 }
+
+export const dynamic = "force-dynamic";
 
 const LEVEL_COPY: Record<string, string> = {
   casual: "All levels welcome. Nobody's counting the score too closely.",
@@ -45,15 +48,15 @@ export default async function GamePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const game = getGameBySlug(slug);
+  const game = await getGameBySlug(slug);
   if (!game) notFound();
 
-  const user = getCurrentUser();
+  const user = await getCurrentUser();
   const state = getMatchState(game);
 
   const confirmed = game.participants.filter((p) => p.status === "confirmed");
   const waitlist = game.participants.filter((p) => p.status === "waitlist");
-  const mine = game.participants.find((p) => p.userId === user.id);
+  const mine = user ? game.participants.find((p) => p.userId === user.id) : undefined;
 
   const kickoff = new Date(game.startsAt);
   const travel = estimateTravelMinutes(
@@ -226,10 +229,14 @@ export default async function GamePage({
 
               <div className="mt-5">
                 <JoinButton
+                  gameId={game.id}
+                  slug={game.slug}
                   priceKobo={game.pricePerPlayerKobo}
+                  isMember={Boolean(mine)}
+                  isWaitlisted={mine?.status === "waitlist"}
                   spotsLeft={state.spotsLeft}
+                  signedIn={Boolean(user)}
                   hasEnded={state.hasEnded}
-                  initialJoined={Boolean(mine)}
                 />
               </div>
 

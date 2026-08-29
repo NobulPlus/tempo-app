@@ -1,41 +1,27 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useActionState } from "react";
+import { joinWaitlist, type ActionState } from "@/app/actions";
 import { CheckIcon, MailIcon } from "@/components/icons";
 
+const initial: ActionState = {};
+
 export function WaitlistForm() {
-  const [done, setDone] = useState(false);
-  const [area, setArea] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [state, formAction, pending] = useActionState(joinWaitlist, initial);
 
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const contact = new FormData(e.currentTarget).get("contact")?.toString().trim() ?? "";
-    if (contact.length < 3) {
-      setError("Enter your email or phone number");
-      return;
-    }
-    setError(null);
-    setDone(true);
-  };
-
-  if (done) {
+  if (state.ok) {
     return (
       <div className="mx-auto flex max-w-md items-center gap-3 rounded-xl border border-green/30 bg-green/10 px-5 py-4 text-left">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-green/20 text-green">
           <CheckIcon size={18} />
         </span>
-        <p className="text-[14.5px] text-ink">
-          {area
-            ? `Got it. We'll let you know as soon as we verify a pitch in ${area}.`
-            : "Got it. We'll be in touch when we're live in your area."}
-        </p>
+        <p className="text-[14.5px] text-ink">{state.message}</p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={onSubmit} className="mx-auto max-w-lg">
+    <form action={formAction} className="mx-auto max-w-lg">
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
           <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted">
@@ -52,20 +38,18 @@ export function WaitlistForm() {
         </div>
         <input
           name="area"
-          value={area}
-          onChange={(e) => setArea(e.target.value)}
           placeholder="Where do you play?"
           aria-label="Your area"
           className="rounded-full border border-glass-border bg-glass px-5 py-3.5 text-[14.5px] outline-none transition focus:border-green/50 sm:w-44"
         />
-        <button type="submit" className="btn-t btn-green-t !py-3.5">
-          Notify me
+        <button type="submit" disabled={pending} className="btn-t btn-green-t !py-3.5">
+          {pending ? "Adding…" : "Notify me"}
         </button>
       </div>
 
-      {error && (
+      {state.error && (
         <p role="alert" className="mt-3 text-[13.5px] text-orange">
-          {error}
+          {state.error}
         </p>
       )}
       <p className="mt-3 text-[12px] text-ink-muted">

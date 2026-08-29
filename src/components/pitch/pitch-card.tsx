@@ -9,7 +9,7 @@ import {
   ShowerIcon,
   ParkingIcon,
 } from "@/components/icons";
-import type { PitchWithVenue } from "@/lib/mock";
+import type { PitchWithVenue } from "@/lib/data/repo";
 
 const AMENITY_ICON: Record<string, typeof LightsIcon> = {
   Floodlights: LightsIcon,

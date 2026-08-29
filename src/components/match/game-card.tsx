@@ -3,7 +3,7 @@ import { getMatchState } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { PinIcon, ClockIcon, StarIcon, BallDetailedIcon } from "@/components/icons";
 import { Countdown, FillBar, HeatPill, GuaranteePill, SpotPips } from "./match-day";
-import type { GameFull } from "@/lib/mock";
+import type { GameFull } from "@/lib/data/repo";
 
 const LEVEL_STYLE: Record<string, string> = {
   casual: "!border-blue/30 !bg-blue/10 !text-blue",

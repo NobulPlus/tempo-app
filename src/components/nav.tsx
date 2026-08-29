@@ -11,9 +11,11 @@ import {
   UserIcon,
   MenuIcon,
   CloseIcon,
+  LogOutIcon,
 } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
+import { signOut } from "@/app/actions";
 import type { PlayerProfile } from "@/lib/types";
 
 const LINKS = [
@@ -99,6 +101,16 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
                 >
                   {user.initials}
                 </Link>
+                <form action={signOut}>
+                  <button
+                    type="submit"
+                    className="grid h-9 w-9 place-items-center rounded-full text-ink-soft transition hover:bg-glass hover:text-ink"
+                    aria-label="Log out"
+                    title="Log out"
+                  >
+                    <LogOutIcon size={17} />
+                  </button>
+                </form>
               </>
             ) : (
               <Link href="/signup" className="btn-t btn-green-t hidden !px-6 !py-2.5 !text-sm sm:inline-flex">
@@ -150,7 +162,14 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
               <Link href="/host" className="btn-t btn-ghost-t w-full !py-3.5 !text-sm">
                 Host a game
               </Link>
-              {!user && (
+              {user ? (
+                <form action={signOut}>
+                  <button type="submit" className="btn-t btn-ghost-t w-full !py-3.5 !text-sm">
+                    <LogOutIcon size={16} />
+                    Log out
+                  </button>
+                </form>
+              ) : (
                 <Link href="/signup" className="btn-t btn-green-t w-full !py-3.5 !text-sm">
                   Create account
                 </Link>

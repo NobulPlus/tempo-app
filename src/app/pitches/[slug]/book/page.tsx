@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { getSlot } from "@/lib/data/repo";
+import { getSlot, computeBookingTotal } from "@/lib/data/repo";
 import { getCurrentUser } from "@/lib/session";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { CheckoutForm } from "@/components/booking/checkout-form";
@@ -51,8 +51,7 @@ export default async function BookPage({
   }
 
   const { pitch } = slot;
-  const serviceFeeKobo = Math.round(slot.priceKobo * 0.05);
-  const totalKobo = slot.priceKobo + serviceFeeKobo;
+  const { feeKobo: serviceFeeKobo, totalKobo } = computeBookingTotal(slot.priceKobo);
 
   return (
     <div className="py-12">

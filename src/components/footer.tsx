@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { TempoMark } from "./icons";
-import { listAreas, listPitches } from "@/lib/mock";
+import { listAreas, listPitches } from "@/lib/data/repo";
 
 const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
@@ -32,8 +32,10 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
 ];
 
 /** Footy-Addicts-style "play football in [area]" link block, area-based. */
-function AreaLinks() {
-  const areas = listAreas();
+async function AreaLinks() {
+  const areas = await listAreas();
+  const byArea = await Promise.all(areas.map((area) => listPitches({ area })));
+
   return (
     <div className="band-t border-t border-glass-border py-14">
       <div className="container-t">
@@ -41,22 +43,20 @@ function AreaLinks() {
           PLAY FOOTBALL BY AREA
         </h4>
         <div className="grid grid-cols-2 gap-x-8 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
-          {areas.map((area) => (
+          {areas.map((area, i) => (
             <div key={area}>
               <div className="mb-2.5 text-[13.5px] font-bold text-ink">Play football in {area}</div>
               <ul className="flex flex-col gap-1.5">
-                {listPitches({ area })
-                  .slice(0, 4)
-                  .map((p) => (
-                    <li key={p.id}>
-                      <Link
-                        href={`/pitches/${p.slug}`}
-                        className="text-[13px] text-ink-soft transition hover:text-green"
-                      >
-                        {p.venue.name}
-                      </Link>
-                    </li>
-                  ))}
+                {byArea[i].slice(0, 4).map((p) => (
+                  <li key={p.id}>
+                    <Link
+                      href={`/pitches/${p.slug}`}
+                      className="text-[13px] text-ink-soft transition hover:text-green"
+                    >
+                      {p.venue.name}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </div>
           ))}
@@ -66,7 +66,7 @@ function AreaLinks() {
   );
 }
 
-export function Footer() {
+export async function Footer() {
   return (
     <footer className="mt-24 border-t border-glass-border">
       <AreaLinks />
@@ -114,7 +114,7 @@ export function Footer() {
 
         <div className="mt-12 flex flex-col gap-3 border-t border-glass-border pt-6 text-[13px] text-ink-muted sm:flex-row sm:items-center sm:justify-between">
           <div>
-            © {new Date().getFullYear()} Tempo. Built in Lagos, Nigeria by Paul Adeleye.
+            © {new Date().getFullYear()} Tempo.
           </div>
           <div className="flex gap-5">
             <Link href="/legal/terms" className="transition hover:text-ink-soft">

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getCurrentUser, getGamesForUser } from "@/lib/mock";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/session";
+import { getGamesForUser } from "@/lib/data/repo";
 import { getMatchState } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { Countdown, FillBar, HeatPill } from "@/components/match/match-day";
@@ -8,14 +10,18 @@ import { StreakBadge, PunctualityRing } from "@/components/player/player-card";
 import { NotificationPreferences } from "@/components/notification-preferences";
 import { PinIcon, ClockIcon, BallIcon, CalendarIcon, ArrowRightIcon, StarIcon } from "@/components/icons";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "My games",
   robots: { index: false, follow: false },
 };
 
-export default function DashboardPage() {
-  const user = getCurrentUser();
-  const games = getGamesForUser(user.id);
+export default async function DashboardPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login?next=/dashboard");
+
+  const games = await getGamesForUser(user.id);
 
   const upcoming = games.filter((g) => new Date(g.endsAt).getTime() > Date.now());
   const hosting = upcoming.filter((g) => g.hostId === user.id);
@@ -162,7 +168,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <NotificationPreferences email={`${user.handle}@example.com`} />
+          <NotificationPreferences />
         </div>
       </div>
     </div>

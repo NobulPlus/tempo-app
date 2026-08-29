@@ -17,7 +17,7 @@ const CHANNELS: Channel[] = [
   { key: "whatsapp", label: "WhatsApp", hint: "The same alerts, sent to the number below.", icon: WhatsAppIcon },
 ];
 
-export function NotificationPreferences({ email }: { email: string }) {
+export function NotificationPreferences({ email }: { email?: string | null }) {
   const [enabled, setEnabled] = useState<Record<string, boolean>>({ app: true, email: true, whatsapp: false });
   const [whatsapp, setWhatsapp] = useState("");
 
@@ -68,7 +68,7 @@ export function NotificationPreferences({ email }: { email: string }) {
               {c.key === "email" && on && (
                 <div className="mt-3 flex items-center gap-2 rounded-lg bg-glass px-3 py-2 text-[13px] text-ink-soft">
                   <CheckIcon size={13} className="text-green" />
-                  {email}
+                  {email ?? "The email you signed up with"}
                 </div>
               )}
 

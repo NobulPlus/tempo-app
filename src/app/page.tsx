@@ -1,11 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
-import { getPlatformStats, getUrgentGames, listPitches } from "@/lib/mock";
+import { getPlatformStats, getUrgentGames, listPitches } from "@/lib/data/repo";
+import { formatNaira } from "@/lib/format";
 import { testimonials } from "@/lib/mock/testimonials";
 import { GameCard } from "@/components/match/game-card";
 import { PitchCard } from "@/components/pitch/pitch-card";
 import { TestimonialCard } from "@/components/ui/testimonial-card";
 import { StepBadge } from "@/components/ui/step-badge";
+import { Reveal } from "@/components/ui/reveal";
 import {
   SearchIcon,
   ArrowRightIcon,
@@ -13,6 +15,7 @@ import {
   UsersIcon,
   GroupIcon,
   PinIcon,
+  StarIcon,
   CarIcon,
   FlameIcon,
   DoodleFindIcon,
@@ -21,18 +24,22 @@ import {
 } from "@/components/icons";
 import { WaitlistForm } from "@/components/waitlist-form";
 
+export const dynamic = "force-dynamic";
+
 const AREAS = ["Lekki Phase 1", "Ikoyi", "Victoria Island", "Ikeja GRA", "Surulere", "Yaba"];
 
-export default function HomePage() {
-  const stats = getPlatformStats();
-  const urgent = getUrgentGames(2);
-  const topPitches = listPitches({ sort: "rated" });
+export default async function HomePage() {
+  const [stats, urgent, topPitches] = await Promise.all([
+    getPlatformStats(),
+    getUrgentGames(2),
+    listPitches({ sort: "rated" }),
+  ]);
 
   return (
     <>
       {/* ================= HERO — editorial photo, Footy-Addicts energy ================= */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0">
+        <div className="grain-t absolute inset-0">
           {/* Looping pitch footage — hidden for prefers-reduced-motion, which gets the static frame instead */}
           <video
             autoPlay
@@ -143,20 +150,47 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ================= AREA TICKER — decorative, reinforces citywide coverage ================= */}
+      <div className="marquee-t band-t border-y border-glass-border py-3">
+        <div className="marquee-t-track">
+          {[...AREAS, ...AREAS].map((a, i) => (
+            <span
+              key={`${a}-${i}`}
+              className="flex items-center gap-3 px-6 text-[13px] font-bold tracking-[1.5px] text-ink-muted"
+            >
+              {a.toUpperCase()}
+              <span className="text-green">●</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* ================= HONEST STATS — Footy Addicts' "The Stats Never Lie" ================= */}
-      <section className="band-t border-y border-glass-border py-12">
-        <div className="container-t">
+      <section className="band-t relative overflow-hidden border-b border-glass-border py-12">
+        <span
+          aria-hidden
+          className="ghost-number-t left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+        >
+          {stats.verifiedVenues}
+        </span>
+        <div className="container-t relative">
           <p className="mb-8 text-center font-display text-[13px] font-bold tracking-[2px] text-ink-muted">
             THE NUMBERS NEVER LIE
           </p>
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-            <Stat value={stats.verifiedVenues} label="Verified venues" hint="Visited and inspected in person" />
-            <Stat value={stats.pitches} label="Bookable pitches" />
-            <Stat value={stats.upcomingGames} label="Games this week" />
-            <Stat value={stats.openSpots} label="Open spots right now" hint="Updates live" />
+            {[
+              { value: stats.verifiedVenues, label: "Verified venues", hint: "Visited and inspected in person" },
+              { value: stats.pitches, label: "Bookable pitches" },
+              { value: stats.upcomingGames, label: "Games this week" },
+              { value: stats.openSpots, label: "Open spots right now", hint: "Updates live" },
+            ].map((s, i) => (
+              <Reveal key={s.label} delay={i * 90}>
+                <Stat {...s} />
+              </Reveal>
+            ))}
           </div>
         </div>
-        <p className="container-t mt-8 text-center text-[12.5px] text-ink-muted">
+        <p className="container-t relative mt-8 text-center text-[12.5px] text-ink-muted">
           Real numbers, counted from the database. We&apos;re early — and we&apos;d rather
           show you the truth than a made-up one.
         </p>
@@ -174,36 +208,58 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="mt-12 grid gap-5 md:grid-cols-3">
-            {[
-              {
-                n: 1,
-                h: "Find",
-                p: "Browse verified pitches sorted by actual distance from you, with the real price for that time slot.",
-                Icon: DoodleFindIcon,
-              },
-              {
-                n: 2,
-                h: "Book",
-                p: "Pick your hour and pay by card, transfer or USSD. Your slot is locked the moment payment clears — no double-bookings, ever.",
-                Icon: DoodleBookIcon,
-              },
-              {
-                n: 3,
-                h: "Play",
-                p: "Turn up and play. Rate your teammates after. Your reputation follows you to every game you join.",
-                Icon: DoodlePlayIcon,
-              },
-            ].map(({ n, h, p, Icon }) => (
-              <article key={n} className="card-t p-7">
-                <div className="flex items-center gap-3">
-                  <StepBadge n={n} />
-                  <Icon size={30} className="text-green/70" />
-                </div>
-                <h3 className="mt-5 font-display text-[22px] font-bold">{h}</h3>
-                <p className="mt-2.5 text-[14.5px] leading-relaxed text-ink-soft">{p}</p>
-              </article>
-            ))}
+          <div className="relative mt-12">
+            {/* Journey line — runs through the step badges, connecting the 3 cards. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute left-[16.6667%] right-[16.6667%] top-[49px] hidden md:block"
+            >
+              <svg className="w-full overflow-visible" height="2">
+                <line
+                  x1="0"
+                  y1="1"
+                  x2="100%"
+                  y2="1"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeDasharray="1 10"
+                  strokeLinecap="round"
+                  className="text-green/30"
+                />
+              </svg>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-3">
+              {[
+                {
+                  n: 1,
+                  h: "Find",
+                  p: "Browse verified pitches sorted by actual distance from you, with the real price for that time slot.",
+                  Icon: DoodleFindIcon,
+                },
+                {
+                  n: 2,
+                  h: "Book",
+                  p: "Pick your hour and pay by card, transfer or USSD. Your slot is locked the moment payment clears — no double-bookings, ever.",
+                  Icon: DoodleBookIcon,
+                },
+                {
+                  n: 3,
+                  h: "Play",
+                  p: "Turn up and play. Rate your teammates after. Your reputation follows you to every game you join.",
+                  Icon: DoodlePlayIcon,
+                },
+              ].map(({ n, h, p, Icon }, i) => (
+                <Reveal key={n} as="article" delay={i * 130} className="card-t relative z-10 p-7">
+                  <div className="flex items-center gap-3">
+                    <StepBadge n={n} />
+                    <Icon size={30} className="text-green/70" />
+                  </div>
+                  <h3 className="mt-5 font-display text-[22px] font-bold">{h}</h3>
+                  <p className="mt-2.5 text-[14.5px] leading-relaxed text-ink-soft">{p}</p>
+                </Reveal>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -221,40 +277,60 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:grid-rows-2">
+            {/* Featured tile — the strongest hook gets a bento-style spotlight
+                instead of sitting in a uniform 4-up row with the rest. */}
+            <Reveal
+              as="article"
+              className="card-t card-t-hover relative flex flex-col justify-center overflow-hidden p-7 sm:col-span-2 lg:col-span-2 lg:row-span-2"
+            >
+              <span className="spokes-t" />
+              <GroupIcon
+                size={220}
+                className="pointer-events-none absolute -bottom-10 -right-10 text-orange/[0.05]"
+              />
+              <span className="relative grid h-14 w-14 place-items-center rounded-2xl bg-orange/12 text-orange">
+                <GroupIcon size={28} />
+              </span>
+              <h3 className="text-gradient-brand relative mt-6 font-display text-[26px] font-extrabold leading-snug">
+                Games that actually happen
+              </h3>
+              <p className="relative mt-3 max-w-sm text-[15px] leading-relaxed text-ink-soft">
+                Every game shows how many players it needs to go ahead. Hit the number
+                and it&apos;s guaranteed.
+              </p>
+            </Reveal>
+
             {[
               {
                 h: "No more locked gates",
                 p: "Slots are held with a constraint that makes double-booking physically impossible. If Tempo says it's yours, it's yours.",
                 Icon: ShieldIcon,
                 accent: "text-green",
-              },
-              {
-                h: "Games that actually happen",
-                p: "Every game shows how many players it needs to go ahead. Hit the number and it's guaranteed.",
-                Icon: GroupIcon,
-                accent: "text-orange",
+                span: "",
               },
               {
                 h: "Know who you're playing with",
                 p: "Punctuality scores, peer ratings and traits — all earned from real games, never self-declared.",
                 Icon: UsersIcon,
                 accent: "text-purple",
+                span: "",
               },
               {
                 h: "It knows Lagos traffic",
                 p: "A 7pm kickoff in Lekki means leaving Yaba at 5. Tempo tells you when to leave, and warns you when a game is across the bridge.",
                 Icon: CarIcon,
                 accent: "text-blue",
+                span: "sm:col-span-2 lg:col-span-2",
               },
-            ].map(({ h, p, Icon, accent }) => (
-              <article key={h} className="card-t card-t-hover p-6">
+            ].map(({ h, p, Icon, accent, span }, i) => (
+              <Reveal as="article" key={h} delay={(i + 1) * 90} className={`card-t card-t-hover p-6 ${span}`}>
                 <span className={`grid h-11 w-11 place-items-center rounded-xl bg-glass ${accent}`}>
                   <Icon size={22} />
                 </span>
                 <h3 className="mt-4 text-[17px] font-bold leading-snug">{h}</h3>
                 <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">{p}</p>
-              </article>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -280,11 +356,72 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {topPitches.slice(0, 6).map((p) => (
-              <PitchCard key={p.id} pitch={p} />
-            ))}
-          </div>
+          {topPitches.length > 0 && (
+            <>
+              {/* Spotlight — the #1 rated pitch gets pulled out of the grid
+                  instead of sitting as just another uniform card. */}
+              <Reveal
+                as="article"
+                className="card-t card-t-hover relative mt-8 overflow-hidden lg:grid lg:grid-cols-[1.3fr_1fr]"
+              >
+                <div className="relative h-[220px] overflow-hidden bg-bg-elevated lg:h-full">
+                  {topPitches[0].venue.photos[0] && (
+                    <Image
+                      src={topPitches[0].venue.photos[0]}
+                      alt=""
+                      fill
+                      unoptimized
+                      className="object-cover"
+                      sizes="(min-width: 1024px) 55vw, 100vw"
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent lg:bg-gradient-to-r" />
+                  <span className="absolute left-4 top-4">
+                    <span className="chip-t !border-gold/35 !bg-black/40 !text-gold">
+                      <StarIcon size={12} />
+                      Top rated
+                    </span>
+                  </span>
+                </div>
+                <div className="flex flex-col justify-center p-7">
+                  <div className="flex items-center gap-1.5 text-[13.5px] text-ink-soft">
+                    <PinIcon size={14} />
+                    {topPitches[0].venue.area}
+                  </div>
+                  <h3 className="mt-1.5 font-display text-[26px] font-extrabold">
+                    {topPitches[0].venue.name}
+                  </h3>
+                  {topPitches[0].rating !== null && (
+                    <div className="mt-2 flex items-center gap-1.5 text-[14px]">
+                      <StarIcon size={15} className="text-gold" />
+                      <b>{topPitches[0].rating?.toFixed(1)}</b>
+                      <span className="text-ink-muted">({topPitches[0].reviewCount} reviews)</span>
+                    </div>
+                  )}
+                  <div className="mt-5 flex items-center justify-between gap-4 border-t border-glass-border pt-5">
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wide text-ink-muted">From</div>
+                      <div className="text-[22px] font-bold">
+                        {formatNaira(topPitches[0].pricePerHourKobo)}
+                        <span className="text-[13px] font-medium text-ink-muted">/hr</span>
+                      </div>
+                    </div>
+                    <Link href={`/pitches/${topPitches[0].slug}`} className="btn-t btn-green-t">
+                      View pitch
+                    </Link>
+                  </div>
+                </div>
+              </Reveal>
+
+              <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {topPitches.slice(1, 6).map((p, i) => (
+                  <Reveal key={p.id} delay={i * 70}>
+                    <PitchCard pitch={p} />
+                  </Reveal>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </section>
 
@@ -299,8 +436,12 @@ export default function HomePage() {
           </h2>
 
           <div className="mt-10 grid gap-5 sm:grid-cols-3">
-            {testimonials.map((t) => (
-              <TestimonialCard key={t.name} {...t} />
+            {testimonials.map((t, i) => (
+              <div key={t.name} className={i % 3 === 1 ? "sm:-mt-5" : "sm:mt-5"}>
+                <Reveal delay={i * 90}>
+                  <TestimonialCard {...t} />
+                </Reveal>
+              </div>
             ))}
           </div>
         </div>
@@ -309,11 +450,14 @@ export default function HomePage() {
       {/* ================= WAITLIST / CTA ================= */}
       <section className="py-24">
         <div className="container-t">
-          <div className="card-t relative overflow-hidden p-8 text-center md:p-14">
+          <Reveal
+            as="div"
+            className="card-t grain-t relative overflow-hidden p-8 text-center md:p-14"
+          >
             <span className="spokes-t" />
             <div className="relative mx-auto max-w-2xl">
               <h2 className="font-display text-[clamp(26px,4.5vw,40px)] font-extrabold tracking-[-.02em]">
-                We&apos;re just getting started
+                We&apos;re just <span className="text-gradient-brand">getting started</span>
               </h2>
               <p className="mt-4 text-[16.5px] leading-relaxed text-ink-soft">
                 Tempo is live in Lekki, Ikoyi, Victoria Island, Lagos Island, Surulere, Ikeja
@@ -326,7 +470,7 @@ export default function HomePage() {
               </div>
 
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-                <Link href="/games" className="btn-t btn-green-t">
+                <Link href="/games" className="btn-t btn-green-t glow-brand">
                   Find a game
                 </Link>
                 <Link href="/host" className="btn-t btn-ghost-t">
@@ -334,7 +478,7 @@ export default function HomePage() {
                 </Link>
               </div>
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
     </>

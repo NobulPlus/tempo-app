@@ -3,7 +3,7 @@ import { Bricolage_Grotesque, Figtree, Caveat, JetBrains_Mono } from "next/font/
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
-import { getCurrentUser } from "@/lib/mock";
+import { getCurrentUser } from "@/lib/session";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tempo.ng";
 
@@ -69,15 +69,16 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const user = getCurrentUser();
+  const user = await getCurrentUser();
 
   return (
     <html
       lang="en-NG"
       suppressHydrationWarning
+      data-scroll-behavior="smooth"
       className={`${display.variable} ${body.variable} ${accent.variable} ${mono.variable}`}
     >
       <body className="antialiased">

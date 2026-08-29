@@ -46,6 +46,28 @@
   --animate-flame: flame 2.4s ease-in-out infinite;
   --animate-shimmer: shimmer 2.2s linear infinite;
   --animate-rise: rise 0.7s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  --animate-marquee: marquee 26s linear infinite;
+}
+
+/* ---------- CREATIVITY PASS — additive tokens ----------
+   Same blue-dominant palette, used more expressively: gradients, glow,
+   grain and motion instead of flat single-color fills. Nothing here
+   replaces an existing token. */
+
+:root {
+  --gradient-brand: linear-gradient(135deg, var(--color-green) 0%, #7c8bff 55%, var(--color-purple) 100%);
+  /* Single reusable feTurbulence tile, blended so it reads correctly on
+     both light and dark surfaces without a separate light-mode asset. */
+  --texture-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --gradient-brand: linear-gradient(135deg, var(--color-green-deep) 0%, #5b6dee 55%, #8b5cf6 100%);
+  }
+}
+:root[data-theme="light"] {
+  --gradient-brand: linear-gradient(135deg, var(--color-green-deep) 0%, #5b6dee 55%, #8b5cf6 100%);
 }
 
 @keyframes pulse-ring {
@@ -64,6 +86,10 @@
 @keyframes rise {
   from { opacity: 0; transform: translateY(24px); }
   to { opacity: 1; transform: none; }
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }
 
 /* ---------- BASE ---------- */
@@ -290,6 +316,95 @@ body {
 
   .reveal-t {
     animation: var(--animate-rise);
+  }
+
+  /* Gradient brand text — headings/numerals that want more weight than a
+     flat text-green, without leaving the approved blue/purple family. */
+  .text-gradient-brand {
+    background: var(--gradient-brand);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+
+  /* Soft bloom behind a big CTA or numeral. Fixed rgba is intentional —
+     the brand blue's hue barely shifts between themes, only the surface
+     around it does, so one glow value reads correctly in both. */
+  .glow-brand {
+    box-shadow: 0 0 60px -12px rgba(76, 141, 255, 0.45);
+  }
+
+  /* Single reusable grain overlay. `overlay` blend keeps it legible on
+     both light and dark surfaces instead of needing a separate asset. */
+  .grain-t {
+    position: relative;
+    isolation: isolate;
+  }
+  .grain-t::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background-image: var(--texture-grain);
+    background-size: 220px 220px;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+  }
+
+  /* Oversized low-opacity numeral bled behind a section header. */
+  .ghost-number-t {
+    position: absolute;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(120px, 20vw, 220px);
+    line-height: 1;
+    color: var(--color-ink);
+    opacity: 0.04;
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  /* Continuous horizontal ticker. Track holds two copies of its content
+     back to back; keyframe slides exactly -50% so the loop is seamless. */
+  .marquee-t {
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  }
+  .marquee-t-track {
+    display: flex;
+    width: max-content;
+    animation: var(--animate-marquee);
+  }
+  .marquee-t:hover .marquee-t-track {
+    animation-play-state: paused;
+  }
+
+  /* Scroll-reveal target — paired with the Reveal client component, which
+     toggles [data-revealed] once the element enters the viewport. Reuses
+     the same rise keyframe as .reveal-t so scroll-triggered content moves
+     identically to the hero's on-load reveal. */
+  .reveal-on-t {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.7s cubic-bezier(0.2, 0.8, 0.3, 1), transform 0.7s cubic-bezier(0.2, 0.8, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0s);
+  }
+  .reveal-on-t[data-revealed="true"] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-t-track {
+    animation: none;
+  }
+  .reveal-on-t {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 

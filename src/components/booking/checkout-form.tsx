@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { createBookingAction, type ActionState } from "@/app/actions";
 import { formatNaira } from "@/lib/format";
 import { CheckIcon, PhoneIcon, LightningIcon } from "@/components/icons";
+import { OptionRow } from "@/components/ui/option-row";
 
 const initial: ActionState = {};
 
@@ -52,36 +53,14 @@ export function CheckoutForm({
 
       <div className="mt-4 grid gap-2.5">
         {METHODS.map(({ key, label, hint, Icon }) => (
-          <button
-            type="button"
+          <OptionRow
             key={key}
+            selected={method === key}
             onClick={() => setMethod(key)}
-            aria-pressed={method === key}
-            className={`flex items-center gap-3.5 rounded-xl border p-4 text-left transition ${
-              method === key
-                ? "border-green/50 bg-green/10"
-                : "border-white/10 bg-white/4 hover:border-white/25"
-            }`}
-          >
-            <span
-              className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
-                method === key ? "bg-green/18 text-green" : "bg-white/6 text-ink-soft"
-              }`}
-            >
-              <Icon size={19} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[15px] font-semibold">{label}</span>
-              <span className="block text-[12.5px] text-ink-muted">{hint}</span>
-            </span>
-            <span
-              className={`ml-auto grid h-5 w-5 shrink-0 place-items-center rounded-full border ${
-                method === key ? "border-green bg-green text-[#04150c]" : "border-white/25"
-              }`}
-            >
-              {method === key && <CheckIcon size={12} />}
-            </span>
-          </button>
+            icon={<Icon size={19} />}
+            label={label}
+            hint={hint}
+          />
         ))}
       </div>
 
@@ -112,7 +91,8 @@ export function CheckoutForm({
       </button>
 
       <p className="mt-3 text-center text-[12px] text-ink-muted">
-        Demo mode — no money moves. Wire your Paystack keys to take real payments.
+        No payment gateway is connected yet — your booking is confirmed without a
+        real charge.
       </p>
     </form>
   );

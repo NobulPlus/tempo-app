@@ -5,7 +5,8 @@ import { createGameAction, type ActionState } from "@/app/actions";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { splitKobo } from "@/lib/format";
 import type { Slot } from "@/lib/types";
-import { CheckIcon, UsersIcon, ShieldIcon } from "@/components/icons";
+import { UsersIcon, ShieldIcon } from "@/components/icons";
+import { OptionRow } from "@/components/ui/option-row";
 
 const initial: ActionState = {};
 
@@ -65,37 +66,14 @@ export function HostForm({ slots }: { slots: HostSlotOption[] }) {
               </p>
             )}
             {slots.map((s) => (
-              <button
-                type="button"
+              <OptionRow
                 key={s.id}
+                selected={slotId === s.id}
                 onClick={() => setSlotId(s.id)}
-                aria-pressed={slotId === s.id}
-                className={`flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition ${
-                  slotId === s.id
-                    ? "border-green/50 bg-green/10"
-                    : "border-white/10 bg-white/4 hover:border-white/25"
-                }`}
-              >
-                <span
-                  className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${
-                    slotId === s.id ? "border-green bg-green text-[#04150c]" : "border-white/25"
-                  }`}
-                >
-                  {slotId === s.id && <CheckIcon size={11} />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[14.5px] font-semibold">
-                    {s.venueName} · {s.pitchName}
-                  </span>
-                  <span className="block truncate text-[12.5px] text-ink-muted">
-                    {s.area} · {s.size} · {formatRelativeDay(s.startsAt)}{" "}
-                    {formatTime(s.startsAt)}
-                  </span>
-                </span>
-                <span className="shrink-0 text-[14px] font-bold">
-                  {formatNaira(s.priceKobo)}
-                </span>
-              </button>
+                label={`${s.venueName} · ${s.pitchName}`}
+                hint={`${s.area} · ${s.size} · ${formatRelativeDay(s.startsAt)} ${formatTime(s.startsAt)}`}
+                value={formatNaira(s.priceKobo)}
+              />
             ))}
           </div>
           <input type="hidden" name="slotId" value={slotId} />
@@ -139,24 +117,13 @@ export function HostForm({ slots }: { slots: HostSlotOption[] }) {
               <legend className="mb-2 text-[13px] font-semibold text-ink-soft">Level</legend>
               <div className="grid gap-2 sm:grid-cols-3">
                 {LEVELS.map((l) => (
-                  <button
-                    type="button"
+                  <OptionRow
                     key={l.key}
+                    selected={level === l.key}
                     onClick={() => setLevel(l.key)}
-                    aria-pressed={level === l.key}
-                    className={`rounded-xl border p-3.5 text-left transition ${
-                      level === l.key
-                        ? "border-green/50 bg-green/10"
-                        : "border-white/10 bg-white/4 hover:border-white/25"
-                    }`}
-                  >
-                    <span className={`block text-[14px] font-semibold ${level === l.key ? "text-green" : ""}`}>
-                      {l.label}
-                    </span>
-                    <span className="mt-0.5 block text-[11.5px] leading-snug text-ink-muted">
-                      {l.hint}
-                    </span>
-                  </button>
+                    label={l.label}
+                    hint={l.hint}
+                  />
                 ))}
               </div>
               <input type="hidden" name="level" value={level} />
