@@ -71,16 +71,16 @@ export default async function HomePage() {
             </span>
 
             <h1 className="mt-5 font-display text-[clamp(40px,7.5vw,64px)] font-extrabold leading-[0.98] tracking-[-.02em]">
-              Play football
+              Play sports
               <br />
               <span className="text-green">whenever you want</span>
             </h1>
 
             <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink-soft">
-              Find a pitch near you. Book it in under a minute. Or join an open game
-              with players who actually show up.{" "}
-              <span className="font-accent text-[22px] text-ink">
-                Lagos football, finally organised.
+              Find a facility near you. Book it in under a minute. Or join an open game
+              with players who actually show up.
+              <span className="font-accent mt-2 block text-[22px] text-ink">
+                Lagos sport, finally organised.
               </span>
             </p>
 
@@ -121,7 +121,7 @@ export default async function HomePage() {
             <div className="mb-3 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-[15px] font-bold">
                 <FlameIcon size={16} className="text-orange" />
-                Kicking off soon
+                Starting soon
               </h2>
               <Link
                 href="/games"
@@ -180,7 +180,7 @@ export default async function HomePage() {
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
             {[
               { value: stats.verifiedVenues, label: "Verified venues", hint: "Visited and inspected in person" },
-              { value: stats.pitches, label: "Bookable pitches" },
+              { value: stats.pitches, label: "Bookable facilities" },
               { value: stats.upcomingGames, label: "Games this week" },
               { value: stats.openSpots, label: "Open spots right now", hint: "Updates live" },
             ].map((s, i) => (
@@ -204,7 +204,7 @@ export default async function HomePage() {
               Find. <span className="text-green">Book.</span> Play.
             </h2>
             <p className="mt-3 text-[17px] text-ink-soft">
-              Three steps from wanting to play to being on the pitch.
+              Three steps from wanting to play to being out there.
             </p>
           </div>
 
@@ -234,7 +234,7 @@ export default async function HomePage() {
                 {
                   n: 1,
                   h: "Find",
-                  p: "Browse verified pitches sorted by actual distance from you, with the real price for that time slot.",
+                  p: "Browse verified facilities sorted by actual distance from you, with the real price for that time slot.",
                   Icon: DoodleFindIcon,
                 },
                 {
@@ -269,10 +269,10 @@ export default async function HomePage() {
         <div className="container-t">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="font-display text-[clamp(28px,5vw,44px)] font-extrabold leading-tight tracking-[-.02em]">
-              Built for the <span className="text-orange">beautiful game</span>
+              Built for <span className="text-orange">how Lagos plays</span>
             </h2>
             <p className="mt-3 text-[17px] text-ink-soft">
-              Every feature here exists because organising football in Lagos is harder
+              Every feature here exists because organising sport in Lagos is harder
               than it should be.
             </p>
           </div>
@@ -318,7 +318,7 @@ export default async function HomePage() {
               },
               {
                 h: "It knows Lagos traffic",
-                p: "A 7pm kickoff in Lekki means leaving Yaba at 5. Tempo tells you when to leave, and warns you when a game is across the bridge.",
+                p: "A 7pm start in Lekki means leaving Yaba at 5. Tempo tells you when to leave, and warns you when a game is across the bridge.",
                 Icon: CarIcon,
                 accent: "text-blue",
                 span: "sm:col-span-2 lg:col-span-2",
@@ -342,7 +342,7 @@ export default async function HomePage() {
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h2 className="font-display text-[clamp(26px,4vw,38px)] font-extrabold tracking-[-.02em]">
-                Verified pitches <span className="text-green">in Lagos</span>
+                Verified venues <span className="text-green">in Lagos</span>
               </h2>
               <p className="mt-2 text-[16px] text-ink-soft">
                 Every one visited in person before it went live.
@@ -407,7 +407,7 @@ export default async function HomePage() {
                       </div>
                     </div>
                     <Link href={`/pitches/${topPitches[0].slug}`} className="btn-t btn-green-t">
-                      View pitch
+                      View venue
                     </Link>
                   </div>
                 </div>
@@ -461,7 +461,7 @@ export default async function HomePage() {
               </h2>
               <p className="mt-4 text-[16.5px] leading-relaxed text-ink-soft">
                 Tempo is live in Lekki, Ikoyi, Victoria Island, Lagos Island, Surulere, Ikeja
-                GRA and Yaba. If your regular pitch isn&apos;t here yet, tell us where you
+                GRA and Yaba. If your regular spot isn&apos;t here yet, tell us where you
                 play and we&apos;ll go and get it verified.
               </p>
 

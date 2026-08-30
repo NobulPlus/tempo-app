@@ -11,7 +11,7 @@ export interface Testimonial {
 export const testimonials: Testimonial[] = [
   {
     quote:
-      "I moved from Abuja and didn't know a single pitch in Lagos. Found a Tuesday game in my first week and I've barely missed one since.",
+      "I moved from Abuja and didn't know anywhere to play in Lagos. Found a Tuesday game in my first week and I've barely missed one since.",
     name: "Tomiwa A.",
     area: "Lekki Phase 1",
     rating: 5,

@@ -303,10 +303,55 @@ body {
     font-size: 15px;
     transition: 0.2s;
   }
+  .field-t:has(.field-icon) input {
+    padding-left: 44px;
+  }
   .field-t textarea {
     min-height: 96px;
     resize: vertical;
   }
+
+  /* Icon sits at a fixed spot inside the field; the floating label starts
+     in the placeholder position (clear of the icon) and lifts onto the
+     border, matching the input's own left inset, once focused/filled. */
+  .field-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-ink-muted);
+    pointer-events: none;
+  }
+  .floating {
+    position: absolute;
+    left: 44px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-ink-muted);
+    font-size: 15px;
+    line-height: 1;
+    pointer-events: none;
+    transform-origin: left center;
+    transition: top 0.15s ease, transform 0.15s ease, color 0.15s ease, left 0.15s ease;
+  }
+  .field-t:not(:has(.field-icon)) .floating {
+    left: 16px;
+  }
+  .field-t input:focus ~ .floating,
+  .field-t input:not(:placeholder-shown) ~ .floating,
+  .field-t select:focus ~ .floating,
+  .field-t select:not(:placeholder-shown) ~ .floating,
+  .field-t textarea:focus ~ .floating,
+  .field-t textarea:not(:placeholder-shown) ~ .floating {
+    top: 0;
+    left: 12px;
+    transform: translateY(-50%) scale(0.78);
+    color: var(--color-green);
+    background: var(--color-bg-card);
+    padding: 0 5px;
+    border-radius: 4px;
+  }
+
   .field-t input:focus,
   .field-t select:focus,
   .field-t textarea:focus {
