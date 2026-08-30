@@ -40,12 +40,12 @@ async function AreaLinks() {
     <div className="band-t border-t border-glass-border py-14">
       <div className="container-t">
         <h4 className="mb-6 font-display text-[13px] font-bold tracking-[1.2px] text-ink-muted">
-          PLAY FOOTBALL BY AREA
+          PLAY SPORTS BY AREA
         </h4>
         <div className="grid grid-cols-2 gap-x-8 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
           {areas.map((area, i) => (
             <div key={area}>
-              <div className="mb-2.5 text-[13.5px] font-bold text-ink">Play football in {area}</div>
+              <div className="mb-2.5 text-[13.5px] font-bold text-ink">Play sports in {area}</div>
               <ul className="flex flex-col gap-1.5">
                 {byArea[i].slice(0, 4).map((p) => (
                   <li key={p.id}>

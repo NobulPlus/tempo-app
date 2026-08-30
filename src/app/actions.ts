@@ -59,6 +59,54 @@ export async function joinWaitlist(
   };
 }
 
+/**
+ * Venue-owner interest, via the same waitlist table as the player waitlist
+ * above — just tagged role: 'venue_owner' so we know to follow up about
+ * listing a pitch rather than playing on one. No dedicated venues-lead
+ * table exists yet; this is enough for a human to follow up from.
+ */
+const partnerSchema = z.object({
+  contact: z.string().min(3, "Enter your email or phone number"),
+  area: z.string().min(1, "Tell us where your venue is"),
+});
+
+export async function joinPartnerWaitlist(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = partnerSchema.safeParse({
+    contact: formData.get("contact"),
+    area: formData.get("area"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const { contact, area } = parsed.data;
+  const isEmail = contact.includes("@");
+  const phone = isEmail ? null : normalisePhone(contact);
+
+  if (!isEmail && !phone) {
+    return { ok: false, error: "That doesn't look like a Nigerian phone number." };
+  }
+
+  if (isSupabaseConfigured()) {
+    const sb = await createClient();
+    const { error } = await sb.from("waitlist").insert({
+      email: isEmail ? contact : null,
+      phone,
+      area,
+      role: "venue_owner",
+    });
+    if (error) return { ok: false, error: "Couldn't save that — try again in a moment." };
+  }
+
+  return {
+    ok: true,
+    message: "Got it. Someone from Tempo will reach out to arrange a visit.",
+  };
+}
+
 /* ----------------------------------------------------------------- games -- */
 
 export async function joinGameAction(gameId: string, slug: string): Promise<ActionState> {
@@ -335,6 +383,83 @@ export async function signInAction(_prev: ActionState, formData: FormData): Prom
 
   revalidatePath("/", "layout");
   redirect(safeNext(parsed.data.next));
+}
+
+/* ----------------------------------------------------------- password reset */
+
+const resetRequestSchema = z.object({
+  email: z.string().email("Enter a valid email"),
+});
+
+/**
+ * Never reveals whether the email is actually registered — same success
+ * message either way. Supabase's own resetPasswordForEmail behaves the same
+ * way for the same reason: an error here would let someone enumerate emails.
+ */
+export async function requestPasswordResetAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  if (!isSupabaseConfigured()) {
+    return {
+      ok: false,
+      error: "This deploy has no database connected yet — use demo sign-in from the login page instead.",
+    };
+  }
+
+  const parsed = resetRequestSchema.safeParse({ email: formData.get("email") });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Enter a valid email" };
+  }
+
+  const sb = await createClient();
+  const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tempo.ng";
+  await sb.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo: `${SITE}/auth/confirm?next=/reset/confirm`,
+  });
+
+  return {
+    ok: true,
+    message: "If an account exists for that email, we've sent a link to reset your password.",
+  };
+}
+
+const newPasswordSchema = z
+  .object({
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    password2: z.string(),
+  })
+  .refine((v) => v.password === v.password2, {
+    message: "Passwords don't match",
+    path: ["password2"],
+  });
+
+/**
+ * Only reachable with a real session — /reset/confirm's own page guard
+ * redirects anyone without one, and the recovery link (verified by
+ * /auth/confirm) is what establishes that session in the first place.
+ */
+export async function updatePasswordAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = newPasswordSchema.safeParse({
+    password: formData.get("password"),
+    password2: formData.get("password2"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
+  }
+
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Your reset link has expired — request a new one." };
+
+  const sb = await createClient();
+  const { error } = await sb.auth.updateUser({ password: parsed.data.password });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/", "layout");
+  redirect("/dashboard");
 }
 
 /**

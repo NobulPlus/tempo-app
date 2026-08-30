@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { getGamesForUser } from "@/lib/data/repo";
+import { getGamesForUser, getBookingsForUser } from "@/lib/data/repo";
 import { getMatchState } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { Countdown, FillBar, HeatPill } from "@/components/match/match-day";
@@ -21,12 +21,20 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/dashboard");
 
-  const games = await getGamesForUser(user.id);
+  const [games, bookings] = await Promise.all([
+    getGamesForUser(user.id),
+    getBookingsForUser(user.id),
+  ]);
 
-  const upcoming = games.filter((g) => new Date(g.endsAt).getTime() > Date.now());
+  const now = Date.now();
+  const upcoming = games.filter((g) => new Date(g.endsAt).getTime() > now);
   const hosting = upcoming.filter((g) => g.hostId === user.id);
   const playing = upcoming.filter((g) => g.hostId !== user.id);
   const nextUp = upcoming[0];
+
+  const upcomingBookings = bookings
+    .filter((b) => b.slot && new Date(b.slot.endsAt).getTime() > now)
+    .sort((a, b) => a.slot!.startsAt.localeCompare(b.slot!.startsAt));
 
   return (
     <div className="py-12">
@@ -151,6 +159,19 @@ export default async function DashboardPage() {
                 right: formatRelativeDay(g.startsAt),
               };
             })}
+          />
+
+          <Section
+            title="My bookings"
+            empty="You haven't booked a pitch yet."
+            cta={{ href: "/pitches", label: "Find a pitch" }}
+            items={upcomingBookings.map((b) => ({
+              key: b.id,
+              href: `/bookings/${b.reference}`,
+              title: b.slot!.pitch.venue.name,
+              meta: `${formatRelativeDay(b.slot!.startsAt)} · ${formatTime(b.slot!.startsAt)}`,
+              right: formatNaira(b.totalKobo),
+            }))}
           />
 
           <div className="card-t p-6">

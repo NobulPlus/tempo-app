@@ -43,13 +43,16 @@ export default function SetupPage() {
             for Nigerian traffic).
           </p>
 
-          <h2>2. Run the migration</h2>
+          <h2>2. Run the migrations</h2>
           <p>
-            In the Supabase dashboard open <strong>SQL Editor</strong>, paste the
-            contents of <code>supabase/migrations/0001_init.sql</code> and run it.
-            This creates every table, the row-level security policies, the reputation
-            triggers, and the exclusion constraint that makes double-booking
-            impossible.
+            In the Supabase dashboard open <strong>SQL Editor</strong>, and run every
+            file in <code>supabase/migrations/</code> — in order, starting with{" "}
+            <code>0001_init.sql</code> — pasting and running each one before moving to
+            the next. <code>0001</code> creates every table, the row-level security
+            policies, the reputation triggers, and the exclusion constraint that makes
+            double-booking impossible; the migrations after it fix bugs found in a
+            live-readiness audit (real bookings, waitlist promotion, auth security)
+            and can&apos;t be skipped on a fresh project.
           </p>
 
           <h2>3. Add your keys</h2>
@@ -66,8 +69,9 @@ export default function SetupPage() {
             </li>
           </ul>
           <p>
-            Restart the dev server. The demo banner disappears and every query routes
-            to Postgres instead of memory.
+            Restart the dev server. Every query now routes to Postgres instead of
+            memory — the status badge at the top of this page will flip to
+            &ldquo;Connected to Supabase.&rdquo;
           </p>
 
           <h2>4. Seed it</h2>

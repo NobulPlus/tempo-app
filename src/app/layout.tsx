@@ -4,6 +4,7 @@ import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { getCurrentUser } from "@/lib/session";
+import { demoMode } from "@/lib/data/repo";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tempo.ng";
 
@@ -31,33 +32,34 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
   title: {
-    default: "Tempo — Find a pitch, book a pitch, join a game in Lagos",
+    default: "Tempo — Find a facility, book a facility, join a game in Lagos",
     template: "%s · Tempo",
   },
   description:
-    "Tempo helps footballers in Lagos find verified pitches, book a slot in under a minute, and join open games with real players. Built in Lagos, for Lagos.",
+    "Tempo helps players in Lagos find verified sports facilities, book a slot in under a minute, and join open games with real players. Built in Lagos, for Lagos.",
   keywords: [
-    "football Lagos",
-    "book a pitch Lagos",
+    "sport Lagos",
+    "book a facility Lagos",
+    "find a game Lagos",
     "5-a-side Lagos",
     "7-a-side Lagos",
     "astro turf Lagos",
-    "Lekki football pitch",
-    "Ikoyi football",
+    "Lekki sports facility",
+    "Ikoyi sport",
   ],
   openGraph: {
     type: "website",
     locale: "en_NG",
     siteName: "Tempo",
-    title: "Tempo — Lagos football, finally organised",
+    title: "Tempo — Lagos sport, finally organised",
     description:
-      "Find verified pitches, book instantly, and join open games with real players across Lagos.",
+      "Find verified facilities, book instantly, and join open games with real players across Lagos.",
     url: SITE,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Tempo — Lagos football, finally organised",
-    description: "Find a pitch, book a pitch, join a game.",
+    title: "Tempo — Lagos sport, finally organised",
+    description: "Find a facility, book a facility, join a game.",
   },
   robots: { index: true, follow: true },
   alternates: { canonical: SITE },
@@ -73,6 +75,7 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const user = await getCurrentUser();
+  const isDemo = demoMode();
 
   return (
     <html
@@ -97,7 +100,7 @@ export default async function RootLayout({
           Skip to content
         </a>
 
-        <Nav user={user} />
+        <Nav user={user} isDemo={isDemo} />
 
         <main id="main" className="pt-[71px]">
           {children}

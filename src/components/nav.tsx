@@ -24,7 +24,7 @@ const LINKS = [
   { href: "/games", label: "Games", Icon: BallIcon },
 ];
 
-export function Nav({ user }: { user: PlayerProfile | null }) {
+export function Nav({ user, isDemo }: { user: PlayerProfile | null; isDemo: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -92,7 +92,7 @@ export function Nav({ user }: { user: PlayerProfile | null }) {
             {user ? (
               <>
                 <span className="hidden sm:block">
-                  <NotificationBell />
+                  <NotificationBell isDemo={isDemo} />
                 </span>
                 <Link
                   href={`/players/${user.handle}`}

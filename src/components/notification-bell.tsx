@@ -22,8 +22,11 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-export function NotificationBell() {
-  const [items, setItems] = useState(initialNotifications);
+export function NotificationBell({ isDemo }: { isDemo: boolean }) {
+  // Real notifications aren't built yet — no notifications table exists.
+  // Showing the mock set to a real signed-in user would look like genuine
+  // activity that never happened, so it's demo-mode only.
+  const [items, setItems] = useState(isDemo ? initialNotifications : []);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const unread = items.filter((n) => !n.read).length;
