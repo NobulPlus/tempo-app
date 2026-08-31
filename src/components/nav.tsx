@@ -12,6 +12,7 @@ import {
   MenuIcon,
   CloseIcon,
   LogOutIcon,
+  ShieldIcon,
 } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
@@ -94,6 +95,16 @@ export function Nav({ user, isDemo }: { user: PlayerProfile | null; isDemo: bool
                 <span className="hidden sm:block">
                   <NotificationBell isDemo={isDemo} />
                 </span>
+                {user.role === "admin" && (
+                  <Link
+                    href="/admin"
+                    className="grid h-9 w-9 place-items-center rounded-full text-ink-soft transition hover:bg-glass hover:text-ink"
+                    aria-label="Admin"
+                    title="Admin"
+                  >
+                    <ShieldIcon size={17} />
+                  </Link>
+                )}
                 <Link
                   href={`/players/${user.handle}`}
                   className="grid h-9 w-9 place-items-center rounded-full border-[1.5px] border-green bg-green/8 text-[13px] font-bold"

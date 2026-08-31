@@ -5,7 +5,22 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { DEMO_COOKIE } from "@/lib/session";
 import { getCurrentUser } from "@/lib/session";
-import { joinGame, leaveGame, createBooking, listProfiles } from "@/lib/data/repo";
+import {
+  joinGame,
+  leaveGame,
+  createBooking,
+  listProfiles,
+  verifyVenue,
+  createVenue,
+  updateVenue,
+  getVenueById,
+  createPitch,
+  updatePitch,
+  getPitchById,
+  generateSlots,
+  setSlotStatus,
+} from "@/lib/data/repo";
+import type { UserRole, PitchSize, PitchSurface } from "@/lib/types";
 import { normalisePhone } from "@/lib/format";
 import { isSupabaseConfigured, createClient } from "@/lib/supabase/server";
 import { store } from "@/lib/data/store";
@@ -479,6 +494,336 @@ export async function demoSignIn(profileId: string) {
     maxAge: 60 * 60 * 24 * 30,
   });
   revalidatePath("/", "layout");
+}
+
+/* ------------------------------------------------------------------ venue -- */
+
+const createVenueSchema = z.object({
+  name: z.string().min(2, "Give your venue a name"),
+  area: z.string().min(1, "Enter an area"),
+  side: z.enum(["island", "mainland"]),
+  address: z.string().min(4, "Enter an address"),
+  lat: z.coerce.number().min(-90).max(90),
+  lng: z.coerce.number().min(-180).max(180),
+  phone: z.string().optional(),
+  description: z.string().max(600).optional(),
+});
+
+export async function createVenueAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const parsed = createVenueSchema.safeParse({
+    name: formData.get("name"),
+    area: formData.get("area"),
+    side: formData.get("side"),
+    address: formData.get("address"),
+    lat: formData.get("lat"),
+    lng: formData.get("lng"),
+    phone: formData.get("phone") || undefined,
+    description: formData.get("description") || undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
+  }
+
+  const result = await createVenue(user.id, parsed.data);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/venue");
+  redirect(`/venue/${result.venue.id}`);
+}
+
+const updateVenueSchema = z.object({
+  name: z.string().min(2).optional(),
+  area: z.string().min(1).optional(),
+  side: z.enum(["island", "mainland"]).optional(),
+  address: z.string().min(4).optional(),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
+  phone: z.string().optional(),
+  description: z.string().max(600).optional(),
+});
+
+export async function updateVenueAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const venueId = String(formData.get("venueId") ?? "");
+  const venue = await getVenueById(venueId);
+  if (!venue || venue.ownerId !== user.id) return { ok: false, error: "Not authorized." };
+
+  const parsed = updateVenueSchema.safeParse({
+    name: formData.get("name") || undefined,
+    area: formData.get("area") || undefined,
+    side: formData.get("side") || undefined,
+    address: formData.get("address") || undefined,
+    lat: formData.get("lat") || undefined,
+    lng: formData.get("lng") || undefined,
+    phone: formData.get("phone") || undefined,
+    description: formData.get("description") || undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
+  }
+
+  const result = await updateVenue(venueId, parsed.data);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/venue/${venueId}`);
+  return { ok: true, message: "Venue updated." };
+}
+
+/* ------------------------------------------------------------------ pitch -- */
+
+const createPitchSchema = z.object({
+  name: z.string().min(2, "Give this pitch a name"),
+  size: z.enum(["5-a-side", "7-a-side", "11-a-side"]),
+  surface: z.enum(["astro", "grass", "indoor", "concrete"]),
+  floodlights: z.coerce.boolean().optional(),
+  covered: z.coerce.boolean().optional(),
+  pricePerHourNaira: z.coerce.number().int().min(500).max(500000),
+  peakMultiplier: z.coerce.number().min(1).max(3),
+});
+
+export async function createPitchAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const venueId = String(formData.get("venueId") ?? "");
+  const venue = await getVenueById(venueId);
+  if (!venue || venue.ownerId !== user.id) return { ok: false, error: "Not authorized." };
+
+  const parsed = createPitchSchema.safeParse({
+    name: formData.get("name"),
+    size: formData.get("size"),
+    surface: formData.get("surface"),
+    floodlights: formData.get("floodlights") === "on",
+    covered: formData.get("covered") === "on",
+    pricePerHourNaira: formData.get("pricePerHourNaira"),
+    peakMultiplier: formData.get("peakMultiplier"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
+  }
+
+  const v = parsed.data;
+  const result = await createPitch(venueId, {
+    name: v.name,
+    size: v.size as PitchSize,
+    surface: v.surface as PitchSurface,
+    floodlights: Boolean(v.floodlights),
+    covered: Boolean(v.covered),
+    pricePerHourKobo: v.pricePerHourNaira * 100,
+    peakMultiplier: v.peakMultiplier,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/venue/${venueId}`);
+  return { ok: true, message: `${result.pitch.name} added.` };
+}
+
+const updatePitchSchema = z.object({
+  name: z.string().min(2).optional(),
+  pricePerHourNaira: z.coerce.number().int().min(500).max(500000).optional(),
+  peakMultiplier: z.coerce.number().min(1).max(3).optional(),
+  floodlights: z.coerce.boolean().optional(),
+  covered: z.coerce.boolean().optional(),
+  active: z.coerce.boolean().optional(),
+});
+
+export async function updatePitchAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const pitchId = String(formData.get("pitchId") ?? "");
+  const pitch = await getPitchById(pitchId);
+  if (!pitch || pitch.venue.ownerId !== user.id) return { ok: false, error: "Not authorized." };
+
+  const parsed = updatePitchSchema.safeParse({
+    name: formData.get("name") || undefined,
+    pricePerHourNaira: formData.get("pricePerHourNaira") || undefined,
+    peakMultiplier: formData.get("peakMultiplier") || undefined,
+    floodlights: formData.has("floodlights") ? formData.get("floodlights") === "on" : undefined,
+    covered: formData.has("covered") ? formData.get("covered") === "on" : undefined,
+    active: formData.has("active") ? formData.get("active") === "true" : undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
+  }
+
+  const v = parsed.data;
+  const result = await updatePitch(pitchId, {
+    name: v.name,
+    pricePerHourKobo: v.pricePerHourNaira !== undefined ? v.pricePerHourNaira * 100 : undefined,
+    peakMultiplier: v.peakMultiplier,
+    floodlights: v.floodlights,
+    covered: v.covered,
+    active: v.active,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/venue/${pitch.venueId}`);
+  return { ok: true, message: "Pitch updated." };
+}
+
+/* ------------------------------------------------------------------ slots -- */
+
+const generateSlotsSchema = z.object({
+  openHour: z.coerce.number().int().min(0).max(23),
+  closeHour: z.coerce.number().int().min(0).max(23),
+  daysAhead: z.coerce.number().int().min(1).max(60),
+  peakStartHour: z.coerce.number().int().min(0).max(23),
+  peakEndHour: z.coerce.number().int().min(0).max(23),
+});
+
+export async function generateSlotsAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const pitchId = String(formData.get("pitchId") ?? "");
+  const pitch = await getPitchById(pitchId);
+  if (!pitch || pitch.venue.ownerId !== user.id) return { ok: false, error: "Not authorized." };
+
+  const parsed = generateSlotsSchema.safeParse({
+    openHour: formData.get("openHour"),
+    closeHour: formData.get("closeHour"),
+    daysAhead: formData.get("daysAhead"),
+    peakStartHour: formData.get("peakStartHour"),
+    peakEndHour: formData.get("peakEndHour"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
+  }
+  if (parsed.data.openHour >= parsed.data.closeHour) {
+    return { ok: false, error: "Closing hour must be after opening hour." };
+  }
+
+  const result = await generateSlots(
+    pitchId,
+    pitch.pricePerHourKobo,
+    pitch.peakMultiplier,
+    parsed.data,
+  );
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/venue/${pitch.venueId}/pitches/${pitchId}`);
+  return { ok: true, message: `${result.created} slot${result.created === 1 ? "" : "s"} added.` };
+}
+
+/**
+ * No dedicated getSlotById — slots_write RLS already scopes this correctly
+ * via the pitch->venue ownership chain server-side (same "0 rows affected,
+ * no thrown error" behavior for an unauthorized id verified during the
+ * live-readiness audit), so a stray slotId for a pitch this caller doesn't
+ * own simply updates nothing rather than needing an extra fetch here.
+ */
+export async function setSlotStatusAction(
+  slotId: string,
+  status: "open" | "blocked",
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Not authorized." };
+
+  return setSlotStatus(slotId, status);
+}
+
+/* ----------------------------------------------------------------- admin -- */
+
+/**
+ * The RLS policies and admin_set_*() functions already reject a non-admin
+ * caller regardless — this is what actually keeps the /admin UI itself from
+ * doing anything for one, since the page-level redirect in admin/layout.tsx
+ * is the only other gate.
+ */
+async function requireAdmin() {
+  const user = await getCurrentUser();
+  return user?.role === "admin" ? user : null;
+}
+
+export async function verifyVenueAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, error: "Not authorized." };
+
+  const venueId = String(formData.get("venueId") ?? "");
+  const verified = formData.get("verified") === "true";
+  const note = String(formData.get("note") ?? "");
+
+  const result = await verifyVenue(venueId, admin.id, verified, note);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/venues");
+  return { ok: true, message: verified ? "Venue verified." : "Verification removed." };
+}
+
+export async function setUserSuspendedAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, error: "Not authorized." };
+
+  const userId = String(formData.get("userId") ?? "");
+  const suspended = formData.get("suspended") === "true";
+
+  const sb = await createClient();
+  const { error } = await sb.rpc("admin_set_suspended", { target_id: userId, val: suspended });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/users");
+  return { ok: true, message: suspended ? "User suspended." : "User unsuspended." };
+}
+
+export async function setUserRoleAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, error: "Not authorized." };
+
+  const userId = String(formData.get("userId") ?? "");
+  const role = formData.get("role") as UserRole;
+
+  const sb = await createClient();
+  const { error } = await sb.rpc("admin_set_role", { target_id: userId, new_role: role });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/users");
+  return { ok: true, message: "Role updated." };
+}
+
+export async function dismissWaitlistLeadAction(id: string): Promise<{ ok: boolean; error?: string }> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, error: "Not authorized." };
+
+  const sb = await createClient();
+  const { error } = await sb.from("waitlist").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/leads");
+  return { ok: true };
 }
 
 export async function signOut() {

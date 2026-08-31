@@ -35,11 +35,11 @@ export default async function VenuePage() {
               every venue before it goes live.
             </p>
             <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-              <Link href="/partner" className="btn-t btn-green-t">
-                List your venue
+              <Link href="/venue/new" className="btn-t btn-green-t">
+                Add your first venue
               </Link>
-              <Link href="/pitches" className="btn-t btn-ghost-t">
-                Browse pitches
+              <Link href="/partner" className="btn-t btn-ghost-t">
+                Have someone from Tempo reach out instead
               </Link>
             </div>
             <p className="mt-6 text-[12.5px] text-ink-muted">
@@ -80,18 +80,27 @@ export default async function VenuePage() {
 
             return (
               <section key={venue.id} className="mt-10">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-[22px] font-bold">{venue.name}</h2>
-                  {venue.verified && (
-                    <span className="chip-t !border-green/35 !bg-green/12 !text-green">
-                      <ShieldIcon size={12} />
-                      Verified
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-[22px] font-bold">{venue.name}</h2>
+                    {venue.verified ? (
+                      <span className="chip-t !border-green/35 !bg-green/12 !text-green">
+                        <ShieldIcon size={12} />
+                        Verified
+                      </span>
+                    ) : (
+                      <span className="chip-t !border-gold/35 !bg-gold/12 !text-gold">
+                        Awaiting verification
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1.5 text-[13.5px] text-ink-muted">
+                      <PinIcon size={13} />
+                      {venue.area}
                     </span>
-                  )}
-                  <span className="flex items-center gap-1.5 text-[13.5px] text-ink-muted">
-                    <PinIcon size={13} />
-                    {venue.area}
-                  </span>
+                  </div>
+                  <Link href={`/venue/${venue.id}`} className="btn-t btn-ghost-t !py-2.5 !text-[13.5px]">
+                    Manage inventory
+                  </Link>
                 </div>
 
                 {/* KPIs */}

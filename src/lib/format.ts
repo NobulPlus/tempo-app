@@ -107,3 +107,17 @@ export function generateReference(): string {
   for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
   return `TMP-${out}`;
 }
+
+/**
+ * lowercase-dasherized name + a short random suffix — the same shape
+ * host_game()/handle_new_user() generate slugs with in SQL, mirrored here
+ * for the plain-insert paths (venues/pitches) that don't go through an RPC.
+ */
+export function slugify(name: string): string {
+  const base = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `${base || "item"}-${suffix}`;
+}

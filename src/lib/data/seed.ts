@@ -187,6 +187,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.3,
     rating: 4.9,
     reviewCount: 518,
+    active: true,
   },
   {
     id: "pt-paradise-b",
@@ -201,6 +202,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.3,
     rating: 4.8,
     reviewCount: 204,
+    active: true,
   },
   {
     id: "pt-yard-1",
@@ -215,6 +217,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.4,
     rating: 4.8,
     reviewCount: 342,
+    active: true,
   },
   {
     id: "pt-yard-2",
@@ -229,6 +232,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.4,
     rating: 4.7,
     reviewCount: 189,
+    active: true,
   },
   {
     id: "pt-sabi",
@@ -243,6 +247,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.25,
     rating: 4.7,
     reviewCount: 267,
+    active: true,
   },
   {
     id: "pt-onikan",
@@ -257,6 +262,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.2,
     rating: 4.4,
     reviewCount: 156,
+    active: true,
   },
   {
     id: "pt-teslim",
@@ -271,6 +277,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.5,
     rating: 4.6,
     reviewCount: 421,
+    active: true,
   },
   {
     id: "pt-gra",
@@ -285,6 +292,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.2,
     rating: 4.5,
     reviewCount: 98,
+    active: true,
   },
   {
     id: "pt-yaba",
@@ -299,6 +307,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.1,
     rating: 4.1,
     reviewCount: 73,
+    active: true,
   },
 ];
 

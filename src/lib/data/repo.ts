@@ -3,7 +3,7 @@ import { store } from "./store";
 import { camelize } from "./case";
 import { isSupabaseConfigured, createClient } from "@/lib/supabase/server";
 import { getMatchState } from "@/lib/match";
-import { distanceKm, generateReference, initialsOf } from "@/lib/format";
+import { distanceKm, generateReference, initialsOf, slugify } from "@/lib/format";
 import type {
   Venue,
   Pitch,
@@ -13,6 +13,9 @@ import type {
   Slot,
   Booking,
   SkillLevel,
+  WaitlistLead,
+  PitchSize,
+  PitchSurface,
 } from "@/lib/types";
 
 /** The shape a `profiles` row has right after `camelize` — flat trait_*
@@ -157,6 +160,116 @@ export async function getPitchBySlug(slug: string): Promise<PitchWithVenue | nul
   return p ? hydratePitch(p) : null;
 }
 
+export async function getPitchById(id: string): Promise<PitchWithVenue | null> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb.from("pitches").select(PITCH_SELECT).eq("id", id).maybeSingle();
+    return data ? camelize<PitchWithVenue>(data) : null;
+  }
+  const p = store().pitches.find((x) => x.id === id);
+  return p ? hydratePitch(p) : null;
+}
+
+export async function getPitchesForVenue(venueId: string): Promise<Pitch[]> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb.from("pitches").select("*").eq("venue_id", venueId);
+    return camelize<Pitch[]>(data ?? []);
+  }
+  return store().pitches.filter((p) => p.venueId === venueId);
+}
+
+export interface CreatePitchInput {
+  name: string;
+  size: PitchSize;
+  surface: PitchSurface;
+  floodlights: boolean;
+  covered: boolean;
+  pricePerHourKobo: number;
+  peakMultiplier: number;
+}
+
+export async function createPitch(
+  venueId: string,
+  input: CreatePitchInput,
+): Promise<{ ok: true; pitch: Pitch } | { ok: false; error: string }> {
+  const slug = slugify(input.name);
+
+  if (demoMode()) {
+    const pitch: Pitch = {
+      id: `p-${Date.now()}`,
+      venueId,
+      slug,
+      name: input.name,
+      size: input.size,
+      surface: input.surface,
+      floodlights: input.floodlights,
+      covered: input.covered,
+      pricePerHourKobo: input.pricePerHourKobo,
+      peakMultiplier: input.peakMultiplier,
+      rating: 0,
+      reviewCount: 0,
+      active: true,
+    };
+    store().pitches.push(pitch);
+    return { ok: true, pitch };
+  }
+
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("pitches")
+    .insert({
+      venue_id: venueId,
+      slug,
+      name: input.name,
+      size: input.size,
+      surface: input.surface,
+      floodlights: input.floodlights,
+      covered: input.covered,
+      price_per_hour_kobo: input.pricePerHourKobo,
+      peak_multiplier: input.peakMultiplier,
+    })
+    .select()
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, pitch: camelize<Pitch>(data) };
+}
+
+export interface UpdatePitchInput {
+  name?: string;
+  pricePerHourKobo?: number;
+  peakMultiplier?: number;
+  floodlights?: boolean;
+  covered?: boolean;
+  active?: boolean;
+}
+
+export async function updatePitch(
+  pitchId: string,
+  input: UpdatePitchInput,
+): Promise<{ ok: boolean; error?: string }> {
+  if (demoMode()) {
+    const p = store().pitches.find((x) => x.id === pitchId);
+    if (!p) return { ok: false, error: "Pitch not found." };
+    Object.assign(p, input);
+    return { ok: true };
+  }
+
+  const sb = await createClient();
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) patch.name = input.name;
+  if (input.pricePerHourKobo !== undefined) patch.price_per_hour_kobo = input.pricePerHourKobo;
+  if (input.peakMultiplier !== undefined) patch.peak_multiplier = input.peakMultiplier;
+  if (input.floodlights !== undefined) patch.floodlights = input.floodlights;
+  if (input.covered !== undefined) patch.covered = input.covered;
+  if (input.active !== undefined) patch.active = input.active;
+
+  const { error } = await sb.from("pitches").update(patch).eq("id", pitchId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 export async function getSlotsForPitch(pitchId: string, days = 7): Promise<Slot[]> {
   const horizon = Date.now() + days * 86_400_000;
   if (!demoMode()) {
@@ -178,6 +291,101 @@ export async function getSlotsForPitch(pitchId: string, days = 7): Promise<Slot[
         new Date(s.startsAt).getTime() < horizon,
     )
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+}
+
+export interface GenerateSlotsRules {
+  openHour: number;
+  closeHour: number;
+  daysAhead: number;
+  peakStartHour: number;
+  peakEndHour: number;
+}
+
+/**
+ * Same loop scripts/seed.mjs uses (N days x an hourly window, weekday-
+ * evening peak pricing), parameterized instead of hardcoded. Pre-filters
+ * against slots that already exist for this pitch rather than relying on
+ * the database to reject conflicts — a single exclusion-constraint
+ * violation in a multi-row insert rolls back the *whole* insert, which
+ * would otherwise silently drop every valid new slot the moment a venue
+ * owner re-runs this to extend coverage into a range that already
+ * partially exists.
+ */
+export async function generateSlots(
+  pitchId: string,
+  basePriceKobo: number,
+  peakMultiplier: number,
+  rules: GenerateSlotsRules,
+): Promise<{ ok: boolean; created: number; error?: string }> {
+  const { openHour, closeHour, daysAhead, peakStartHour, peakEndHour } = rules;
+  const now = new Date();
+  const candidates: { startsAt: Date; endsAt: Date; priceKobo: number }[] = [];
+
+  for (let d = 0; d < daysAhead; d++) {
+    for (let h = openHour; h <= closeHour; h++) {
+      const start = new Date(now);
+      start.setDate(start.getDate() + d);
+      start.setHours(h, 0, 0, 0);
+      if (start <= now) continue;
+
+      const end = new Date(start.getTime() + 3_600_000);
+      const dow = start.getDay();
+      const peak = dow >= 1 && dow <= 5 && h >= peakStartHour && h <= peakEndHour;
+      const priceKobo = Math.round(basePriceKobo * (peak ? peakMultiplier : 1));
+      candidates.push({ startsAt: start, endsAt: end, priceKobo });
+    }
+  }
+  if (candidates.length === 0) return { ok: true, created: 0 };
+
+  const existing = await getSlotsForPitch(pitchId, daysAhead + 1);
+  const existingStarts = new Set(existing.map((s) => s.startsAt));
+  const rows = candidates.filter((c) => !existingStarts.has(c.startsAt.toISOString()));
+  if (rows.length === 0) return { ok: true, created: 0 };
+
+  if (demoMode()) {
+    const s = store();
+    for (const row of rows) {
+      s.slots.push({
+        id: `sl-${pitchId}-${row.startsAt.getTime()}`,
+        pitchId,
+        startsAt: row.startsAt.toISOString(),
+        endsAt: row.endsAt.toISOString(),
+        priceKobo: row.priceKobo,
+        status: "open",
+      });
+    }
+    return { ok: true, created: rows.length };
+  }
+
+  const sb = await createClient();
+  const { error } = await sb.from("slots").insert(
+    rows.map((row) => ({
+      pitch_id: pitchId,
+      during: `[${row.startsAt.toISOString()},${row.endsAt.toISOString()})`,
+      price_kobo: row.priceKobo,
+      status: "open",
+    })),
+  );
+  if (error) return { ok: false, created: 0, error: error.message };
+  return { ok: true, created: rows.length };
+}
+
+/** The "block this hour for maintenance" primitive. */
+export async function setSlotStatus(
+  slotId: string,
+  status: "open" | "blocked",
+): Promise<{ ok: boolean; error?: string }> {
+  if (demoMode()) {
+    const slot = store().slots.find((s) => s.id === slotId);
+    if (!slot) return { ok: false, error: "Slot not found." };
+    slot.status = status;
+    return { ok: true };
+  }
+
+  const sb = await createClient();
+  const { error } = await sb.from("slots").update({ status }).eq("id", slotId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 export async function getSlot(id: string): Promise<(Slot & { pitch: PitchWithVenue }) | null> {
@@ -538,6 +746,22 @@ export async function listProfiles(): Promise<PlayerProfile[]> {
   return store().profiles;
 }
 
+/**
+ * Admin-only. Live mode only — joinWaitlist()/joinPartnerWaitlist() only
+ * ever write to Postgres when Supabase is configured, so there's nothing to
+ * list in demo mode.
+ */
+export async function listWaitlist(): Promise<WaitlistLead[]> {
+  if (demoMode()) return [];
+
+  const sb = await createClient();
+  const { data } = await sb
+    .from("waitlist")
+    .select("*")
+    .order("created_at", { ascending: false });
+  return camelize<WaitlistLead[]>(data ?? []);
+}
+
 export async function getGamesForUser(userId: string): Promise<GameFull[]> {
   if (!demoMode()) {
     const sb = await createClient();
@@ -583,6 +807,142 @@ export async function listVenues(): Promise<Venue[]> {
   return store().venues;
 }
 
+export interface CreateVenueInput {
+  name: string;
+  area: string;
+  side: "island" | "mainland";
+  address: string;
+  lat: number;
+  lng: number;
+  phone?: string;
+  description?: string;
+}
+
+/**
+ * Self-serve venue creation. venues_write is a full `for all using
+ * (auth.uid() = owner_id)` policy that already covers insert, so — same
+ * reasoning as verifyVenue() below — this is a plain insert, no RPC needed.
+ * New venues start unverified; the admin verification queue built in the
+ * prior pass is the review gate before a venue is publicly bookable.
+ */
+export async function createVenue(
+  ownerId: string,
+  input: CreateVenueInput,
+): Promise<{ ok: true; venue: Venue } | { ok: false; error: string }> {
+  const slug = slugify(input.name);
+
+  if (demoMode()) {
+    const venue: Venue = {
+      id: `v-${Date.now()}`,
+      slug,
+      name: input.name,
+      area: input.area,
+      side: input.side,
+      address: input.address,
+      lat: input.lat,
+      lng: input.lng,
+      verified: false,
+      verifiedAt: null,
+      phone: input.phone ?? null,
+      amenities: [],
+      photos: [],
+      description: input.description ?? "",
+      ownerId,
+      createdAt: new Date().toISOString(),
+    };
+    store().venues.push(venue);
+    return { ok: true, venue };
+  }
+
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("venues")
+    .insert({
+      slug,
+      name: input.name,
+      area: input.area,
+      side: input.side,
+      address: input.address,
+      lat: input.lat,
+      lng: input.lng,
+      phone: input.phone || null,
+      description: input.description || "",
+      owner_id: ownerId,
+    })
+    .select()
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, venue: camelize<Venue>(data) };
+}
+
+export interface UpdateVenueInput {
+  name?: string;
+  area?: string;
+  side?: "island" | "mainland";
+  address?: string;
+  lat?: number;
+  lng?: number;
+  phone?: string | null;
+  description?: string;
+}
+
+export async function updateVenue(
+  venueId: string,
+  input: UpdateVenueInput,
+): Promise<{ ok: boolean; error?: string }> {
+  if (demoMode()) {
+    const v = store().venues.find((x) => x.id === venueId);
+    if (!v) return { ok: false, error: "Venue not found." };
+    Object.assign(v, input);
+    return { ok: true };
+  }
+
+  const sb = await createClient();
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) patch.name = input.name;
+  if (input.area !== undefined) patch.area = input.area;
+  if (input.side !== undefined) patch.side = input.side;
+  if (input.address !== undefined) patch.address = input.address;
+  if (input.lat !== undefined) patch.lat = input.lat;
+  if (input.lng !== undefined) patch.lng = input.lng;
+  if (input.phone !== undefined) patch.phone = input.phone;
+  if (input.description !== undefined) patch.description = input.description;
+
+  const { error } = await sb.from("venues").update(patch).eq("id", venueId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/**
+ * Admin-only. venues_admin_all is a full `for all using (is_admin())`
+ * policy (unlike profiles, which locked down direct UPDATE with column
+ * grants), so this is a plain update — no dedicated RPC needed. RLS itself
+ * is what actually stops a non-admin from calling this successfully.
+ */
+export async function verifyVenue(
+  venueId: string,
+  adminId: string,
+  verified: boolean,
+  note: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (demoMode()) return { ok: false, error: "Not available in demo mode." };
+
+  const sb = await createClient();
+  const { error } = await sb
+    .from("venues")
+    .update({
+      verified,
+      verified_at: verified ? new Date().toISOString() : null,
+      verified_by: verified ? adminId : null,
+      verification_note: note || null,
+    })
+    .eq("id", venueId);
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 export async function getVenueBySlug(slug: string): Promise<Venue | null> {
   if (!demoMode()) {
     const sb = await createClient();
@@ -590,6 +950,15 @@ export async function getVenueBySlug(slug: string): Promise<Venue | null> {
     return data ? camelize<Venue>(data) : null;
   }
   return store().venues.find((v) => v.slug === slug) ?? null;
+}
+
+export async function getVenueById(id: string): Promise<Venue | null> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb.from("venues").select("*").eq("id", id).maybeSingle();
+    return data ? camelize<Venue>(data) : null;
+  }
+  return store().venues.find((v) => v.id === id) ?? null;
 }
 
 /** Distinct venue areas — powers the area-based footer. */

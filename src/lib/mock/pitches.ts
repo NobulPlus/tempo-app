@@ -14,6 +14,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.4,
     rating: 4.8,
     reviewCount: 356,
+    active: true,
   },
   {
     id: "pt-house-b",
@@ -28,6 +29,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.4,
     rating: 4.7,
     reviewCount: 201,
+    active: true,
   },
   {
     id: "pt-marina",
@@ -42,6 +44,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.25,
     rating: 4.7,
     reviewCount: 274,
+    active: true,
   },
   {
     id: "pt-bourdillon-a",
@@ -56,6 +59,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.3,
     rating: 4.9,
     reviewCount: 512,
+    active: true,
   },
   {
     id: "pt-freedompark",
@@ -70,6 +74,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.2,
     rating: 4.4,
     reviewCount: 149,
+    active: true,
   },
   {
     id: "pt-herbertmac",
@@ -84,6 +89,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.1,
     rating: 4.1,
     reviewCount: 68,
+    active: true,
   },
   {
     id: "pt-agidingbi",
@@ -98,6 +104,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.2,
     rating: 4.5,
     reviewCount: 103,
+    active: true,
   },
   {
     id: "pt-gbagada",
@@ -112,6 +119,7 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.15,
     rating: 4.4,
     reviewCount: 87,
+    active: true,
   },
   {
     id: "pt-teslimb",
@@ -126,5 +134,6 @@ export const pitches: Pitch[] = [
     peakMultiplier: 1.5,
     rating: 4.6,
     reviewCount: 398,
+    active: true,
   },
 ];

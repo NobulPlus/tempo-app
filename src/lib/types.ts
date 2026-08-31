@@ -30,6 +30,8 @@ export interface Venue {
   lng: number;
   verified: boolean;
   verifiedAt: string | null;
+  verifiedBy?: string | null;
+  verificationNote?: string | null;
   phone: string | null;
   amenities: string[];
   photos: string[];
@@ -53,6 +55,7 @@ export interface Pitch {
   peakMultiplier: number;
   rating: number;
   reviewCount: number;
+  active: boolean;
   venue?: Venue;
 }
 
@@ -183,4 +186,19 @@ export interface MatchState {
   msToKickoff: number;
   isLive: boolean;
   hasEnded: boolean;
+}
+
+/* ------------------------------------------------------------------
+   Waitlist — player area-interest signups and /partner venue-owner leads,
+   distinguished only by `role`. No status column; admin dismisses a lead
+   by deleting the row once it's been followed up on.
+   ------------------------------------------------------------------ */
+
+export interface WaitlistLead {
+  id: string;
+  email: string | null;
+  phone: string | null;
+  area: string | null;
+  role: UserRole;
+  createdAt: string;
 }
