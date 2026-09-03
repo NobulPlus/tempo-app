@@ -4,7 +4,7 @@ import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { getCurrentUser } from "@/lib/session";
-import { demoMode } from "@/lib/data/repo";
+import { demoMode, getWalletBalance } from "@/lib/data/repo";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tempo.ng";
 
@@ -76,6 +76,7 @@ export default async function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const user = await getCurrentUser();
   const isDemo = demoMode();
+  const walletBalanceKobo = user ? await getWalletBalance(user.id) : 0;
 
   return (
     <html
@@ -100,7 +101,7 @@ export default async function RootLayout({
           Skip to content
         </a>
 
-        <Nav user={user} isDemo={isDemo} />
+        <Nav user={user} isDemo={isDemo} walletBalanceKobo={walletBalanceKobo} />
 
         <main id="main" className="pt-[71px]">
           {children}

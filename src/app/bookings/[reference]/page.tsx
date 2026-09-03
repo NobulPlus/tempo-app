@@ -5,6 +5,7 @@ import { getBookingByReference } from "@/lib/data/repo";
 import { formatNaira, formatRelativeDay, formatTime, formatDayShort } from "@/lib/format";
 import { estimateTravelMinutes, leaveByTime } from "@/lib/match";
 import { Countdown } from "@/components/match/match-day";
+import { CancelBookingButton } from "@/components/booking/cancel-booking-button";
 import {
   CheckIcon,
   PinIcon,
@@ -33,6 +34,7 @@ export default async function BookingPage({
   const { slot } = booking;
   const { pitch } = slot;
   const kickoff = new Date(slot.startsAt);
+  const now = Date.now();
 
   const travel = estimateTravelMinutes(
     pitch.venue.side === "island" ? 8 : 11,
@@ -136,8 +138,16 @@ export default async function BookingPage({
 
           <p className="relative mt-6 flex items-center justify-center gap-2 text-[12.5px] text-ink-muted">
             <ShieldIcon size={13} className="text-green" />
-            Free cancellation until {formatDayShort(new Date(kickoff.getTime() - 86_400_000))}
+            Full wallet credit if you cancel by {formatTime(new Date(kickoff.getTime() - 6 * 60 * 60 * 1000).toISOString())}
           </p>
+
+          {(booking.status === "confirmed" || booking.status === "cancelled") && (
+            <CancelBookingButton
+              bookingId={booking.id}
+              status={booking.status}
+              eligibleForCredit={kickoff.getTime() - now >= 6 * 60 * 60 * 1000}
+            />
+          )}
         </div>
 
         <div className="mt-6 flex flex-wrap justify-center gap-4 text-[14px]">

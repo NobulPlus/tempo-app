@@ -16,6 +16,7 @@ import type {
   WaitlistLead,
   PitchSize,
   PitchSurface,
+  WalletTransaction,
 } from "@/lib/types";
 
 /** The shape a `profiles` row has right after `camelize` — flat trait_*
@@ -636,20 +637,18 @@ function mapBookingRow(row: Record<string, unknown>): Booking & { slot: Slot & {
 export async function createBooking(
   slotId: string,
   userId: string,
-  paymentMethod: Booking["paymentMethod"],
 ): Promise<{ ok: true; booking: Booking } | { ok: false; error: string }> {
   if (!demoMode()) {
     const sb = await createClient();
-    const { data, error } = await sb.rpc("create_booking", {
-      p_slot_id: slotId,
-      p_method: paymentMethod,
-    });
+    const { data, error } = await sb.rpc("create_booking", { p_slot_id: slotId });
     if (error) {
       return {
         ok: false,
         error: error.message.includes("no longer available")
           ? "Sorry — someone just took that slot."
-          : error.message,
+          : error.message.includes("insufficient wallet balance")
+            ? "Not enough wallet balance for this booking."
+            : error.message,
       };
     }
     return { ok: true, booking: camelize<Booking>(data) };
@@ -663,8 +662,15 @@ export async function createBooking(
   if (new Date(slot.startsAt).getTime() <= Date.now())
     return { ok: false, error: "That time has already passed." };
 
-  slot.status = "booked";
   const { totalKobo } = computeBookingTotal(slot.priceKobo);
+  const balance = s.wallets[userId] ?? 0;
+  if (balance < totalKobo) {
+    return { ok: false, error: "Not enough wallet balance for this booking." };
+  }
+
+  slot.status = "booked";
+  s.wallets[userId] = balance - totalKobo;
+
   const booking: Booking = {
     id: `b-${Date.now()}`,
     reference: generateReference(),
@@ -673,11 +679,114 @@ export async function createBooking(
     status: "confirmed",
     totalKobo,
     paidKobo: totalKobo,
-    paymentMethod,
+    paymentMethod: "wallet",
     createdAt: new Date().toISOString(),
   };
   s.bookings.push(booking);
+
+  s.walletTransactions.push({
+    id: `wt-${Date.now()}`,
+    userId,
+    type: "booking_payment",
+    status: "completed",
+    amountKobo: -totalKobo,
+    balanceAfterKobo: s.wallets[userId],
+    reference: `PAY-${booking.reference}`,
+    provider: "wallet",
+    providerRef: null,
+    bookingId: booking.id,
+    createdAt: new Date().toISOString(),
+  });
+
   return { ok: true, booking };
+}
+
+/** 6-hour cutoff, matching /legal/refunds exactly: 6h+ before kickoff credits
+ * the wallet in full; under 6h forfeits it. Either way the slot reopens. */
+export async function cancelBooking(
+  bookingId: string,
+  userId: string,
+): Promise<{ ok: true; booking: Booking; creditedKobo: number } | { ok: false; error: string }> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("cancel_booking", { p_booking_id: bookingId });
+    if (error) return { ok: false, error: error.message };
+    const booking = camelize<Booking>(data);
+    const { data: creditRows } = await sb
+      .from("wallet_transactions")
+      .select("amount_kobo")
+      .eq("booking_id", booking.id)
+      .eq("type", "cancellation_credit")
+      .eq("status", "completed");
+    const creditedKobo = (creditRows ?? []).reduce(
+      (sum, row) => sum + Math.max(0, Number(row.amount_kobo ?? 0)),
+      0,
+    );
+    return { ok: true, booking, creditedKobo };
+  }
+
+  const s = store();
+  const booking = s.bookings.find((b) => b.id === bookingId && b.userId === userId);
+  if (!booking) return { ok: false, error: "Booking not found." };
+  if (booking.status !== "confirmed") return { ok: false, error: "Booking cannot be cancelled." };
+
+  const slot = s.slots.find((x) => x.id === booking.slotId);
+  const sixHoursMs = 6 * 60 * 60 * 1000;
+  const creditedKobo =
+    slot && new Date(slot.startsAt).getTime() - Date.now() >= sixHoursMs ? booking.paidKobo : 0;
+
+  booking.status = "cancelled";
+  if (slot) slot.status = "open";
+
+  if (creditedKobo > 0) {
+    const balance = (s.wallets[userId] ?? 0) + creditedKobo;
+    s.wallets[userId] = balance;
+    s.walletTransactions.push({
+      id: `wt-${Date.now()}`,
+      userId,
+      type: "cancellation_credit",
+      status: "completed",
+      amountKobo: creditedKobo,
+      balanceAfterKobo: balance,
+      reference: `CRD-${booking.reference}`,
+      provider: null,
+      providerRef: null,
+      bookingId: booking.id,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  return { ok: true, booking, creditedKobo };
+}
+
+export async function getWalletBalance(userId: string): Promise<number> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb
+      .from("wallets")
+      .select("balance_kobo")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return data?.balance_kobo ?? 0;
+  }
+  return store().wallets[userId] ?? 0;
+}
+
+export async function getWalletTransactions(userId: string, limit = 20): Promise<WalletTransaction[]> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb
+      .from("wallet_transactions")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    return camelize<WalletTransaction[]>(data ?? []);
+  }
+  return store()
+    .walletTransactions.filter((t) => t.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
 }
 
 export async function getBookingByReference(

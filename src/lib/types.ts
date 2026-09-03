@@ -16,7 +16,25 @@ export type BookingStatus =
   | "completed"
   | "refunded";
 export type GameStatus = "open" | "locked" | "cancelled" | "played";
-export type PaymentMethod = "card" | "transfer" | "ussd";
+export type PaymentMethod = "card" | "transfer" | "ussd" | "wallet";
+
+export type WalletTxnType = "topup" | "booking_payment" | "cancellation_credit";
+export type WalletTxnStatus = "pending" | "completed" | "failed";
+
+export interface WalletTransaction {
+  id: string;
+  userId: string;
+  type: WalletTxnType;
+  status: WalletTxnStatus;
+  /** Signed — positive is a credit, negative is a debit. */
+  amountKobo: number;
+  balanceAfterKobo: number | null;
+  reference: string;
+  provider: string | null;
+  providerRef: string | null;
+  bookingId: string | null;
+  createdAt: string;
+}
 
 export interface Venue {
   id: string;

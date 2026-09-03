@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { getSlot, computeBookingTotal } from "@/lib/data/repo";
+import { getSlot, computeBookingTotal, getWalletBalance } from "@/lib/data/repo";
 import { getCurrentUser } from "@/lib/session";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { CheckoutForm } from "@/components/booking/checkout-form";
@@ -52,6 +52,7 @@ export default async function BookPage({
 
   const { pitch } = slot;
   const { feeKobo: serviceFeeKobo, totalKobo } = computeBookingTotal(slot.priceKobo);
+  const walletBalanceKobo = await getWalletBalance(user.id);
 
   return (
     <div className="py-12">
@@ -64,7 +65,7 @@ export default async function BookPage({
         </p>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_.85fr]">
-          <CheckoutForm slotId={slot.id} totalKobo={totalKobo} />
+          <CheckoutForm slotId={slot.id} totalKobo={totalKobo} walletBalanceKobo={walletBalanceKobo} />
 
           <aside className="card-t h-fit p-6">
             <h2 className="text-[17px] font-bold">{pitch.venue.name}</h2>
@@ -101,8 +102,8 @@ export default async function BookPage({
 
             <p className="mt-4 flex items-start gap-2 text-[12.5px] leading-relaxed text-ink-muted">
               <ShieldIcon size={14} className="mt-0.5 shrink-0 text-green" />
-              Your slot is held the moment payment clears. Free cancellation up to 24
-              hours before kickoff.
+              Your slot is held the moment payment clears. Cancel up to 6 hours before
+              kickoff for a full wallet credit.
             </p>
           </aside>
         </div>

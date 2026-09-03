@@ -2,13 +2,21 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { getGamesForUser, getBookingsForUser } from "@/lib/data/repo";
+import { getGamesForUser, getBookingsForUser, getWalletBalance } from "@/lib/data/repo";
 import { getMatchState } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { Countdown, FillBar, HeatPill } from "@/components/match/match-day";
 import { StreakBadge, PunctualityRing } from "@/components/player/player-card";
 import { NotificationPreferences } from "@/components/notification-preferences";
-import { PinIcon, ClockIcon, BallIcon, CalendarIcon, ArrowRightIcon, StarIcon } from "@/components/icons";
+import {
+  PinIcon,
+  ClockIcon,
+  BallIcon,
+  CalendarIcon,
+  ArrowRightIcon,
+  StarIcon,
+  WalletIcon,
+} from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +29,10 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/dashboard");
 
-  const [games, bookings] = await Promise.all([
+  const [games, bookings, walletBalanceKobo] = await Promise.all([
     getGamesForUser(user.id),
     getBookingsForUser(user.id),
+    getWalletBalance(user.id),
   ]);
 
   const now = Date.now();
@@ -173,6 +182,24 @@ export default async function DashboardPage() {
               right: formatNaira(b.totalKobo),
             }))}
           />
+
+          <div className="card-t p-6">
+            <div className="flex items-center gap-2 text-[12px] text-ink-muted">
+              <WalletIcon size={14} /> Tempo wallet
+            </div>
+            <div className="mt-1.5 text-[28px] font-extrabold">{formatNaira(walletBalanceKobo)}</div>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
+              Top up to book, or spend what a cancellation credited back to you.
+            </p>
+            <div className="mt-4 flex gap-2.5">
+              <Link href="/wallet" className="btn-t btn-green-t !py-2.5 !text-[13.5px]">
+                Top up
+              </Link>
+              <Link href="/wallet" className="btn-t btn-ghost-t !py-2.5 !text-[13.5px]">
+                View transactions
+              </Link>
+            </div>
+          </div>
 
           <div className="card-t p-6">
             <h2 className="text-[18px] font-bold">Keep your streak alive</h2>

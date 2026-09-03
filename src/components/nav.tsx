@@ -13,10 +13,12 @@ import {
   CloseIcon,
   LogOutIcon,
   ShieldIcon,
+  WalletIcon,
 } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
 import { signOut } from "@/app/actions";
+import { formatNaira } from "@/lib/format";
 import type { PlayerProfile } from "@/lib/types";
 
 const LINKS = [
@@ -25,7 +27,15 @@ const LINKS = [
   { href: "/games", label: "Games", Icon: BallIcon },
 ];
 
-export function Nav({ user, isDemo }: { user: PlayerProfile | null; isDemo: boolean }) {
+export function Nav({
+  user,
+  isDemo,
+  walletBalanceKobo,
+}: {
+  user: PlayerProfile | null;
+  isDemo: boolean;
+  walletBalanceKobo: number;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -92,6 +102,13 @@ export function Nav({ user, isDemo }: { user: PlayerProfile | null; isDemo: bool
 
             {user ? (
               <>
+                <Link
+                  href="/wallet"
+                  className="hidden items-center gap-1.5 rounded-full border border-glass-border bg-glass px-3 py-[7px] text-[13px] font-semibold text-ink-soft transition hover:border-green/35 hover:text-ink sm:flex"
+                >
+                  <WalletIcon size={14} className="text-green" />
+                  {formatNaira(walletBalanceKobo, { compact: true })}
+                </Link>
                 <span className="hidden sm:block">
                   <NotificationBell isDemo={isDemo} />
                 </span>
@@ -169,6 +186,18 @@ export function Nav({ user, isDemo }: { user: PlayerProfile | null; isDemo: bool
                 ),
               )}
             </ul>
+            {user && (
+              <Link
+                href="/wallet"
+                className="mt-1 flex items-center justify-between rounded-xl bg-green/8 px-4 py-3.5 text-[15px] font-semibold text-ink"
+              >
+                <span className="flex items-center gap-2">
+                  <WalletIcon size={18} className="text-green" />
+                  Wallet
+                </span>
+                <span className="text-green">{formatNaira(walletBalanceKobo, { compact: true })}</span>
+              </Link>
+            )}
             <div className="mt-3 grid gap-2">
               <Link href="/host" className="btn-t btn-ghost-t w-full !py-3.5 !text-sm">
                 Host a game

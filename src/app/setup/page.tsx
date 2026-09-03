@@ -83,12 +83,13 @@ export default function SetupPage() {
 
           <h2>5. Take real payments</h2>
           <p>
-            Create a <a href="https://paystack.com">Paystack</a> account and add{" "}
-            <code>PAYSTACK_SECRET_KEY</code> and{" "}
-            <code>NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY</code> to your environment. The
-            checkout flow, the payments table and the refund rules are already built —
-            what&apos;s left is calling Paystack&apos;s initialise endpoint and
-            handling the webhook.
+            Create a <a href="https://flutterwave.com">Flutterwave</a> account and add{" "}
+            <code>FLUTTERWAVE_SECRET_KEY</code> and <code>FLUTTERWAVE_SECRET_HASH</code>{" "}
+            to your environment. The wallet, top-up flow, checkout and cancellation
+            credits are already built and wired to Flutterwave&apos;s hosted
+            checkout — switch from test keys to live keys, and add your production
+            domain&apos;s <code>/api/webhooks/flutterwave</code> URL and matching
+            secret hash in the Flutterwave dashboard.
           </p>
 
           <h2>6. Deploy</h2>

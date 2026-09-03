@@ -1,68 +1,47 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
+import Link from "next/link";
 import { createBookingAction, type ActionState } from "@/app/actions";
 import { formatNaira } from "@/lib/format";
-import { CheckIcon, PhoneIcon, LightningIcon } from "@/components/icons";
-import { OptionRow } from "@/components/ui/option-row";
+import { WalletIcon } from "@/components/icons";
 
 const initial: ActionState = {};
-
-/**
- * Payment method choice matters more in Nigeria than most checkout guides
- * assume — a large share of players will never use a card. Bank transfer and
- * USSD are first-class options here, not an afterthought.
- */
-const METHODS = [
-  {
-    key: "transfer",
-    label: "Bank transfer",
-    hint: "Pay from your banking app. Confirms in seconds.",
-    Icon: CheckIcon,
-  },
-  {
-    key: "card",
-    label: "Debit card",
-    hint: "Verve, Mastercard or Visa via Paystack.",
-    Icon: LightningIcon,
-  },
-  {
-    key: "ussd",
-    label: "USSD",
-    hint: "Dial a short code from any phone. No data needed.",
-    Icon: PhoneIcon,
-  },
-] as const;
 
 export function CheckoutForm({
   slotId,
   totalKobo,
+  walletBalanceKobo,
 }: {
   slotId: string;
   totalKobo: number;
+  walletBalanceKobo: number;
 }) {
   const [state, action, pending] = useActionState(createBookingAction, initial);
-  const [method, setMethod] = useState<string>("transfer");
+  const canAfford = walletBalanceKobo >= totalKobo;
+  const shortfallKobo = totalKobo - walletBalanceKobo;
 
   return (
     <form action={action} className="card-t p-6 md:p-7">
       <input type="hidden" name="slotId" value={slotId} />
-      <input type="hidden" name="method" value={method} />
 
-      <h2 className="text-[18px] font-bold">How do you want to pay?</h2>
+      <h2 className="text-[18px] font-bold">Pay from your wallet</h2>
 
-      <div className="mt-4 grid gap-2.5">
-        {METHODS.map(({ key, label, hint, Icon }) => (
-          <OptionRow
-            key={key}
-            selected={method === key}
-            onClick={() => setMethod(key)}
-            icon={<Icon size={19} />}
-            label={label}
-            hint={hint}
-          />
-        ))}
+      <div className="mt-4 flex items-center gap-3.5 rounded-xl border border-white/10 bg-white/4 p-3.5">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green/18 text-green">
+          <WalletIcon size={19} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[12px] text-ink-muted">Wallet balance</div>
+          <div className="text-[16px] font-bold">{formatNaira(walletBalanceKobo)}</div>
+        </div>
       </div>
+
+      {!canAfford && (
+        <p className="mt-4 rounded-lg border border-gold/30 bg-gold/10 px-4 py-3 text-[13.5px] text-gold">
+          You&apos;re {formatNaira(shortfallKobo)} short. Top up to complete this booking.
+        </p>
+      )}
 
       <label className="mt-5 flex items-start gap-3 text-[13.5px] leading-relaxed text-ink-soft">
         <input
@@ -86,13 +65,18 @@ export function CheckoutForm({
         </p>
       )}
 
-      <button type="submit" disabled={pending} className="btn-t btn-green-t mt-5 w-full">
-        {pending ? "Confirming…" : `Pay ${formatNaira(totalKobo)}`}
-      </button>
+      {canAfford ? (
+        <button type="submit" disabled={pending} className="btn-t btn-green-t mt-5 w-full">
+          {pending ? "Confirming…" : `Pay ${formatNaira(totalKobo)}`}
+        </button>
+      ) : (
+        <Link href="/wallet" className="btn-t btn-green-t mt-5 w-full">
+          Top up wallet
+        </Link>
+      )}
 
       <p className="mt-3 text-center text-[12px] text-ink-muted">
-        No payment gateway is connected yet — your booking is confirmed without a
-        real charge.
+        Cancel 6+ hours before kickoff and this is credited straight back to your wallet.
       </p>
     </form>
   );

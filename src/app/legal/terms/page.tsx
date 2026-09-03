@@ -32,7 +32,7 @@ export default function TermsPage() {
 
       <h2>2. Your account</h2>
       <ul>
-        <li>You must be 18 or over to hold an account.</li>
+        <li>Tempo is open to all ages — there is no minimum age to hold an account.</li>
         <li>Give accurate information and keep it up to date.</li>
         <li>You are responsible for anything done through your account.</li>
         <li>One person, one account. Don&apos;t share logins.</li>
@@ -57,7 +57,7 @@ export default function TermsPage() {
       <p>
         Every game has a <strong>minimum number to go ahead</strong>. If that number
         isn&apos;t reached by kickoff, the game is cancelled and{" "}
-        <strong>everyone is refunded in full, automatically</strong>. This is the
+        <strong>everyone is credited in full, automatically</strong>. This is the
         guarantee — it is honoured by the platform, not left to the host.
       </p>
 
@@ -82,9 +82,12 @@ export default function TermsPage() {
         <a href="/legal/community">Community Rules</a>.
       </p>
 
-      <h2>7. Payments and refunds</h2>
+      <h2>7. Payments, wallet and credits</h2>
       <p>
-        Payments are processed by a licensed provider. Refunds follow the{" "}
+        Payments are processed by a licensed provider. Money you pay in — whether
+        topping up your wallet or paying for a booking — stays on the platform as
+        Tempo wallet balance and is spent on future bookings and games. Cancellations
+        follow the{" "}
         <a href="/legal/refunds">Cancellations &amp; Refunds policy</a>, which forms
         part of these terms.
       </p>

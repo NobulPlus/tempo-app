@@ -121,6 +121,12 @@ export const CloseIcon = (p: P) => (
   </svg>
 );
 
+export const WalletIcon = (p: P) => (
+  <svg {...base(p)} fill="currentColor">
+    <path d="M3 7a2 2 0 0 1 2-2h11a1 1 0 1 1 0 2H5a.5.5 0 0 0 0 1h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zm12.5 6.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" />
+  </svg>
+);
+
 export const BellIcon = (p: P) => (
   <svg {...base(p)} fill="currentColor">
     <path d="M12 22a2.2 2.2 0 0 0 2.2-2.2H9.8A2.2 2.2 0 0 0 12 22zm7-6v-5a7 7 0 0 0-5.3-6.8V3.5a1.7 1.7 0 1 0-3.4 0v.7A7 7 0 0 0 5 11v5l-1.6 1.6v.9h17.2v-.9L19 16z" />

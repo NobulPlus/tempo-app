@@ -9,6 +9,7 @@ import {
   joinGame,
   leaveGame,
   createBooking,
+  cancelBooking,
   listProfiles,
   verifyVenue,
   createVenue,
@@ -21,11 +22,12 @@ import {
   setSlotStatus,
 } from "@/lib/data/repo";
 import type { UserRole, PitchSize, PitchSurface } from "@/lib/types";
-import { normalisePhone } from "@/lib/format";
+import { normalisePhone, formatNaira, generateReference } from "@/lib/format";
 import { isSupabaseConfigured, createClient } from "@/lib/supabase/server";
 import { store } from "@/lib/data/store";
 import { redirect } from "next/navigation";
 import { safeNext } from "@/lib/url";
+import { initializeFlutterwavePayment } from "@/lib/payments/flutterwave";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
 
@@ -167,16 +169,105 @@ export async function createBookingAction(
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
 
   const slotId = String(formData.get("slotId") ?? "");
-  const method = String(formData.get("method") ?? "transfer") as
-    | "card"
-    | "transfer"
-    | "ussd";
 
-  const result = await createBooking(slotId, user.id, method);
+  const result = await createBooking(slotId, user.id);
   if (!result.ok) return { ok: false, error: result.error };
 
-  revalidatePath("/dashboard");
+  // '/', 'layout' — not just '/dashboard'/'/wallet' — so the nav's wallet
+  // balance chip (rendered by the root layout) picks up the debit too.
+  revalidatePath("/", "layout");
   redirect(`/bookings/${result.booking.reference}`);
+}
+
+export async function cancelBookingAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const bookingId = String(formData.get("bookingId") ?? "");
+  const result = await cancelBooking(bookingId, user.id);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/", "layout");
+  revalidatePath(`/bookings/${result.booking.reference}`);
+
+  return {
+    ok: true,
+    message:
+      result.creditedKobo > 0
+        ? `Cancelled. ${formatNaira(result.creditedKobo)} credited to your wallet.`
+        : "Cancelled. This was inside 6 hours of kickoff, so no credit was issued.",
+  };
+}
+
+/* ---------------------------------------------------------------- wallet -- */
+
+const topupSchema = z.object({
+  amountNaira: z.coerce.number().int().min(500, "Minimum top-up is ₦500").max(500_000, "Maximum top-up is ₦500,000"),
+});
+
+export async function initiateWalletTopupAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const parsed = topupSchema.safeParse({ amountNaira: formData.get("amountNaira") });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Enter a valid amount." };
+  }
+  const amountKobo = parsed.data.amountNaira * 100;
+  const reference = `TOPUP-${generateReference().replace("TMP-", "")}`;
+
+  if (!isSupabaseConfigured()) {
+    // Demo mode: no real gateway to redirect to — credit instantly, same
+    // fast-path createBooking() already takes in demo mode.
+    const s = store();
+    const balance = (s.wallets[user.id] ?? 0) + amountKobo;
+    s.wallets[user.id] = balance;
+    s.walletTransactions.push({
+      id: `wt-${Date.now()}`,
+      userId: user.id,
+      type: "topup",
+      status: "completed",
+      amountKobo,
+      balanceAfterKobo: balance,
+      reference,
+      provider: "demo",
+      providerRef: null,
+      bookingId: null,
+      createdAt: new Date().toISOString(),
+    });
+    revalidatePath("/", "layout");
+    redirect("/wallet?topup=success");
+  }
+
+  const sb = await createClient();
+  const { error: initError } = await sb.rpc("initiate_wallet_topup", {
+    p_reference: reference,
+    p_amount_kobo: amountKobo,
+  });
+  if (initError) return { ok: false, error: initError.message };
+
+  const {
+    data: { user: authUser },
+  } = await sb.auth.getUser();
+  if (!authUser?.email) return { ok: false, error: "Your account has no email on file." };
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const result = await initializeFlutterwavePayment({
+    reference,
+    amountKobo,
+    email: authUser.email,
+    name: user.fullName,
+    redirectUrl: `${site}/wallet/callback`,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  redirect(result.link);
 }
 
 /* ------------------------------------------------------------------ host -- */

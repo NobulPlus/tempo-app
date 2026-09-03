@@ -6,6 +6,7 @@ import type {
   PlayerProfile,
   Slot,
   Booking,
+  WalletTransaction,
 } from "@/lib/types";
 import {
   venues as seedVenues,
@@ -35,7 +36,15 @@ interface Store {
   participants: GameParticipant[];
   profiles: PlayerProfile[];
   bookings: Booking[];
+  /** userId -> balance in kobo. */
+  wallets: Record<string, number>;
+  walletTransactions: WalletTransaction[];
 }
+
+/** Every seeded demo player starts with this much wallet balance, so booking
+ * keeps working in demo mode with no top-up step — same "every flow works"
+ * goal the rest of this file states. */
+const DEMO_STARTING_BALANCE_KOBO = 25_000_00;
 
 declare global {
   // eslint-disable-next-line no-var
@@ -51,6 +60,10 @@ function build(): Store {
     participants: buildParticipants(),
     profiles: structuredClone(seedProfiles),
     bookings: [],
+    wallets: Object.fromEntries(
+      seedProfiles.map((p) => [p.id, DEMO_STARTING_BALANCE_KOBO]),
+    ),
+    walletTransactions: [],
   };
 }
 
