@@ -66,7 +66,7 @@ export default function VerificationPage() {
           If a venue stops meeting the standard between checks — surface degrades,
           floodlights stop working, an operator goes unreachable — it loses the badge
           until it&apos;s re-inspected. Spotted something off at a verified venue?{" "}
-          <a href="mailto:hello@tempo.ng" className="font-semibold text-green">
+          <a href="mailto:info@playtempo11.com" className="font-semibold text-green">
             Tell us
           </a>
           .

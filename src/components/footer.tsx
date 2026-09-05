@@ -123,8 +123,8 @@ export async function Footer() {
             <Link href="/legal/privacy" className="transition hover:text-ink-soft">
               Privacy
             </Link>
-            <a href="mailto:hello@tempo.ng" className="transition hover:text-ink-soft">
-              hello@tempo.ng
+            <a href="mailto:info@playtempo11.com" className="transition hover:text-ink-soft">
+              info@playtempo11.com
             </a>
           </div>
         </div>

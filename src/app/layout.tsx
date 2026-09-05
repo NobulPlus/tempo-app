@@ -6,7 +6,7 @@ import { Footer } from "@/components/footer";
 import { getCurrentUser } from "@/lib/session";
 import { demoMode, getWalletBalance } from "@/lib/data/repo";
 
-const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tempo.ng";
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://playtempo11.com";
 
 const display = Bricolage_Grotesque({
   subsets: ["latin"],

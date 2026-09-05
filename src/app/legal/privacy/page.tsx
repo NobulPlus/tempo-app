@@ -27,7 +27,7 @@ export default function PrivacyPage() {
       <h2>1. Who we are</h2>
       <p>
         Tempo is the data controller for the personal data described here. You can
-        reach us at <a href="mailto:privacy@tempo.ng">privacy@tempo.ng</a> for any
+        reach us at <a href="mailto:info@playtempo11.com">info@playtempo11.com</a> for any
         question about your data, or to exercise any of the rights in section 7.
       </p>
 
@@ -163,7 +163,7 @@ export default function PrivacyPage() {
         </li>
       </ul>
       <p>
-        Email <a href="mailto:privacy@tempo.ng">privacy@tempo.ng</a> and we will
+        Email <a href="mailto:info@playtempo11.com">info@playtempo11.com</a> and we will
         respond within 30 days.
       </p>
 

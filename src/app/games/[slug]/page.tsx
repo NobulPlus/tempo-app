@@ -69,8 +69,9 @@ export default async function GamePage({
   const totalPitchKobo = game.pricePerPlayerKobo * game.capacity;
   const { each } = splitKobo(totalPitchKobo, Math.max(1, confirmed.length));
 
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://playtempo11.com";
   const shareText = encodeURIComponent(
-    `${game.title} — ${game.pitch.venue.name}, ${formatRelativeDay(game.startsAt)} ${formatTime(game.startsAt)}. ${state.spotsLeft} spots left, ${formatNaira(game.pricePerPlayerKobo)} each. Join: https://tempo.ng/games/${game.slug}`,
+    `${game.title} — ${game.pitch.venue.name}, ${formatRelativeDay(game.startsAt)} ${formatTime(game.startsAt)}. ${state.spotsLeft} spots left, ${formatNaira(game.pricePerPlayerKobo)} each. Join: ${site}/games/${game.slug}`,
   );
 
   return (

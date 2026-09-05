@@ -117,7 +117,7 @@ export default function TermsPage() {
         We may update these terms; material changes are notified by email 14 days in
         advance. These terms are governed by Nigerian law and the courts of Lagos
         State have jurisdiction. We would much rather sort a problem out directly —
-        email <a href="mailto:hello@tempo.ng">hello@tempo.ng</a> first.
+        email <a href="mailto:info@playtempo11.com">info@playtempo11.com</a> first.
       </p>
     </>
   );

@@ -93,7 +93,7 @@ export default function CommunityPage() {
 
       <h2>Report something</h2>
       <p>
-        Email <a href="mailto:safety@tempo.ng">safety@tempo.ng</a> with the game and
+        Email <a href="mailto:info@playtempo11.com">info@playtempo11.com</a> with the game and
         what happened. We read every report. If you are in immediate danger, call the
         Lagos State emergency line on <strong>767</strong> or <strong>112</strong>{" "}
         first — then tell us.

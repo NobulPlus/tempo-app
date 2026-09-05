@@ -1,6 +1,8 @@
 import "server-only";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendMail } from "@/lib/mail/transport";
+import { walletTopupEmail } from "@/lib/mail/templates";
 
 interface CompleteTopupInput {
   reference: string;
@@ -40,6 +42,7 @@ export async function completeVerifiedWalletTopup(
   if (!isMissingNewSignature(error)) {
     if (error) return { ok: false, error: error.message };
     revalidateWalletViews();
+    await sendTopupReceipt(admin, expected.userId, input.reference, input.amountKobo);
     return { ok: true };
   }
 
@@ -51,7 +54,36 @@ export async function completeVerifiedWalletTopup(
 
   if (fallback.error) return { ok: false, error: fallback.error.message };
   revalidateWalletViews();
+  await sendTopupReceipt(admin, expected.userId, input.reference, input.amountKobo);
   return { ok: true };
+}
+
+/** Never throws — a receipt failing to send must not undo a completed credit. */
+async function sendTopupReceipt(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  reference: string,
+  amountKobo: number,
+) {
+  try {
+    const [{ data: authUser }, { data: profile }, { data: wallet }] = await Promise.all([
+      admin.auth.admin.getUserById(userId),
+      admin.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
+      admin.from("wallets").select("balance_kobo").eq("user_id", userId).maybeSingle(),
+    ]);
+    const email = authUser?.user?.email;
+    if (!email) return;
+
+    const { subject, html, text } = walletTopupEmail({
+      fullName: profile?.full_name ?? "there",
+      amountKobo,
+      balanceKobo: wallet?.balance_kobo ?? amountKobo,
+      reference,
+    });
+    await sendMail({ to: email, subject, html, text });
+  } catch (err) {
+    console.error("[mail] wallet topup receipt failed:", err);
+  }
 }
 
 /**
@@ -61,8 +93,9 @@ export async function completeVerifiedWalletTopup(
  * revalidatePath('/', 'layout') reliably busts that — narrower paths like
  * '/wallet' leave the shared layout segment alone. This only takes effect
  * when called from a genuine Server Action or Route Handler execution
- * context (Next.js requirement) — see finalizeWalletTopupAction in
- * actions.ts, which is what the callback page actually calls.
+ * context (Next.js requirement) — the wallet callback route
+ * (app/wallet/callback/route.ts) and the Flutterwave webhook route both
+ * qualify; a plain page component render does not.
  */
 function revalidateWalletViews() {
   revalidatePath("/", "layout");
@@ -72,12 +105,12 @@ async function getExpectedTopup(
   admin: ReturnType<typeof createAdminClient>,
   reference: string,
 ): Promise<
-  | { ok: true; amountKobo: number; completed: boolean }
+  | { ok: true; amountKobo: number; completed: boolean; userId: string }
   | { ok: false; error: string }
 > {
   const { data, error } = await admin
     .from("wallet_transactions")
-    .select("amount_kobo, status, type")
+    .select("amount_kobo, status, type, user_id")
     .eq("reference", reference)
     .maybeSingle();
 
@@ -89,6 +122,7 @@ async function getExpectedTopup(
     ok: true,
     amountKobo: Number(data.amount_kobo),
     completed: data.status === "completed",
+    userId: data.user_id,
   };
 }
 

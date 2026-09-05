@@ -138,7 +138,7 @@ export default function RefundsPage() {
       <p>
         If you turned up and the pitch was locked, double-booked, or nothing like what
         was advertised, email{" "}
-        <a href="mailto:help@tempo.ng">help@tempo.ng</a> within 48 hours with your
+        <a href="mailto:info@playtempo11.com">info@playtempo11.com</a> within 48 hours with your
         booking reference. We will investigate with the venue and credit your wallet
         if the complaint stands. Venues that do this repeatedly are removed.
       </p>

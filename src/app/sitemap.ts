@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { listPitches, listGames, listProfiles } from "@/lib/data/repo";
 
-const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tempo.ng";
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://playtempo11.com";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [pitches, games, players] = await Promise.all([

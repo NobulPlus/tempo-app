@@ -10,6 +10,8 @@ import {
   leaveGame,
   createBooking,
   cancelBooking,
+  getBookingByReference,
+  getProfileById,
   listProfiles,
   verifyVenue,
   createVenue,
@@ -28,6 +30,8 @@ import { store } from "@/lib/data/store";
 import { redirect } from "next/navigation";
 import { safeNext } from "@/lib/url";
 import { initializeFlutterwavePayment } from "@/lib/payments/flutterwave";
+import { sendMail } from "@/lib/mail/transport";
+import { bookingConfirmationEmail, bookingCancelledEmail, welcomeEmail } from "@/lib/mail/templates";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
 
@@ -161,6 +165,20 @@ export async function leaveGameAction(gameId: string, slug: string): Promise<Act
 
 /* -------------------------------------------------------------- bookings -- */
 
+/**
+ * Live mode only — demo profiles aren't real Supabase auth users and have
+ * no real email to send to. A mail failure is logged inside sendMail() and
+ * never thrown, so this never risks the booking/cancellation it follows.
+ */
+async function currentUserEmail(): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null;
+  const sb = await createClient();
+  const {
+    data: { user: authUser },
+  } = await sb.auth.getUser();
+  return authUser?.email ?? null;
+}
+
 export async function createBookingAction(
   _prev: ActionState,
   formData: FormData,
@@ -172,6 +190,23 @@ export async function createBookingAction(
 
   const result = await createBooking(slotId, user.id);
   if (!result.ok) return { ok: false, error: result.error };
+
+  const email = await currentUserEmail();
+  if (email) {
+    const full = await getBookingByReference(result.booking.reference);
+    if (full) {
+      const { subject, html, text } = bookingConfirmationEmail({
+        fullName: user.fullName,
+        reference: full.reference,
+        venueName: full.slot.pitch.venue.name,
+        address: full.slot.pitch.venue.address,
+        pitchName: full.slot.pitch.name,
+        kickoffISO: full.slot.startsAt,
+        totalKobo: full.totalKobo,
+      });
+      await sendMail({ to: email, subject, html, text });
+    }
+  }
 
   // '/', 'layout' — not just '/dashboard'/'/wallet' — so the nav's wallet
   // balance chip (rendered by the root layout) picks up the debit too.
@@ -189,6 +224,21 @@ export async function cancelBookingAction(
   const bookingId = String(formData.get("bookingId") ?? "");
   const result = await cancelBooking(bookingId, user.id);
   if (!result.ok) return { ok: false, error: result.error };
+
+  const email = await currentUserEmail();
+  if (email) {
+    const full = await getBookingByReference(result.booking.reference);
+    if (full) {
+      const { subject, html, text } = bookingCancelledEmail({
+        fullName: user.fullName,
+        reference: full.reference,
+        venueName: full.slot.pitch.venue.name,
+        kickoffISO: full.slot.startsAt,
+        creditedKobo: result.creditedKobo,
+      });
+      await sendMail({ to: email, subject, html, text });
+    }
+  }
 
   revalidatePath("/", "layout");
   revalidatePath(`/bookings/${result.booking.reference}`);
@@ -443,6 +493,12 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
     };
   }
 
+  const profile = data.user ? await getProfileById(data.user.id) : null;
+  if (profile) {
+    const welcome = welcomeEmail({ fullName, email, phone, handle: profile.handle });
+    await sendMail({ to: email, ...welcome });
+  }
+
   if (!data.session) {
     return {
       ok: true,
@@ -519,7 +575,7 @@ export async function requestPasswordResetAction(
   }
 
   const sb = await createClient();
-  const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tempo.ng";
+  const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://playtempo11.com";
   await sb.auth.resetPasswordForEmail(parsed.data.email, {
     redirectTo: `${SITE}/auth/confirm?next=/reset/confirm`,
   });
