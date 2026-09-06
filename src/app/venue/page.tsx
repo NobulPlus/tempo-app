@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { listVenues, getVenueStats, listPitches, getSlotsForPitch } from "@/lib/data/repo";
+import { listVenues, getVenueStats, listPitches, getBookingsForVenue } from "@/lib/data/repo";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { BuildingIcon, TrendIcon, ShieldIcon, ClockIcon, PinIcon } from "@/components/icons";
 
@@ -42,6 +42,12 @@ export default async function VenuePage() {
                 Have someone from Tempo reach out instead
               </Link>
             </div>
+            {!user.identityVerified && (
+              <p className="mt-6 text-[13px] text-ink-soft">
+                Tip: <Link href="/verify-identity" className="font-semibold text-green">verifying your identity</Link>{" "}
+                builds trust with players before your first booking lands.
+              </p>
+            )}
             <p className="mt-6 text-[12.5px] text-ink-muted">
               In demo mode, sign in as Folake Johnson to see the venue dashboard with
               real data.
@@ -70,13 +76,11 @@ export default async function VenuePage() {
             const stats = await getVenueStats(venue.id);
             const pitches = allPitches.filter((p) => p.venueId === venue.id);
 
-            const upcoming = (
-              await Promise.all(pitches.map((p) => getSlotsForPitch(p.id, 5)))
-            )
-              .flat()
-              .filter((s) => s.status === "booked")
-              .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-              .slice(0, 8);
+            const bookings = await getBookingsForVenue(venue.id);
+            const upcomingBookings = bookings
+              .filter((b) => b.status === "confirmed" && new Date(b.slot.startsAt).getTime() > Date.now())
+              .sort((a, b) => a.slot.startsAt.localeCompare(b.slot.startsAt))
+              .slice(0, 5);
 
             return (
               <section key={venue.id} className="mt-10">
@@ -167,34 +171,35 @@ export default async function VenuePage() {
 
                 {/* Upcoming bookings */}
                 <div className="card-t mt-5 p-6">
-                  <h3 className="flex items-center gap-2 text-[16px] font-bold">
-                    <ClockIcon size={17} />
-                    Upcoming bookings
-                  </h3>
-                  {upcoming.length === 0 ? (
-                    <p className="mt-4 text-[14px] text-ink-soft">
-                      Nothing booked in the next 5 days.
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <h3 className="flex items-center gap-2 text-[16px] font-bold">
+                      <ClockIcon size={17} />
+                      Upcoming bookings
+                    </h3>
+                    <Link
+                      href={`/venue/${venue.id}/bookings`}
+                      className="text-[13px] font-semibold text-green transition hover:opacity-80"
+                    >
+                      View all →
+                    </Link>
+                  </div>
+                  {upcomingBookings.length === 0 ? (
+                    <p className="mt-4 text-[14px] text-ink-soft">No confirmed bookings ahead yet.</p>
                   ) : (
                     <ul className="mt-4 divide-y divide-white/8">
-                      {upcoming.map((s) => {
-                        const pitch = pitches.find((p) => p.id === s.pitchId);
-                        return (
-                          <li key={s.id} className="flex items-center justify-between py-3">
-                            <div>
-                              <div className="text-[14.5px] font-semibold">
-                                {formatRelativeDay(s.startsAt)} · {formatTime(s.startsAt)}
-                              </div>
-                              <div className="text-[12.5px] text-ink-muted">
-                                {pitch?.name} · {pitch?.size}
-                              </div>
+                      {upcomingBookings.map((b) => (
+                        <li key={b.id} className="flex items-center justify-between py-3">
+                          <div>
+                            <div className="text-[14.5px] font-semibold">
+                              {formatRelativeDay(b.slot.startsAt)} · {formatTime(b.slot.startsAt)}
                             </div>
-                            <div className="text-[14px] font-bold">
-                              {formatNaira(s.priceKobo)}
+                            <div className="text-[12.5px] text-ink-muted">
+                              {b.slot.pitch.name} · {b.player?.fullName ?? "Unknown player"} · {b.reference}
                             </div>
-                          </li>
-                        );
-                      })}
+                          </div>
+                          <div className="text-[14px] font-bold">{formatNaira(b.totalKobo)}</div>
+                        </li>
+                      ))}
                     </ul>
                   )}
                 </div>

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { listGames, listProfiles, listVenues, listWaitlist } from "@/lib/data/repo";
+import { listGames, listProfiles, listVenues, listWaitlist, getFinanceSummary } from "@/lib/data/repo";
 import { getMatchState } from "@/lib/match";
-import { formatRelativeDay, formatTime } from "@/lib/format";
+import { formatRelativeDay, formatTime, formatNaira } from "@/lib/format";
 import {
   BallIcon,
   BuildingIcon,
@@ -14,11 +14,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 export default async function AdminOverviewPage() {
-  const [venues, profiles, leads, games] = await Promise.all([
+  const [venues, profiles, leads, games, finance] = await Promise.all([
     listVenues(),
     listProfiles(),
     listWaitlist(),
     listGames(),
+    getFinanceSummary(),
   ]);
 
   const unverified = venues.filter((v) => !v.verified);
@@ -72,7 +73,7 @@ export default async function AdminOverviewPage() {
         </Link>
       </div>
 
-      <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Metric
           label="Pending venues"
           value={unverified.length}
@@ -85,6 +86,13 @@ export default async function AdminOverviewPage() {
           value={suspended.length}
           tone={suspended.length ? "text-orange" : "text-green"}
         />
+        <Link href="/admin/finance" className="block">
+          <Metric
+            label="Wallet liability"
+            value={formatNaira(finance.totalWalletLiabilityKobo, { compact: true })}
+            sub="View finance →"
+          />
+        </Link>
       </div>
 
       <div className="mt-8 grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
@@ -259,7 +267,7 @@ function Metric({
   tone = "text-ink",
 }: {
   label: string;
-  value: number;
+  value: number | string;
   sub?: string;
   tone?: string;
 }) {

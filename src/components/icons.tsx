@@ -96,6 +96,19 @@ export const ShieldIcon = (p: P) => (
   </svg>
 );
 
+export const ChevronDownIcon = (p: P) => (
+  <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={2.4}>
+    <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const DocumentIcon = (p: P) => (
+  <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={2}>
+    <path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" strokeLinejoin="round" />
+    <path d="M14 3v4a1 1 0 0 0 1 1h4" strokeLinejoin="round" />
+  </svg>
+);
+
 export const SearchIcon = (p: P) => (
   <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={2.4}>
     <circle cx="11" cy="11" r="7" />

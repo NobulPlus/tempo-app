@@ -1,9 +1,15 @@
 import { VenueVerificationBoard } from "@/components/admin/venue-verification-board";
-import { listVenues } from "@/lib/data/repo";
+import { listVenues, getVenueVerificationHistory } from "@/lib/data/repo";
+import type { VenueVerificationEvent } from "@/lib/types";
 
 export default async function AdminVenuesPage() {
   const venues = await listVenues();
   const unverified = venues.filter((v) => !v.verified);
+
+  const historyEntries = await Promise.all(
+    venues.map(async (v) => [v.id, await getVenueVerificationHistory(v.id)] as const),
+  );
+  const histories: Record<string, VenueVerificationEvent[]> = Object.fromEntries(historyEntries);
 
   return (
     <div>
@@ -19,7 +25,7 @@ export default async function AdminVenuesPage() {
       </p>
 
       <div className="mt-6">
-        <VenueVerificationBoard venues={venues} />
+        <VenueVerificationBoard venues={venues} histories={histories} />
       </div>
     </div>
   );

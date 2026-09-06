@@ -17,6 +17,9 @@ import type {
   PitchSize,
   PitchSurface,
   WalletTransaction,
+  VenueVerificationEvent,
+  IdentityVerification,
+  KycStatus,
 } from "@/lib/types";
 
 /** The shape a `profiles` row has right after `camelize` — flat trait_*
@@ -379,12 +382,19 @@ export async function setSlotStatus(
   if (demoMode()) {
     const slot = store().slots.find((s) => s.id === slotId);
     if (!slot) return { ok: false, error: "Slot not found." };
+    if (slot.status === "booked") {
+      return { ok: false, error: "This slot is booked — cancel the booking instead." };
+    }
     slot.status = status;
     return { ok: true };
   }
 
+  // set_slot_status() locks the row and checks ownership + current status
+  // server-side — a plain .update() had no guard against mutating an
+  // already-booked slot (only a disabled button client-side), which could
+  // silently orphan a paid, confirmed booking.
   const sb = await createClient();
-  const { error } = await sb.from("slots").update({ status }).eq("id", slotId);
+  const { error } = await sb.rpc("set_slot_status", { p_slot_id: slotId, p_status: status });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
@@ -789,6 +799,121 @@ export async function getWalletTransactions(userId: string, limit = 20): Promise
     .slice(0, limit);
 }
 
+/* --------------------------------------------------------- admin finance --
+ * Read-only visibility only, this pass — no manual wallet adjustment.
+ * wallets/wallet_transactions RLS was deliberately self-only until
+ * 0015_admin_finance_read.sql added an is_admin() bypass; live-mode only,
+ * matching how verifyVenue() already rejects demo mode (there's nothing
+ * cross-user to aggregate in the single-process demo store the same way).
+ */
+
+export interface WalletAdminRow {
+  userId: string;
+  handle: string;
+  fullName: string;
+  balanceKobo: number;
+  updatedAt: string;
+}
+
+export async function listWalletsAdmin(): Promise<WalletAdminRow[]> {
+  if (demoMode()) return [];
+
+  const sb = await createClient();
+  const { data } = await sb
+    .from("wallets")
+    .select("user_id, balance_kobo, updated_at, profile:profiles!user_id(handle, full_name)")
+    .order("balance_kobo", { ascending: false });
+
+  return (data ?? []).map((row) => {
+    const c = camelize<{
+      userId: string;
+      balanceKobo: number;
+      updatedAt: string;
+      profile: { handle: string; fullName: string } | null;
+    }>(row);
+    return {
+      userId: c.userId,
+      handle: c.profile?.handle ?? "unknown",
+      fullName: c.profile?.fullName ?? "Unknown",
+      balanceKobo: c.balanceKobo,
+      updatedAt: c.updatedAt,
+    };
+  });
+}
+
+export interface WalletTransactionAdminRow extends WalletTransaction {
+  handle: string;
+  fullName: string;
+}
+
+export async function listWalletTransactionsAdmin(limit = 100): Promise<WalletTransactionAdminRow[]> {
+  if (demoMode()) return [];
+
+  const sb = await createClient();
+  const { data } = await sb
+    .from("wallet_transactions")
+    .select("*, profile:profiles!user_id(handle, full_name)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  return (data ?? []).map((row) => {
+    const c = camelize<WalletTransaction & { profile: { handle: string; fullName: string } | null }>(row);
+    const { profile, ...txn } = c;
+    return { ...txn, handle: profile?.handle ?? "unknown", fullName: profile?.fullName ?? "Unknown" };
+  });
+}
+
+export interface FinanceSummary {
+  totalWalletLiabilityKobo: number;
+  totalTopupVolumeKobo: number;
+  totalBookingPaymentVolumeKobo: number;
+  totalCancellationCreditsKobo: number;
+  serviceFeeRevenueKobo: number;
+}
+
+/** Computed from wallet_transactions, not a new table — same "honest
+ * numbers, never invented" approach getPlatformStats() already uses. */
+export async function getFinanceSummary(): Promise<FinanceSummary> {
+  if (demoMode()) {
+    return {
+      totalWalletLiabilityKobo: 0,
+      totalTopupVolumeKobo: 0,
+      totalBookingPaymentVolumeKobo: 0,
+      totalCancellationCreditsKobo: 0,
+      serviceFeeRevenueKobo: 0,
+    };
+  }
+
+  const sb = await createClient();
+  const [{ data: wallets }, { data: txns }] = await Promise.all([
+    sb.from("wallets").select("balance_kobo"),
+    sb.from("wallet_transactions").select("type, amount_kobo, status").eq("status", "completed"),
+  ]);
+
+  const totalWalletLiabilityKobo = (wallets ?? []).reduce((sum, w) => sum + (w.balance_kobo as number), 0);
+  const totalTopupVolumeKobo = (txns ?? [])
+    .filter((t) => t.type === "topup")
+    .reduce((sum, t) => sum + (t.amount_kobo as number), 0);
+  const totalBookingPaymentVolumeKobo = Math.abs(
+    (txns ?? [])
+      .filter((t) => t.type === "booking_payment")
+      .reduce((sum, t) => sum + (t.amount_kobo as number), 0),
+  );
+  const totalCancellationCreditsKobo = (txns ?? [])
+    .filter((t) => t.type === "cancellation_credit")
+    .reduce((sum, t) => sum + (t.amount_kobo as number), 0);
+
+  return {
+    totalWalletLiabilityKobo,
+    totalTopupVolumeKobo,
+    totalBookingPaymentVolumeKobo,
+    totalCancellationCreditsKobo,
+    serviceFeeRevenueKobo: Math.round(
+      (totalBookingPaymentVolumeKobo * SERVICE_FEE_RATE) / (1 + SERVICE_FEE_RATE),
+    ),
+  };
+}
+
 export async function getBookingByReference(
   reference: string,
 ): Promise<(Booking & { slot: Slot & { pitch: PitchWithVenue } }) | null> {
@@ -807,6 +932,51 @@ export async function getBookingByReference(
   const slot = await getSlot(b.slotId);
   if (!slot) return null;
   return { ...b, slot };
+}
+
+/**
+ * Real booking records for every pitch under a venue — reference, player,
+ * amount, status — not the slot-status-derived approximation `/venue` used
+ * to show. `bookings_read_venue` RLS (0001_init.sql) already lets an owner
+ * select these; this was simply never called from anywhere.
+ */
+export async function getBookingsForVenue(venueId: string) {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data: pitchRows } = await sb.from("pitches").select("id").eq("venue_id", venueId);
+    const pitchIds = (pitchRows ?? []).map((p) => p.id as string);
+    if (pitchIds.length === 0) return [];
+
+    const { data } = await sb
+      .from("bookings")
+      .select(`*, slot:slots!inner(*, pitch:pitches(${PITCH_SELECT})), player:profiles!user_id(handle, full_name, avatar_url)`)
+      .in("slot.pitch_id", pitchIds)
+      .order("created_at", { ascending: false });
+
+    return (data ?? []).map((row) => {
+      const c = camelize<
+        Booking & { slot: Slot & { pitch: PitchWithVenue }; player?: { handle: string; fullName: string; avatarUrl: string | null } }
+      >(row);
+      return c;
+    });
+  }
+
+  const s = store();
+  const pitchIds = new Set(s.pitches.filter((p) => p.venueId === venueId).map((p) => p.id));
+  const bookings = s.bookings.filter((b) => {
+    const slot = s.slots.find((x) => x.id === b.slotId);
+    return slot && pitchIds.has(slot.pitchId);
+  });
+
+  return Promise.all(
+    bookings
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(async (b) => {
+        const slot = await getSlot(b.slotId);
+        const player = s.profiles.find((p) => p.id === b.userId);
+        return { ...b, slot: slot!, player: player ? { handle: player.handle, fullName: player.fullName, avatarUrl: player.avatarUrl } : undefined };
+      }),
+  );
 }
 
 export async function getBookingsForUser(userId: string) {
@@ -907,13 +1077,25 @@ export async function getGamesForUser(userId: string): Promise<GameFull[]> {
 
 /* ------------------------------------------------------------------ venues */
 
+const VENUE_SELECT = "*, verifier:profiles!verified_by(full_name)";
+
+function mapVenueRow(row: Record<string, unknown>): Venue {
+  const c = camelize<Venue & { verifier?: { fullName?: string } | null }>(row);
+  const { verifier, ...venue } = c;
+  return { ...venue, verifiedByName: verifier?.fullName ?? null };
+}
+
 export async function listVenues(): Promise<Venue[]> {
   if (!demoMode()) {
     const sb = await createClient();
-    const { data } = await sb.from("venues").select("*");
-    return camelize<Venue[]>(data ?? []);
+    const { data } = await sb.from("venues").select(VENUE_SELECT);
+    return (data ?? []).map(mapVenueRow);
   }
-  return store().venues;
+  const s = store();
+  return s.venues.map((v) => ({
+    ...v,
+    verifiedByName: v.verifiedBy ? (s.profiles.find((p) => p.id === v.verifiedBy)?.fullName ?? null) : null,
+  }));
 }
 
 export interface CreateVenueInput {
@@ -1049,7 +1231,39 @@ export async function verifyVenue(
     .eq("id", venueId);
 
   if (error) return { ok: false, error: error.message };
+
+  // Sequential, not atomic with the update above — this is an audit-log
+  // insert, not a money operation, matching how every other non-money admin
+  // action in this codebase is a plain call rather than an RPC. A failure
+  // here would only lose one history entry, never corrupt the venue state.
+  await sb.from("venue_verification_events").insert({
+    venue_id: venueId,
+    admin_id: adminId,
+    verified,
+    note: note || null,
+  });
+
   return { ok: true };
+}
+
+/** Full verify/unverify history for one venue, newest first — unlike
+ * venues.verified_at/verified_by/verification_note, which only ever hold
+ * the current state, this is never overwritten. */
+export async function getVenueVerificationHistory(venueId: string): Promise<VenueVerificationEvent[]> {
+  if (demoMode()) return [];
+
+  const sb = await createClient();
+  const { data } = await sb
+    .from("venue_verification_events")
+    .select("*, admin:profiles!admin_id(full_name)")
+    .eq("venue_id", venueId)
+    .order("created_at", { ascending: false });
+
+  return (data ?? []).map((row) => {
+    const c = camelize<VenueVerificationEvent & { admin?: { fullName?: string } | null }>(row);
+    const { admin, ...event } = c;
+    return { ...event, adminName: admin?.fullName ?? "Unknown admin" };
+  });
 }
 
 export async function getVenueBySlug(slug: string): Promise<Venue | null> {
@@ -1188,4 +1402,104 @@ export async function getUrgentGames(limit = 3): Promise<GameFull[]> {
     .sort((a, b) => a.state.msToKickoff - b.state.msToKickoff)
     .slice(0, limit)
     .map(({ g }) => g);
+}
+
+/* -------------------------------------------------- identity verification --
+ * Document upload + admin manual review. No phone/SMS OTP — no provider is
+ * wired up. Live-mode only: this is the first upload surface in the app,
+ * and there's nothing meaningful to fake in the single-process demo store.
+ */
+
+const IDENTITY_BUCKET = "identity-documents";
+
+/** Uploads to a {userId}/... path — the storage RLS policies require the
+ * first path segment to match auth.uid(). */
+export async function uploadIdentityDocument(
+  userId: string,
+  file: File,
+): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Not available in demo mode." };
+
+  const sb = await createClient();
+  const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+  const path = `${userId}/${Date.now()}-${safeName}`;
+
+  const { error } = await sb.storage.from(IDENTITY_BUCKET).upload(path, file, { upsert: false });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, path };
+}
+
+export async function submitIdentityVerification(
+  userId: string,
+  documentPath: string,
+): Promise<{ ok: true; verification: IdentityVerification } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Not available in demo mode." };
+
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("identity_verifications")
+    .insert({ user_id: userId, document_path: documentPath })
+    .select()
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, verification: camelize<IdentityVerification>(data) };
+}
+
+/** The caller's own most recent submission — for their own status view. */
+export async function getIdentityVerification(userId: string): Promise<IdentityVerification | null> {
+  if (demoMode()) return null;
+
+  const sb = await createClient();
+  const { data } = await sb
+    .from("identity_verifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return data ? camelize<IdentityVerification>(data) : null;
+}
+
+/** A short-lived signed URL for viewing a private document — used by both
+ * the submitter's own status page and the admin review queue. */
+export async function getIdentityDocumentUrl(documentPath: string): Promise<string | null> {
+  if (demoMode()) return null;
+
+  const sb = await createClient();
+  const { data } = await sb.storage.from(IDENTITY_BUCKET).createSignedUrl(documentPath, 60 * 10);
+  return data?.signedUrl ?? null;
+}
+
+export async function listIdentityVerificationsAdmin(status?: KycStatus): Promise<IdentityVerification[]> {
+  if (demoMode()) return [];
+
+  const sb = await createClient();
+  let query = sb
+    .from("identity_verifications")
+    .select("*, submitter:profiles!user_id(id, handle, full_name, avatar_url)")
+    .order("created_at", { ascending: false });
+  if (status) query = query.eq("status", status);
+
+  const { data } = await query;
+  return (data ?? []).map((row) => camelize<IdentityVerification>(row));
+}
+
+export async function reviewIdentityVerification(
+  verificationId: string,
+  approve: boolean,
+  note: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (demoMode()) return { ok: false, error: "Not available in demo mode." };
+
+  const sb = await createClient();
+  const { error } = await sb.rpc("admin_review_identity_verification", {
+    p_verification_id: verificationId,
+    p_approve: approve,
+    p_note: note || null,
+  });
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }

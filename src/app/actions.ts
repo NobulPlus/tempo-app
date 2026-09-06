@@ -22,6 +22,9 @@ import {
   getPitchById,
   generateSlots,
   setSlotStatus,
+  uploadIdentityDocument,
+  submitIdentityVerification,
+  reviewIdentityVerification,
 } from "@/lib/data/repo";
 import type { UserRole, PitchSize, PitchSurface } from "@/lib/types";
 import { normalisePhone, formatNaira, generateReference } from "@/lib/format";
@@ -971,6 +974,52 @@ export async function dismissWaitlistLeadAction(id: string): Promise<{ ok: boole
   revalidatePath("/admin");
   revalidatePath("/admin/leads");
   return { ok: true };
+}
+
+export async function reviewIdentityVerificationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, error: "Not authorized." };
+
+  const verificationId = String(formData.get("verificationId") ?? "");
+  const approve = formData.get("approve") === "true";
+  const note = String(formData.get("note") ?? "");
+
+  const result = await reviewIdentityVerification(verificationId, approve, note);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/admin/identity");
+  return { ok: true, message: approve ? "Identity verified." : "Submission rejected." };
+}
+
+/* -------------------------------------------------------------- identity -- */
+
+export async function submitIdentityVerificationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const file = formData.get("document");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Choose a document to upload." };
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    return { ok: false, error: "File is too large — please keep it under 8MB." };
+  }
+
+  const uploaded = await uploadIdentityDocument(user.id, file);
+  if (!uploaded.ok) return { ok: false, error: uploaded.error };
+
+  const submitted = await submitIdentityVerification(user.id, uploaded.path);
+  if (!submitted.ok) return { ok: false, error: submitted.error };
+
+  revalidatePath("/verify-identity");
+  revalidatePath("/dashboard");
+  return { ok: true, message: "Submitted — an admin will review it shortly." };
 }
 
 export async function signOut() {

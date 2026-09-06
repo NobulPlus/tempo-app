@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { getGamesForUser, getBookingsForUser, getWalletBalance } from "@/lib/data/repo";
+import { getGamesForUser, getBookingsForUser, getWalletBalance, getIdentityVerification } from "@/lib/data/repo";
 import { getMatchState } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { Countdown, FillBar, HeatPill } from "@/components/match/match-day";
@@ -16,6 +16,7 @@ import {
   ArrowRightIcon,
   StarIcon,
   WalletIcon,
+  ShieldIcon,
 } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -29,10 +30,11 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/dashboard");
 
-  const [games, bookings, walletBalanceKobo] = await Promise.all([
+  const [games, bookings, walletBalanceKobo, identityVerification] = await Promise.all([
     getGamesForUser(user.id),
     getBookingsForUser(user.id),
     getWalletBalance(user.id),
+    getIdentityVerification(user.id),
   ]);
 
   const now = Date.now();
@@ -199,6 +201,37 @@ export default async function DashboardPage() {
                 View transactions
               </Link>
             </div>
+          </div>
+
+          <div className="card-t p-6">
+            <div className="flex items-center gap-2 text-[12px] text-ink-muted">
+              <ShieldIcon size={14} /> Identity
+            </div>
+            {user.identityVerified ? (
+              <>
+                <div className="mt-1.5 text-[18px] font-bold text-green">Verified</div>
+                <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
+                  Your identity has been checked and approved.
+                </p>
+              </>
+            ) : identityVerification?.status === "pending" ? (
+              <>
+                <div className="mt-1.5 text-[18px] font-bold text-gold">Pending review</div>
+                <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
+                  We&apos;ve got your document — an admin will review it shortly.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="mt-1.5 text-[18px] font-bold">Not verified</div>
+                <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
+                  Verify your identity to build trust with hosts and other players.
+                </p>
+                <Link href="/verify-identity" className="btn-t btn-green-t mt-4 !py-2.5 !text-[13.5px]">
+                  Verify identity
+                </Link>
+              </>
+            )}
           </div>
 
           <div className="card-t p-6">

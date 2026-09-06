@@ -2,15 +2,16 @@
 
 import { useActionState, useState } from "react";
 import { verifyVenueAction, type ActionState } from "@/app/actions";
-import { ShieldIcon, PinIcon, ClockIcon, PhoneIcon } from "@/components/icons";
+import { ShieldIcon, PinIcon, ClockIcon, PhoneIcon, ChevronDownIcon } from "@/components/icons";
 import { formatRelativeDay } from "@/lib/format";
-import type { Venue } from "@/lib/types";
+import type { Venue, VenueVerificationEvent } from "@/lib/types";
 
 const initial: ActionState = {};
 
-export function VenueVerifyRow({ venue }: { venue: Venue }) {
+export function VenueVerifyRow({ venue, history }: { venue: Venue; history: VenueVerificationEvent[] }) {
   const [state, formAction, pending] = useActionState(verifyVenueAction, initial);
   const [note, setNote] = useState(venue.verificationNote ?? "");
+  const [showHistory, setShowHistory] = useState(false);
 
   return (
     <div className="card-t overflow-hidden p-5">
@@ -49,7 +50,31 @@ export function VenueVerifyRow({ venue }: { venue: Venue }) {
             <div className="mt-1 flex items-center gap-1.5 text-[12px] text-ink-muted">
               <ClockIcon size={12} />
               Verified {formatRelativeDay(venue.verifiedAt)}
+              {venue.verifiedByName && ` by ${venue.verifiedByName}`}
             </div>
+          )}
+          {history.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowHistory((v) => !v)}
+              className="mt-1.5 flex items-center gap-1 text-[12px] font-semibold text-ink-muted transition hover:text-ink"
+            >
+              <ChevronDownIcon size={12} className={`transition-transform ${showHistory ? "rotate-180" : ""}`} />
+              {history.length} verification event{history.length === 1 ? "" : "s"}
+            </button>
+          )}
+          {showHistory && (
+            <ul className="mt-2 space-y-1.5 border-l border-glass-border pl-3">
+              {history.map((e) => (
+                <li key={e.id} className="text-[12px] text-ink-muted">
+                  <span className={e.verified ? "text-green" : "text-orange"}>
+                    {e.verified ? "Verified" : "Unverified"}
+                  </span>{" "}
+                  by {e.adminName} · {formatRelativeDay(e.createdAt)}
+                  {e.note && <span className="block text-ink-soft">&ldquo;{e.note}&rdquo;</span>}
+                </li>
+              ))}
+            </ul>
           )}
         </div>
         <div className="flex max-w-full flex-wrap gap-1.5 sm:max-w-[310px] sm:justify-end">

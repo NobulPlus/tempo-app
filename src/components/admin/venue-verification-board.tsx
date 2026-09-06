@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { SearchIcon, ShieldIcon } from "@/components/icons";
 import { VenueVerifyRow } from "@/components/admin/venue-verify-row";
-import type { Venue } from "@/lib/types";
+import type { Venue, VenueVerificationEvent } from "@/lib/types";
 
 type Status = "pending" | "verified" | "all";
 type Side = "all" | "island" | "mainland";
@@ -20,7 +20,13 @@ const SIDES: { value: Side; label: string }[] = [
   { value: "mainland", label: "Mainland" },
 ];
 
-export function VenueVerificationBoard({ venues }: { venues: Venue[] }) {
+export function VenueVerificationBoard({
+  venues,
+  histories,
+}: {
+  venues: Venue[];
+  histories: Record<string, VenueVerificationEvent[]>;
+}) {
   const [status, setStatus] = useState<Status>("pending");
   const [side, setSide] = useState<Side>("all");
   const [q, setQ] = useState("");
@@ -88,7 +94,7 @@ export function VenueVerificationBoard({ venues }: { venues: Venue[] }) {
 
       <div className="mt-4 space-y-3">
         {filtered.map((venue) => (
-          <VenueVerifyRow key={venue.id} venue={venue} />
+          <VenueVerifyRow key={venue.id} venue={venue} history={histories[venue.id] ?? []} />
         ))}
         {filtered.length === 0 && (
           <div className="card-t p-8 text-center text-[14px] text-ink-soft">

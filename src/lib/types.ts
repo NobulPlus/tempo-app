@@ -49,12 +49,27 @@ export interface Venue {
   verified: boolean;
   verifiedAt: string | null;
   verifiedBy?: string | null;
+  /** Resolved from verifiedBy when the admin's profile is joined/fetched. */
+  verifiedByName?: string | null;
   verificationNote?: string | null;
   phone: string | null;
   amenities: string[];
   photos: string[];
   description: string;
   ownerId: string | null;
+  createdAt: string;
+}
+
+/** One row per verify/unverify action — never overwritten, unlike
+ * venues.verified_at/verified_by/verification_note which hold only the
+ * current state. */
+export interface VenueVerificationEvent {
+  id: string;
+  venueId: string;
+  adminId: string;
+  adminName?: string;
+  verified: boolean;
+  note: string | null;
   createdAt: string;
 }
 
@@ -148,6 +163,8 @@ export interface PlayerProfile {
   role: UserRole;
   /** Set only by admin_set_suspended() — never client-writable. */
   suspended: boolean;
+  /** Set only by admin_review_identity_verification() — never client-writable. */
+  identityVerified: boolean;
   joinedAt: string;
 
   /* --- Identity & reputation --- */
@@ -211,6 +228,25 @@ export interface MatchState {
    distinguished only by `role`. No status column; admin dismisses a lead
    by deleting the row once it's been followed up on.
    ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------
+   Identity verification (KYC) — document upload + admin manual review.
+   No phone/SMS OTP yet; see supabase/migrations/0018_identity_verification.sql.
+   ------------------------------------------------------------------ */
+
+export type KycStatus = "pending" | "approved" | "rejected";
+
+export interface IdentityVerification {
+  id: string;
+  userId: string;
+  documentPath: string;
+  status: KycStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+  submitter?: PlayerProfile;
+}
 
 export interface WaitlistLead {
   id: string;
