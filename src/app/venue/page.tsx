@@ -176,12 +176,20 @@ export default async function VenuePage() {
                       <ClockIcon size={17} />
                       Upcoming bookings
                     </h3>
-                    <Link
-                      href={`/venue/${venue.id}/bookings`}
-                      className="text-[13px] font-semibold text-green transition hover:opacity-80"
-                    >
-                      View all →
-                    </Link>
+                    <div className="flex items-center gap-4">
+                      <Link
+                        href={`/venue/${venue.id}/calendar`}
+                        className="text-[13px] font-semibold text-green transition hover:opacity-80"
+                      >
+                        Calendar →
+                      </Link>
+                      <Link
+                        href={`/venue/${venue.id}/bookings`}
+                        className="text-[13px] font-semibold text-green transition hover:opacity-80"
+                      >
+                        View all →
+                      </Link>
+                    </div>
                   </div>
                   {upcomingBookings.length === 0 ? (
                     <p className="mt-4 text-[14px] text-ink-soft">No confirmed bookings ahead yet.</p>

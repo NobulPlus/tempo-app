@@ -50,7 +50,15 @@ export default async function VenueBookingsPage({
           <span className="text-ink">Bookings</span>
         </nav>
 
-        <h1 className="text-[26px] font-extrabold">Bookings — {venue.name}</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-[26px] font-extrabold">Bookings — {venue.name}</h1>
+          <Link
+            href={`/venue/${venue.id}/calendar`}
+            className="text-[13.5px] font-semibold text-green transition hover:opacity-80"
+          >
+            View calendar →
+          </Link>
+        </div>
         <p className="mt-2 text-[14px] text-ink-soft">
           Real booking records for every pitch at this venue — who booked, when, and
           for how much.

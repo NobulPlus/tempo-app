@@ -979,6 +979,32 @@ export async function getBookingsForVenue(venueId: string) {
   );
 }
 
+/** Games hosted on any pitch under a venue — for the owner calendar,
+ * alongside getBookingsForVenue(). Same pitch-ids-first approach. */
+export async function getGamesForVenue(venueId: string): Promise<GameFull[]> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data: pitchRows } = await sb.from("pitches").select("id").eq("venue_id", venueId);
+    const pitchIds = (pitchRows ?? []).map((p) => p.id as string);
+    if (pitchIds.length === 0) return [];
+
+    const { data } = await sb
+      .from("games")
+      .select(GAME_SELECT)
+      .in("pitch_id", pitchIds)
+      .order("starts_at", { ascending: true });
+
+    return (data ?? []).map(mapGameRow);
+  }
+
+  const s = store();
+  const pitchIds = new Set(s.pitches.filter((p) => p.venueId === venueId).map((p) => p.id));
+  return s.games
+    .filter((g) => pitchIds.has(g.pitchId))
+    .map(hydrateGame)
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+}
+
 export async function getBookingsForUser(userId: string) {
   if (!demoMode()) {
     const sb = await createClient();

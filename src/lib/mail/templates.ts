@@ -218,3 +218,47 @@ Find a pitch: ${findUrl}${textFooter()}`;
 
   return { subject: "Welcome to Tempo", html, text };
 }
+
+/** Shared by both reminder sources — a direct pitch booking and a joined
+ * game are the same "you're booked in" moment from the player's side, just
+ * with a different title/link. See src/app/api/cron/reminders/route.ts. */
+export function eventReminderEmail(input: {
+  fullName: string;
+  title: string;
+  venueName: string;
+  address: string;
+  kickoffISO: string;
+  minutesUntil: 60 | 30;
+  viewUrl: string;
+}): EmailContent {
+  const when = `${formatDayShort(input.kickoffISO)}, ${formatTime(input.kickoffISO)}`;
+  const firstName = input.fullName.split(" ")[0];
+  const label = input.minutesUntil === 60 ? "1 hour" : "30 minutes";
+
+  const html = emailLayout({
+    previewText: `Kicking off in ${label} — ${input.title}`,
+    ctaLabel: "View details",
+    ctaUrl: input.viewUrl,
+    bodyHtml: `
+      <p style="margin:0;">Hey ${firstName},</p>
+      <p style="margin:12px 0 0;"><strong>${input.title}</strong> kicks off in ${label}.</p>
+      ${highlightBox([
+        ["Venue", input.venueName],
+        ["Address", input.address],
+        ["Kickoff", when],
+      ])}
+    `,
+  });
+
+  const text = `Hey ${firstName},
+
+${input.title} kicks off in ${label}.
+
+Venue: ${input.venueName}
+Address: ${input.address}
+Kickoff: ${when}
+
+View details: ${input.viewUrl}${textFooter()}`;
+
+  return { subject: `Kicking off in ${label} — ${input.title}`, html, text };
+}

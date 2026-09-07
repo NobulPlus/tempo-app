@@ -60,12 +60,20 @@ export default async function ManageVenuePage({
             verify the venue before it&apos;s bookable by players.
           </p>
         )}
-        <Link
-          href={`/venue/${venue.id}/bookings`}
-          className="mt-4 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-green transition hover:opacity-80"
-        >
-          View bookings on this venue →
-        </Link>
+        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+          <Link
+            href={`/venue/${venue.id}/bookings`}
+            className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-green transition hover:opacity-80"
+          >
+            View bookings on this venue →
+          </Link>
+          <Link
+            href={`/venue/${venue.id}/calendar`}
+            className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-green transition hover:opacity-80"
+          >
+            View calendar →
+          </Link>
+        </div>
 
         <section className="card-t mt-6 p-6">
           <h2 className="text-[17px] font-bold">Venue details</h2>
