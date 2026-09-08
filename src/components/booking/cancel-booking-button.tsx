@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { cancelBookingAction, type ActionState } from "@/app/actions";
 import { CloseIcon } from "@/components/icons";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
@@ -20,6 +21,7 @@ export function CancelBookingButton({
   eligibleForCredit: boolean;
 }) {
   const [state, action, pending] = useActionState(cancelBookingAction, initial);
+  useActionToast(state, { skipSuccess: true });
   const [confirming, setConfirming] = useState(false);
 
   if (state.ok && state.message) {
@@ -59,7 +61,6 @@ export function CancelBookingButton({
           ? "You'll get a full credit back to your wallet."
           : "It's inside 6 hours of kickoff, so no credit will be issued."}
       </p>
-      {state.error && <p className="mt-2 text-[13px] text-orange">{state.error}</p>}
       <div className="mt-3 flex justify-center gap-2.5">
         <button type="submit" disabled={pending} className="btn-t btn-ghost-t !border-orange/40 !text-orange">
           {pending ? "Cancelling…" : "Confirm cancellation"}

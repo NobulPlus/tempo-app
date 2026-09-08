@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Figtree, Caveat, JetBrains_Mono } from "next/font/
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
+import { ToastProvider } from "@/components/toast/toast-provider";
 import { getCurrentUser } from "@/lib/session";
 import { demoMode, getWalletBalance } from "@/lib/data/repo";
 
@@ -101,13 +102,15 @@ export default async function RootLayout({
           Skip to content
         </a>
 
-        <Nav user={user} isDemo={isDemo} walletBalanceKobo={walletBalanceKobo} />
+        <ToastProvider>
+          <Nav user={user} isDemo={isDemo} walletBalanceKobo={walletBalanceKobo} />
 
-        <main id="main" className="pt-[71px]">
-          {children}
-        </main>
+          <main id="main" className="pt-[71px]">
+            {children}
+          </main>
 
-        <Footer />
+          <Footer />
+        </ToastProvider>
       </body>
     </html>
   );

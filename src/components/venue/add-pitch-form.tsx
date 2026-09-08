@@ -2,6 +2,7 @@
 
 import { useActionState, useRef, useEffect } from "react";
 import { createPitchAction, type ActionState } from "@/app/actions";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
@@ -10,6 +11,7 @@ const SURFACES = ["astro", "grass", "indoor", "concrete"] as const;
 
 export function AddPitchForm({ venueId }: { venueId: string }) {
   const [state, formAction, pending] = useActionState(createPitchAction, initial);
+  useActionToast(state);
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -116,9 +118,6 @@ export function AddPitchForm({ venueId }: { venueId: string }) {
       <button type="submit" disabled={pending} className="btn-t btn-green-t !py-3 !text-[14px]">
         {pending ? "Adding…" : "Add pitch"}
       </button>
-
-      {state.error && <p className="text-[13px] text-orange">{state.error}</p>}
-      {state.ok && <p className="text-[13px] text-green">{state.message}</p>}
     </form>
   );
 }

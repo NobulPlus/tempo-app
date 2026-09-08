@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createBookingAction, type ActionState } from "@/app/actions";
 import { formatNaira } from "@/lib/format";
 import { WalletIcon } from "@/components/icons";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
@@ -18,6 +19,7 @@ export function CheckoutForm({
   walletBalanceKobo: number;
 }) {
   const [state, action, pending] = useActionState(createBookingAction, initial);
+  useActionToast(state);
   const canAfford = walletBalanceKobo >= totalKobo;
   const shortfallKobo = totalKobo - walletBalanceKobo;
 
@@ -58,12 +60,6 @@ export function CheckoutForm({
           .
         </span>
       </label>
-
-      {state.error && state.error !== "AUTH_REQUIRED" && (
-        <p role="alert" className="mt-4 rounded-lg border border-orange/30 bg-orange/10 px-4 py-3 text-[13.5px] text-orange">
-          {state.error}
-        </p>
-      )}
 
       {canAfford ? (
         <button type="submit" disabled={pending} className="btn-t btn-green-t mt-5 w-full">

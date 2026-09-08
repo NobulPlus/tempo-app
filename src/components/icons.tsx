@@ -170,6 +170,14 @@ export const CheckIcon = (p: P) => (
   </svg>
 );
 
+export const AlertIcon = (p: P) => (
+  <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={2}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 8v5" strokeLinecap="round" />
+    <circle cx="12" cy="16" r="0.9" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 export const TrendIcon = (p: P) => (
   <svg {...base(p)} fill="none" stroke="currentColor" strokeWidth={2}>
     <path d="M3 17 9.5 10.5l3.5 3.5L21 6" />

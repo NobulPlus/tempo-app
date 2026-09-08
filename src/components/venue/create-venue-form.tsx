@@ -3,11 +3,13 @@
 import { useActionState } from "react";
 import { createVenueAction, type ActionState } from "@/app/actions";
 import { BuildingIcon, PinIcon } from "@/components/icons";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
 export function CreateVenueForm() {
   const [state, formAction, pending] = useActionState(createVenueAction, initial);
+  useActionToast(state);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -111,12 +113,6 @@ export function CreateVenueForm() {
       <button type="submit" disabled={pending} className="btn-t btn-green-t w-full">
         {pending ? "Creating…" : "Create venue"}
       </button>
-
-      {state.error && (
-        <p role="alert" className="rounded-lg border border-orange/30 bg-orange/10 px-4 py-3 text-center text-[13.5px] text-orange">
-          {state.error}
-        </p>
-      )}
 
       <p className="text-center text-[12px] text-ink-muted">
         New venues start unverified — someone from Tempo visits in person before

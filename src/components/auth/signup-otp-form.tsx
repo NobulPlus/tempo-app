@@ -8,12 +8,15 @@ import {
   verifySignupOtpAction,
   type ActionState,
 } from "@/app/actions";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
 export function SignupOtpForm({ email, next }: { email: string; next: string }) {
   const [verifyState, verifyAction, verifying] = useActionState(verifySignupOtpAction, initial);
   const [resendState, resendAction, resending] = useActionState(resendSignupOtpAction, initial);
+  useActionToast(verifyState);
+  useActionToast(resendState);
   const [code, setCode] = useState("");
 
   return (
@@ -72,12 +75,6 @@ export function SignupOtpForm({ email, next }: { email: string; next: string }) 
         <button type="submit" disabled={verifying || code.length !== 6} className="btn-t btn-green-t w-full">
           {verifying ? "Checking code..." : "Verify account"}
         </button>
-
-        {verifyState.error && (
-          <p role="alert" className="rounded-lg border border-orange/30 bg-orange/10 px-4 py-3 text-[13.5px] text-orange">
-            {verifyState.error}
-          </p>
-        )}
       </form>
 
       <form action={resendAction} className="rounded-xl border border-glass-border bg-glass p-4">
@@ -88,12 +85,6 @@ export function SignupOtpForm({ email, next }: { email: string; next: string }) 
             {resending ? "Sending..." : "Send code again"}
           </button>
         </div>
-        {resendState.message && (
-          <p className="mt-2 text-[12.5px] font-semibold text-green">{resendState.message}</p>
-        )}
-        {resendState.error && (
-          <p className="mt-2 text-[12.5px] text-orange">{resendState.error}</p>
-        )}
       </form>
 
       <p className="text-center text-[13.5px] text-ink-soft">

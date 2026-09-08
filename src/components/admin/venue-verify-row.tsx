@@ -5,11 +5,13 @@ import { verifyVenueAction, type ActionState } from "@/app/actions";
 import { ShieldIcon, PinIcon, ClockIcon, PhoneIcon, ChevronDownIcon } from "@/components/icons";
 import { formatRelativeDay } from "@/lib/format";
 import type { Venue, VenueVerificationEvent } from "@/lib/types";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
 export function VenueVerifyRow({ venue, history }: { venue: Venue; history: VenueVerificationEvent[] }) {
   const [state, formAction, pending] = useActionState(verifyVenueAction, initial);
+  useActionToast(state);
   const [note, setNote] = useState(venue.verificationNote ?? "");
   const [showHistory, setShowHistory] = useState(false);
 
@@ -127,8 +129,6 @@ export function VenueVerifyRow({ venue, history }: { venue: Venue; history: Venu
           </button>
         )}
       </form>
-
-      {state.error && <p className="mt-2 text-[12.5px] text-orange">{state.error}</p>}
     </div>
   );
 }

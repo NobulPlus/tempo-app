@@ -5,6 +5,7 @@ import { reviewIdentityVerificationAction, type ActionState } from "@/app/action
 import { ShieldIcon, DocumentIcon, ClockIcon } from "@/components/icons";
 import { formatRelativeDay } from "@/lib/format";
 import type { IdentityVerification } from "@/lib/types";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
@@ -22,6 +23,7 @@ export function IdentityReviewRow({
   documentUrl: string | null;
 }) {
   const [state, formAction, pending] = useActionState(reviewIdentityVerificationAction, initial);
+  useActionToast(state);
   const [note, setNote] = useState(verification.reviewNote ?? "");
 
   return (
@@ -95,8 +97,6 @@ export function IdentityReviewRow({
           </button>
         </form>
       )}
-
-      {state.error && <p className="mt-2 text-[12.5px] text-orange">{state.error}</p>}
     </div>
   );
 }

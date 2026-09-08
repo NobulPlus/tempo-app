@@ -5,6 +5,7 @@ import Link from "next/link";
 import { UserIcon, MailIcon, PhoneIcon, LockIcon, EyeIcon } from "@/components/icons";
 import { normalisePhone } from "@/lib/format";
 import { signUpAction, type ActionState } from "@/app/actions";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
@@ -16,6 +17,7 @@ const initial: ActionState = {};
  */
 export function SignupForm() {
   const [state, formAction, pending] = useActionState(signUpAction, initial);
+  useActionToast(state);
   const [show, setShow] = useState(false);
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
@@ -170,12 +172,6 @@ export function SignupForm() {
       <button type="submit" disabled={pending} className="btn-t btn-green-t w-full">
         {pending ? "Creating account…" : "Create account"}
       </button>
-
-      {state.error && (
-        <p role="alert" className="rounded-lg border border-orange/30 bg-orange/10 px-4 py-3 text-[13.5px] text-orange">
-          {state.error}
-        </p>
-      )}
     </form>
   );
 }

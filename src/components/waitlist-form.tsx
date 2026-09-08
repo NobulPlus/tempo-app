@@ -3,11 +3,13 @@
 import { useActionState } from "react";
 import { joinWaitlist, type ActionState } from "@/app/actions";
 import { CheckIcon, MailIcon } from "@/components/icons";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
 export function WaitlistForm() {
   const [state, formAction, pending] = useActionState(joinWaitlist, initial);
+  useActionToast(state, { skipSuccess: true });
 
   if (state.ok) {
     return (
@@ -47,11 +49,6 @@ export function WaitlistForm() {
         </button>
       </div>
 
-      {state.error && (
-        <p role="alert" className="mt-3 text-[13.5px] text-orange">
-          {state.error}
-        </p>
-      )}
       <p className="mt-3 text-[12px] text-ink-muted">
         We&apos;ll only message you about pitches in your area. Unsubscribe anytime.
       </p>

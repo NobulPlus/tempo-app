@@ -3,11 +3,13 @@
 import { useActionState, useState } from "react";
 import { submitIdentityVerificationAction, type ActionState } from "@/app/actions";
 import { DocumentIcon } from "@/components/icons";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
 export function IdentityUploadForm() {
   const [state, formAction, pending] = useActionState(submitIdentityVerificationAction, initial);
+  useActionToast(state, { skipSuccess: true });
   const [fileName, setFileName] = useState<string | null>(null);
 
   if (state.ok) {
@@ -41,12 +43,6 @@ export function IdentityUploadForm() {
           onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
         />
       </label>
-
-      {state.error && (
-        <p role="alert" className="mt-4 rounded-lg border border-orange/30 bg-orange/10 px-4 py-3 text-[13.5px] text-orange">
-          {state.error}
-        </p>
-      )}
 
       <button type="submit" disabled={pending} className="btn-t btn-green-t mt-5 w-full">
         {pending ? "Uploading…" : "Submit for review"}

@@ -47,6 +47,7 @@
   --animate-shimmer: shimmer 2.2s linear infinite;
   --animate-rise: rise 0.7s cubic-bezier(0.2, 0.8, 0.3, 1) both;
   --animate-marquee: marquee 26s linear infinite;
+  --animate-toast-in: toast-in 0.25s cubic-bezier(0.2, 0.8, 0.3, 1) both;
 }
 
 /* ---------- CREATIVITY PASS — additive tokens ----------
@@ -90,6 +91,10 @@
 @keyframes marquee {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
 }
 
 /* ---------- BASE ---------- */

@@ -3,11 +3,13 @@
 import { useActionState } from "react";
 import { updateVenueAction, type ActionState } from "@/app/actions";
 import type { Venue } from "@/lib/types";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
 export function VenueDetailsForm({ venue }: { venue: Venue }) {
   const [state, formAction, pending] = useActionState(updateVenueAction, initial);
+  useActionToast(state);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -60,9 +62,6 @@ export function VenueDetailsForm({ venue }: { venue: Venue }) {
       <button type="submit" disabled={pending} className="btn-t btn-green-t">
         {pending ? "Saving…" : "Save venue details"}
       </button>
-
-      {state.error && <p className="text-[13px] text-orange">{state.error}</p>}
-      {state.ok && <p className="text-[13px] text-green">{state.message}</p>}
     </form>
   );
 }

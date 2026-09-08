@@ -2,11 +2,13 @@
 
 import { useActionState } from "react";
 import { generateSlotsAction, type ActionState } from "@/app/actions";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
 export function GenerateSlotsForm({ pitchId }: { pitchId: string }) {
   const [state, formAction, pending] = useActionState(generateSlotsAction, initial);
+  useActionToast(state);
 
   return (
     <form action={formAction} className="card-t space-y-4 p-6">
@@ -42,9 +44,6 @@ export function GenerateSlotsForm({ pitchId }: { pitchId: string }) {
       <button type="submit" disabled={pending} className="btn-t btn-green-t !py-3 !text-[14px]">
         {pending ? "Generating…" : "Generate slots"}
       </button>
-
-      {state.error && <p className="text-[13px] text-orange">{state.error}</p>}
-      {state.ok && <p className="text-[13px] text-green">{state.message}</p>}
     </form>
   );
 }

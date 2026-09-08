@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { initiateWalletTopupAction, type ActionState } from "@/app/actions";
 import { OptionRow } from "@/components/ui/option-row";
 import { WalletIcon } from "@/components/icons";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
@@ -11,6 +12,7 @@ const PRESETS = [10_000, 15_000, 20_000, 30_000];
 
 export function TopupForm() {
   const [state, action, pending] = useActionState(initiateWalletTopupAction, initial);
+  useActionToast(state);
   const [amount, setAmount] = useState<number | "custom">(PRESETS[0]);
   const [customAmount, setCustomAmount] = useState("");
 
@@ -65,12 +67,6 @@ export function TopupForm() {
       </div>
 
       <input type="hidden" name="amountNaira" value={amountNaira} />
-
-      {state.error && (
-        <p role="alert" className="mt-4 rounded-lg border border-orange/30 bg-orange/10 px-4 py-3 text-[13.5px] text-orange">
-          {state.error}
-        </p>
-      )}
 
       <button
         type="submit"

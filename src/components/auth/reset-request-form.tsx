@@ -4,11 +4,13 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { MailIcon, CheckIcon } from "@/components/icons";
 import { requestPasswordResetAction, type ActionState } from "@/app/actions";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
 export function ResetRequestForm() {
   const [state, formAction, pending] = useActionState(requestPasswordResetAction, initial);
+  useActionToast(state, { skipSuccess: true });
 
   if (state.ok) {
     return (
@@ -36,12 +38,6 @@ export function ResetRequestForm() {
       <button type="submit" disabled={pending} className="btn-t btn-green-t w-full">
         {pending ? "Sending…" : "Send reset link"}
       </button>
-
-      {state.error && (
-        <p role="alert" className="rounded-lg border border-orange/30 bg-orange/10 px-4 py-2.5 text-center text-[13.5px] text-orange">
-          {state.error}
-        </p>
-      )}
 
       <Link
         href="/login"

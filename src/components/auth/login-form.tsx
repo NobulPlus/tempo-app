@@ -4,11 +4,13 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { MailIcon, LockIcon } from "@/components/icons";
 import { signInAction, type ActionState } from "@/app/actions";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
 export function LoginForm({ next }: { next: string }) {
   const [state, formAction, pending] = useActionState(signInAction, initial);
+  useActionToast(state);
 
   return (
     <form className="space-y-4" action={formAction}>
@@ -45,12 +47,6 @@ export function LoginForm({ next }: { next: string }) {
       <button type="submit" disabled={pending} className="btn-t btn-green-t w-full">
         {pending ? "Signing in…" : "Sign in"}
       </button>
-
-      {state.error && (
-        <p role="alert" className="rounded-lg border border-orange/30 bg-orange/10 px-4 py-2.5 text-center text-[13.5px] text-orange">
-          {state.error}
-        </p>
-      )}
 
       <Link
         href="/reset"

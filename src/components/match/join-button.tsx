@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useContext, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { joinGameAction, leaveGameAction } from "@/app/actions";
 import { formatNaira } from "@/lib/format";
 import { CheckIcon } from "@/components/icons";
+import { ToastContext } from "@/components/toast/toast-provider";
 
 export function JoinButton({
   gameId,
@@ -26,9 +27,8 @@ export function JoinButton({
   hasEnded: boolean;
 }) {
   const router = useRouter();
+  const toast = useContext(ToastContext);
   const [pending, start] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   if (hasEnded) {
     return (
@@ -47,16 +47,14 @@ export function JoinButton({
   }
 
   const run = (fn: () => Promise<{ ok?: boolean; error?: string; message?: string }>) => {
-    setError(null);
-    setMessage(null);
     start(async () => {
       const res = await fn();
       if (res.error === "AUTH_REQUIRED") {
         router.push(`/login?next=${encodeURIComponent(`/games/${slug}`)}`);
         return;
       }
-      if (res.error) setError(res.error);
-      if (res.message) setMessage(res.message);
+      if (res.error) toast?.push("error", res.error);
+      else if (res.message) toast?.push("success", res.message);
       router.refresh();
     });
   };
@@ -89,17 +87,6 @@ export function JoinButton({
               ? "Join the waitlist"
               : `Join game — ${formatNaira(priceKobo)}`}
         </button>
-      )}
-
-      {message && (
-        <p role="status" className="mt-3 rounded-lg border border-green/25 bg-green/10 px-4 py-2.5 text-[13.5px] text-green">
-          {message}
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="mt-3 rounded-lg border border-orange/30 bg-orange/10 px-4 py-2.5 text-[13.5px] text-orange">
-          {error}
-        </p>
       )}
     </div>
   );

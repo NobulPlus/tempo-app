@@ -7,6 +7,7 @@ import { splitKobo } from "@/lib/format";
 import type { Slot } from "@/lib/types";
 import { UsersIcon, ShieldIcon } from "@/components/icons";
 import { OptionRow } from "@/components/ui/option-row";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
@@ -25,6 +26,7 @@ const LEVELS = [
 
 export function HostForm({ slots }: { slots: HostSlotOption[] }) {
   const [state, action, pending] = useActionState(createGameAction, initial);
+  useActionToast(state);
 
   const [slotId, setSlotId] = useState<string>("");
   const [level, setLevel] = useState<string>("casual");
@@ -255,12 +257,6 @@ export function HostForm({ slots }: { slots: HostSlotOption[] }) {
               released — you&apos;re never left holding the bill.
             </p>
           </div>
-
-          {state.error && state.error !== "AUTH_REQUIRED" && (
-            <p role="alert" className="mt-4 rounded-lg border border-orange/30 bg-orange/10 px-4 py-3 text-[13.5px] text-orange">
-              {state.error}
-            </p>
-          )}
 
           <button
             type="submit"

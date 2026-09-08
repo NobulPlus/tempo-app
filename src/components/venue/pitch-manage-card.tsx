@@ -6,12 +6,15 @@ import { updatePitchAction, type ActionState } from "@/app/actions";
 import { formatNaira } from "@/lib/format";
 import { ClockIcon } from "@/components/icons";
 import type { Pitch } from "@/lib/types";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
 export function PitchManageCard({ venueId, pitch }: { venueId: string; pitch: Pitch }) {
   const [state, formAction, pending] = useActionState(updatePitchAction, initial);
   const [toggleState, toggleAction, togglePending] = useActionState(updatePitchAction, initial);
+  useActionToast(state);
+  useActionToast(toggleState);
 
   return (
     <div className="card-t p-5">
@@ -52,7 +55,6 @@ export function PitchManageCard({ venueId, pitch }: { venueId: string; pitch: Pi
           </form>
         </div>
       </div>
-      {toggleState.error && <p className="mt-2 text-[12px] text-orange">{toggleState.error}</p>}
 
       <form action={formAction} className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:items-end">
         <input type="hidden" name="pitchId" value={pitch.id} />
@@ -103,8 +105,6 @@ export function PitchManageCard({ venueId, pitch }: { venueId: string; pitch: Pi
           <button type="submit" disabled={pending} className="btn-t btn-ghost-t !px-4 !py-2 !text-[12.5px]">
             {pending ? "Saving…" : "Save changes"}
           </button>
-          {state.error && <span className="ml-3 text-[12px] text-orange">{state.error}</span>}
-          {state.ok && <span className="ml-3 text-[12px] text-green">Saved.</span>}
         </div>
       </form>
     </div>

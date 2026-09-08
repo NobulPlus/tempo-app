@@ -3,11 +3,13 @@
 import { useActionState, useState } from "react";
 import { LockIcon, EyeIcon } from "@/components/icons";
 import { updatePasswordAction, type ActionState } from "@/app/actions";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
 export function ResetConfirmForm() {
   const [state, formAction, pending] = useActionState(updatePasswordAction, initial);
+  useActionToast(state);
   const [show, setShow] = useState(false);
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
@@ -69,12 +71,6 @@ export function ResetConfirmForm() {
       <button type="submit" disabled={pending} className="btn-t btn-green-t w-full">
         {pending ? "Updating…" : "Update password"}
       </button>
-
-      {state.error && (
-        <p role="alert" className="rounded-lg border border-orange/30 bg-orange/10 px-4 py-2.5 text-center text-[13.5px] text-orange">
-          {state.error}
-        </p>
-      )}
     </form>
   );
 }

@@ -3,11 +3,13 @@
 import { useActionState } from "react";
 import { joinPartnerWaitlist, type ActionState } from "@/app/actions";
 import { CheckIcon, MailIcon, PinIcon } from "@/components/icons";
+import { useActionToast } from "@/components/toast/use-action-toast";
 
 const initial: ActionState = {};
 
 export function PartnerForm() {
   const [state, formAction, pending] = useActionState(joinPartnerWaitlist, initial);
+  useActionToast(state, { skipSuccess: true });
 
   if (state.ok) {
     return (
@@ -53,11 +55,6 @@ export function PartnerForm() {
         </button>
       </div>
 
-      {state.error && (
-        <p role="alert" className="mt-3 text-[13.5px] text-orange">
-          {state.error}
-        </p>
-      )}
       <p className="mt-3 text-[12px] text-ink-muted">
         No commitment — we&apos;ll reach out to arrange a visit before anything goes live.
       </p>
