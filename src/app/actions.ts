@@ -501,18 +501,14 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
     };
   }
 
-  if (!data.session) {
-    redirect(`/signup/verify?email=${encodeURIComponent(email)}`);
+  // Supabase only withholds a session when the project's "Confirm email"
+  // setting is on. Signing out here makes OTP verification mandatory
+  // regardless of that dashboard toggle, instead of silently skipping it.
+  if (data.session) {
+    await sb.auth.signOut();
   }
 
-  const profile = data.user ? await getProfileById(data.user.id) : null;
-  if (profile) {
-    const welcome = welcomeEmail({ fullName, email, phone, handle: profile.handle });
-    await sendMail({ to: email, ...welcome });
-  }
-
-  revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect(`/signup/verify?email=${encodeURIComponent(email)}`);
 }
 
 const verifySignupOtpSchema = z.object({
@@ -573,8 +569,12 @@ export async function verifySignupOtpAction(
     await sendMail({ to: parsed.data.email, ...welcome });
   }
 
-  revalidatePath("/", "layout");
-  redirect(safeNext(parsed.data.next || "/dashboard"));
+  // verifyOtp() establishes a session, but the intended flow is
+  // signup -> verify -> log in manually -> dashboard, not straight in.
+  await sb.auth.signOut();
+
+  const next = safeNext(parsed.data.next || "/dashboard");
+  redirect(`/login?verified=1&next=${encodeURIComponent(next)}`);
 }
 
 const resendSignupOtpSchema = z.object({

@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/session";
 import { safeNext } from "@/lib/url";
 import { DemoSignIn } from "@/components/auth/demo-signin";
 import { LoginForm } from "@/components/auth/login-form";
-import { TempoMark } from "@/components/icons";
+import { TempoMark, CheckIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +18,9 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; verified?: string }>;
 }) {
-  const { next: rawNext } = await searchParams;
+  const { next: rawNext, verified } = await searchParams;
   const next = safeNext(rawNext);
   const user = await getCurrentUser();
   if (user) redirect(next);
@@ -43,6 +43,17 @@ export default async function LoginPage({
               Sign in to book pitches and join games
             </p>
           </div>
+
+          {verified === "1" && (
+            <div className="relative mt-6 flex items-center gap-3 rounded-xl border border-green/30 bg-green/10 px-4 py-3 text-left">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-green/20 text-green">
+                <CheckIcon size={16} />
+              </span>
+              <p className="text-[13.5px] text-ink">
+                Email verified. Sign in to continue.
+              </p>
+            </div>
+          )}
 
           <div className="relative mt-7">
             {isDemo ? <DemoSignIn profiles={profiles} next={next} /> : <LoginForm next={next} />}
