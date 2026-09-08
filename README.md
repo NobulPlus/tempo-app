@@ -141,17 +141,17 @@ Next.js layer:
 - **`src/lib/supabase/{server,client}.ts`** wrap `@supabase/ssr`'s
   cookie-aware client creation for Server Components/Actions and Client
   Components respectively.
-- **`src/app/auth/confirm/route.ts`** is a plain Route Handler, not a Server
-  Action — because it's where an *external* click (an email link) lands, and
-  Server Actions are only invocable from within the app. It verifies
-  Supabase's `token_hash`/`type` pair for both email confirmation and
-  password recovery, then redirects to a same-origin-checked `next` path
+- **Signup verification** is now code-based. `signUpAction()` sends users to
+  `/signup/verify`, where `verifySignupOtpAction()` verifies the typed
+  6-digit Supabase signup code. Configure the Supabase signup email template
+  to include `{{ .Token }}` so users can see the code.
+- **`src/app/auth/confirm/route.ts`** remains a plain Route Handler for
+  external email links such as password recovery. It verifies Supabase's
+  `token_hash`/`type` pair and redirects to a same-origin-checked `next` path
   (`safeNext()` in `lib/url.ts` — blocks open-redirect attempts).
 
-The one other thing this architecture can't do itself: anything an
-**external** service needs to call, like a Paystack payment webhook — that's
-also a Route Handler, and it's the one piece not built yet (see "Known
-limitations").
+Anything an **external** service needs to call, like the Flutterwave wallet
+webhook, is also implemented as a Route Handler rather than a Server Action.
 
 ---
 
@@ -318,7 +318,7 @@ no layout shift):
 | `/venue` | Venue-owner dashboard — utilisation, projected revenue, upcoming bookings per pitch |
 | `/partner` | Venue-owner onboarding — leaves an interest lead for the team to follow up |
 | `/verification` | What the "Verified by Tempo" badge actually means, step by step |
-| `/login`, `/signup`, `/reset`, `/reset/confirm` | Auth — real Supabase password auth when configured, seeded demo sign-in otherwise |
+| `/login`, `/signup`, `/signup/verify`, `/reset`, `/reset/confirm` | Auth — real Supabase password auth with typed signup codes when configured, seeded demo sign-in otherwise |
 | `/legal/{terms,privacy,refunds,community}` | Legal pages |
 | `/setup` | Live setup checklist — shows whether the deploy is running demo mode or a real database |
 | `/system` | The design-system style guide |

@@ -452,7 +452,11 @@ const signUpSchema = z
 /**
  * Real registration. Deliberately never sends a `role` — every new account
  * is a player; 0002_auth_hardening.sql hardcodes that server-side too, so
- * this isn't the only thing standing between a signup and an admin role.
+ * this isn't the only thing standing between a signup and an elevated role.
+ *
+ * Supabase still sends the email, but the intended UX is now a typed code:
+ * configure the Supabase signup email template to include `{{ .Token }}` and
+ * send users to /signup/verify instead of asking them to click a magic link.
  */
 export async function signUpAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   if (!isSupabaseConfigured()) {
@@ -474,7 +478,8 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
   }
 
-  const { fullName, email, password } = parsed.data;
+  const { fullName, password } = parsed.data;
+  const email = parsed.data.email.toLowerCase();
   const phone = parsed.data.phone ? normalisePhone(parsed.data.phone) : null;
   if (parsed.data.phone && !phone) {
     return { ok: false, error: "That doesn't look like a Nigerian phone number." };
@@ -496,21 +501,107 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
     };
   }
 
+  if (!data.session) {
+    redirect(`/signup/verify?email=${encodeURIComponent(email)}`);
+  }
+
   const profile = data.user ? await getProfileById(data.user.id) : null;
   if (profile) {
     const welcome = welcomeEmail({ fullName, email, phone, handle: profile.handle });
     await sendMail({ to: email, ...welcome });
   }
 
-  if (!data.session) {
+  revalidatePath("/", "layout");
+  redirect("/dashboard");
+}
+
+const verifySignupOtpSchema = z.object({
+  email: z.string().email("Enter a valid email").transform((value) => value.toLowerCase()),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "Enter the 6-digit code from your email"),
+  next: z.string().optional(),
+});
+
+export async function verifySignupOtpAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  if (!isSupabaseConfigured()) {
     return {
-      ok: true,
-      message: "Check your email to confirm your account, then sign in.",
+      ok: false,
+      error: "This deploy has no database connected yet — use demo sign-in from the login page instead.",
     };
   }
 
+  const parsed = verifySignupOtpSchema.safeParse({
+    email: formData.get("email"),
+    code: formData.get("code"),
+    next: formData.get("next") || undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the code" };
+  }
+
+  const sb = await createClient();
+  const { data, error } = await sb.auth.verifyOtp({
+    email: parsed.data.email,
+    token: parsed.data.code,
+    type: "signup",
+  });
+  if (error) {
+    const message = error.message.toLowerCase();
+    return {
+      ok: false,
+      error: message.includes("expired")
+        ? "That code has expired. Send a new one and try again."
+        : message.includes("rate limit") || message.includes("too many")
+          ? "Too many attempts. Wait a bit before trying again."
+          : "That code didn't work. Check the email and try again.",
+    };
+  }
+
+  const profile = data.user ? await getProfileById(data.user.id) : null;
+  if (profile) {
+    const welcome = welcomeEmail({
+      fullName: profile.fullName,
+      email: parsed.data.email,
+      phone: null,
+      handle: profile.handle,
+    });
+    await sendMail({ to: parsed.data.email, ...welcome });
+  }
+
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect(safeNext(parsed.data.next || "/dashboard"));
+}
+
+const resendSignupOtpSchema = z.object({
+  email: z.string().email("Enter a valid email").transform((value) => value.toLowerCase()),
+});
+
+export async function resendSignupOtpAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  if (!isSupabaseConfigured()) {
+    return {
+      ok: false,
+      error: "This deploy has no database connected yet — use demo sign-in from the login page instead.",
+    };
+  }
+
+  const parsed = resendSignupOtpSchema.safeParse({ email: formData.get("email") });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Enter a valid email" };
+  }
+
+  const sb = await createClient();
+  const { error } = await sb.auth.resend({ type: "signup", email: parsed.data.email });
+  if (error) return { ok: false, error: error.message };
+
+  return { ok: true, message: "A fresh code is on its way." };
 }
 
 const signInSchema = z.object({

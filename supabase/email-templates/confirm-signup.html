@@ -1,0 +1,80 @@
+<!--
+  Paste this into: Supabase Dashboard → Authentication → Emails → "Confirm signup"
+
+  This is NOT sent through our Brevo pipeline (src/lib/mail) — Supabase sends
+  this one itself, using whatever HTML sits in that dashboard field. It must
+  be pasted there manually; nothing in this repo deploys it automatically.
+
+  Code-only by design (matches /signup/verify, which expects a typed 6-digit
+  code, not a clicked link) — no {{ .ConfirmationURL }} button. Supabase
+  still generates a confirmation link under the hood even though this
+  template never surfaces it; that's fine, it just never gets used for
+  signup.
+
+  Variables used: {{ .Token }} — the 6-digit code. Greeting is deliberately
+  generic ("Hi there") rather than {{ .Data.full_name }} or {{ .Email }} —
+  full_name support varies by Supabase project age, and "Hi
+  user@example.com," reads as robotic rather than personal.
+
+  Suggested subject line (separate field in the same dashboard screen):
+  Your Tempo verification code
+-->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin:0; padding:0; background:#f5f4ee; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#f5f4ee;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f4ee;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#ffffff;border:1px solid #e4e2d8;border-radius:16px;overflow:hidden;">
+          <tr>
+            <td style="padding:28px 32px 0;">
+              <span style="font-size:20px;font-weight:800;letter-spacing:0.3px;color:#0e8a44;">TEMPO</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 32px 8px;color:#11201a;font-size:15px;line-height:1.6;">
+              <p style="margin:0 0 4px;">Hi there,</p>
+              <p style="margin:0 0 4px;font-weight:700;">Welcome to Tempo.</p>
+              <p style="margin:0 0 20px;">Use the code below to confirm your email address and continue setting up your account:</p>
+
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;border:1px solid #e4e2d8;border-radius:12px;background:#f5f4ee;">
+                <tr>
+                  <td align="center" style="padding:22px 16px;">
+                    <span style="font-family:'SFMono-Regular',Consolas,Menlo,monospace;font-size:34px;font-weight:800;letter-spacing:0.35em;color:#0e8a44;">{{ .Token }}</span>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 12px;font-size:13px;color:#586359;">
+                This code is for your account verification only. If you didn't request it, you can safely ignore this email — no account will be created.
+              </p>
+              <p style="margin:0 0 20px;font-size:13px;font-weight:700;color:#586359;">
+                For your security, never share this code with anyone.
+              </p>
+              <p style="margin:0;">See you on the pitch.</p>
+              <p style="margin:2px 0 0;font-weight:700;color:#0e8a44;">Tempo</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 32px 28px;border-top:1px solid #e4e2d8;margin-top:8px;">
+              <p style="margin:16px 0 0;font-size:12px;color:#586359;line-height:1.6;">
+                Find a pitch. Book a pitch. Join a game.<br>
+                Tempo · Lagos, Nigeria<br>
+                Questions? Write to
+                <a href="mailto:info@playtempo11.com" style="color:#586359;text-decoration:underline;">info@playtempo11.com</a>.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
