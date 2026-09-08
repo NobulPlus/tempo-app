@@ -8,6 +8,11 @@ import { getCurrentUser } from "@/lib/session";
 import {
   joinGame,
   leaveGame,
+  payGameBalance,
+  cancelGame,
+  decideGameMinimum,
+  settleGameHostReimbursement,
+  getGameBySlug,
   createBooking,
   cancelBooking,
   getBookingByReference,
@@ -27,14 +32,15 @@ import {
   reviewIdentityVerification,
 } from "@/lib/data/repo";
 import type { UserRole, PitchSize, PitchSurface } from "@/lib/types";
-import { normalisePhone, formatNaira, generateReference } from "@/lib/format";
+import { normalisePhone, formatNaira, generateReference, formatDayShort, formatTime } from "@/lib/format";
 import { isSupabaseConfigured, createClient } from "@/lib/supabase/server";
 import { store } from "@/lib/data/store";
 import { redirect } from "next/navigation";
 import { safeNext } from "@/lib/url";
 import { initializeFlutterwavePayment } from "@/lib/payments/flutterwave";
 import { sendMail } from "@/lib/mail/transport";
-import { bookingConfirmationEmail, bookingCancelledEmail, welcomeEmail } from "@/lib/mail/templates";
+import { bookingConfirmationEmail, bookingCancelledEmail, welcomeEmail, gameCancelledEmail } from "@/lib/mail/templates";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
 
@@ -133,7 +139,11 @@ export async function joinPartnerWaitlist(
 
 /* ----------------------------------------------------------------- games -- */
 
-export async function joinGameAction(gameId: string, slug: string): Promise<ActionState> {
+export async function joinGameAction(
+  gameId: string,
+  slug: string,
+  priceKobo: number = 0,
+): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
 
@@ -144,13 +154,26 @@ export async function joinGameAction(gameId: string, slug: string): Promise<Acti
   revalidatePath("/games");
   revalidatePath("/dashboard");
 
-  return {
-    ok: true,
-    message:
-      result.status === "waitlist"
-        ? "Game is full — you're on the waitlist. We'll message you the moment a spot opens."
-        : "You're in. See you on the pitch.",
-  };
+  if (result.status === "waitlist") {
+    return {
+      ok: true,
+      message: "Game is full — you're on the waitlist. We'll message you the moment a spot opens.",
+    };
+  }
+  if (result.status === "pending_payment") {
+    const dueKobo = priceKobo - result.paidKobo;
+    const deadline = result.paymentDeadline
+      ? `${formatDayShort(result.paymentDeadline)}, ${formatTime(result.paymentDeadline)}`
+      : "soon";
+    return {
+      ok: true,
+      message:
+        result.paidKobo > 0
+          ? `You're in — wallet covered ${formatNaira(result.paidKobo)} of ${formatNaira(priceKobo)}. Top up ${formatNaira(dueKobo)} by ${deadline} to keep your spot.`
+          : `You're in, on hold — top up ${formatNaira(dueKobo)} by ${deadline} to keep your spot.`,
+    };
+  }
+  return { ok: true, message: "You're in. See you on the pitch." };
 }
 
 export async function leaveGameAction(gameId: string, slug: string): Promise<ActionState> {
@@ -164,6 +187,161 @@ export async function leaveGameAction(gameId: string, slug: string): Promise<Act
   revalidatePath("/games");
   revalidatePath("/dashboard");
   return { ok: true, message: "You've left the game. Your spot went to the next person waiting." };
+}
+
+export async function payGameBalanceAction(gameId: string, slug: string): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const result = await payGameBalance(gameId, user.id);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/games/${slug}`);
+  revalidatePath("/dashboard");
+
+  return {
+    ok: true,
+    message:
+      result.status === "confirmed"
+        ? "You're all paid up. See you on the pitch."
+        : "Payment received — still a balance left on this one.",
+  };
+}
+
+export async function cancelGameAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const gameId = String(formData.get("gameId") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+
+  const result = await cancelGame(gameId, user.id, user.role === "admin");
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/games/${slug}`);
+  revalidatePath("/games");
+  revalidatePath("/dashboard");
+
+  if (isSupabaseConfigured() && result.refundedCount > 0) {
+    await notifyGameCancelled(gameId, slug);
+  }
+
+  return {
+    ok: true,
+    message:
+      result.refundedCount > 0
+        ? `Game cancelled — ${result.refundedCount} player${result.refundedCount === 1 ? "" : "s"} refunded ${formatNaira(result.refundedKobo)} total.`
+        : "Game cancelled.",
+  };
+}
+
+export async function decideGameMinimumAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const gameId = String(formData.get("gameId") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  const decision = formData.get("decision") === "cancel" ? "cancel" : "go_ahead";
+
+  const result = await decideGameMinimum(gameId, user.id, user.role === "admin", decision);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/games/${slug}`);
+  revalidatePath("/games");
+  revalidatePath("/dashboard");
+
+  if (isSupabaseConfigured() && result.status === "cancelled") {
+    await notifyGameCancelled(gameId, slug);
+  }
+
+  return {
+    ok: true,
+    message:
+      result.decisionStatus === "cancelled"
+        ? "Game cancelled — players have been refunded."
+        : result.decisionStatus === "not_needed"
+          ? "This game has already reached its minimum."
+          : "Game marked to go ahead, even below the original minimum.",
+  };
+}
+
+export async function settleGameHostReimbursementAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const gameId = String(formData.get("gameId") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+
+  const result = await settleGameHostReimbursement(gameId, user.id, user.role === "admin");
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/games/${slug}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/", "layout");
+
+  return {
+    ok: true,
+    message:
+      result.reimbursedKobo > 0
+        ? `${formatNaira(result.reimbursedKobo)} moved back to the host wallet.`
+        : "No new host reimbursement is due yet.",
+  };
+}
+
+/** Emails every refunded player, not just the host who triggered the
+ * cancellation — needs the service-role client to resolve their emails,
+ * same trust boundary the reminders cron already relies on. Never lets a
+ * notification failure surface as an error; the cancellation itself is
+ * already committed by the time this runs. */
+async function notifyGameCancelled(gameId: string, slug: string) {
+  try {
+    const game = await getGameBySlug(slug);
+    if (!game) return;
+
+    const admin = createAdminClient();
+    const { data: rows } = await admin
+      .from("game_cancellation_refunds")
+      .select("id, user_id, amount_kobo")
+      .eq("game_id", gameId)
+      .is("notified_at", null);
+
+    for (const row of rows ?? []) {
+      try {
+        const [{ data: authUser }, profile] = await Promise.all([
+          admin.auth.admin.getUserById(row.user_id),
+          getProfileById(row.user_id),
+        ]);
+        const email = authUser?.user?.email;
+        if (!email || !profile) continue;
+
+        const content = gameCancelledEmail({
+          fullName: profile.fullName,
+          title: game.title,
+          venueName: game.pitch.venue.name,
+          kickoffISO: game.startsAt,
+          refundedKobo: Math.max(0, Number(row.amount_kobo ?? 0)),
+        });
+        await sendMail({ to: email, ...content });
+        await admin
+          .from("game_cancellation_refunds")
+          .update({ notified_at: new Date().toISOString() })
+          .eq("id", row.id);
+      } catch (err) {
+        console.error("[notifyGameCancelled] failed for user", row.user_id, err);
+      }
+    }
+  } catch (err) {
+    console.error("[notifyGameCancelled] failed:", err);
+  }
 }
 
 /* -------------------------------------------------------------- bookings -- */
@@ -292,6 +470,7 @@ export async function initiateWalletTopupAction(
       provider: "demo",
       providerRef: null,
       bookingId: null,
+      gameId: null,
       createdAt: new Date().toISOString(),
     });
     revalidatePath("/", "layout");
@@ -368,7 +547,18 @@ export async function createGameAction(
     if (!slot) return { ok: false, error: "That slot no longer exists." };
     if (slot.status !== "open") return { ok: false, error: "Someone just booked that slot." };
 
+    const hostFeeKobo = Math.round(slot.priceKobo * 0.05);
+    const hostTotalKobo = slot.priceKobo + hostFeeKobo;
+    const hostBalance = s.wallets[user.id] ?? 0;
+    if (hostBalance < hostTotalKobo) {
+      return {
+        ok: false,
+        error: `Top up your wallet with at least ${formatNaira(hostTotalKobo - hostBalance)} to reserve this pitch.`,
+      };
+    }
+
     slot.status = "booked";
+    s.wallets[user.id] = hostBalance - hostTotalKobo;
 
     const gameId = `g-${Date.now()}`;
     const slug = `${v.title
@@ -391,6 +581,27 @@ export async function createGameAction(
       pricePerPlayerKobo: v.pricePerPlayerNaira * 100,
       status: "open",
       bibsProvided: Boolean(v.bibsProvided),
+      hostPaidKobo: hostTotalKobo,
+      hostReimbursedKobo: 0,
+      minimumDecisionDeadline: new Date(
+        Math.max(Date.now(), new Date(slot.startsAt).getTime() - 6 * 60 * 60 * 1000),
+      ).toISOString(),
+      minimumDecisionStatus: v.minimumToGuarantee <= 1 ? "not_needed" : "pending",
+      createdAt: new Date().toISOString(),
+    });
+
+    s.walletTransactions.push({
+      id: `wt-${Date.now()}`,
+      userId: user.id,
+      type: "host_game_deposit",
+      status: "completed",
+      amountKobo: -hostTotalKobo,
+      balanceAfterKobo: s.wallets[user.id],
+      reference: `HST-${Date.now().toString(36).toUpperCase()}`,
+      provider: "wallet",
+      providerRef: null,
+      bookingId: null,
+      gameId,
       createdAt: new Date().toISOString(),
     });
 
@@ -404,6 +615,7 @@ export async function createGameAction(
       status: "confirmed",
     });
 
+    revalidatePath("/", "layout");
     revalidatePath("/games");
     redirect(`/games/${slug}`);
   }
@@ -425,10 +637,13 @@ export async function createGameAction(
       ok: false,
       error: error.message.includes("no longer available")
         ? "Someone just booked that slot."
+        : error.message.includes("insufficient wallet balance")
+          ? "Top up your wallet to reserve this pitch before hosting."
         : error.message,
     };
   }
 
+  revalidatePath("/", "layout");
   revalidatePath("/games");
   redirect(`/games/${(data as { slug: string }).slug}`);
 }

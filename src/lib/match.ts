@@ -10,6 +10,7 @@ import type { Game, MatchState, MatchHeat } from "./types";
 export function getMatchState(
   game: Pick<Game, "capacity" | "minimumToGuarantee" | "startsAt" | "endsAt" | "status"> & {
     filled?: number;
+    minimumDecisionStatus?: Game["minimumDecisionStatus"];
   },
   now: Date = new Date(),
 ): MatchState {
@@ -17,7 +18,9 @@ export function getMatchState(
   const capacity = Math.max(1, game.capacity);
   const percent = Math.min(100, Math.round((filled / capacity) * 100));
   const spotsLeft = Math.max(0, capacity - filled);
-  const guaranteed = filled >= game.minimumToGuarantee;
+  // A host explicitly choosing to go ahead below minimum makes the game just
+  // as "happening" as reaching the headcount would have.
+  const guaranteed = filled >= game.minimumToGuarantee || game.minimumDecisionStatus === "go_ahead";
 
   const start = new Date(game.startsAt).getTime();
   const end = new Date(game.endsAt).getTime();

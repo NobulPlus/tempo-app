@@ -50,6 +50,9 @@ export function HostForm({ slots }: { slots: HostSlotOption[] }) {
   const effectivePrice = priceNaira === "" ? suggested / 100 : priceNaira;
   const projected = effectivePrice * 100 * capacity;
   const covers = slot ? projected >= slot.priceKobo : false;
+  // Matches host_game()'s 5% service fee on the deposit — same rate
+  // create_booking() charges on a direct pitch booking.
+  const hostTotalKobo = slot ? slot.priceKobo + Math.round(slot.priceKobo * 0.05) : 0;
 
   return (
     <form action={action} className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
@@ -178,7 +181,7 @@ export function HostForm({ slots }: { slots: HostSlotOption[] }) {
                 className="w-full rounded-xl border border-white/12 bg-white/4 px-4 py-3.5 text-[15px] outline-none transition focus:border-green/50"
               />
               <p className="mt-1.5 text-[12px] text-ink-muted">
-                Below this, everyone is refunded automatically.
+                Below this, you decide whether to go ahead or cancel.
               </p>
             </div>
 
@@ -229,8 +232,19 @@ export function HostForm({ slots }: { slots: HostSlotOption[] }) {
             </p>
           )}
 
+          {slot && (
+            <div className="mt-4 rounded-xl border border-gold/30 bg-gold/8 p-3.5 text-center">
+              <div className="text-[12px] text-ink-muted">You pay now, from your wallet</div>
+              <div className="mt-0.5 text-[22px] font-extrabold text-gold">
+                {formatNaira(hostTotalKobo)}
+              </div>
+              <div className="mt-0.5 text-[11.5px] text-ink-muted">
+                {formatNaira(slot.priceKobo)} pitch hire + 5% service fee
+              </div>
+            </div>
+          )}
+
           <dl className="mt-5 space-y-2.5 text-[14px]">
-            <Row label="Pitch hire" value={slot ? formatNaira(slot.priceKobo) : "—"} />
             <Row
               label="Per player"
               value={effectivePrice ? formatNaira(effectivePrice * 100) : "—"}
@@ -253,8 +267,9 @@ export function HostForm({ slots }: { slots: HostSlotOption[] }) {
             </p>
             <p className="flex items-start gap-2">
               <ShieldIcon size={14} className="mt-0.5 shrink-0 text-green" />
-              If fewer than {minimum} join, everyone is refunded and the pitch is
-              released — you&apos;re never left holding the bill.
+              As players pay in, that money comes back to your wallet — up to
+              what you paid. If fewer than {minimum} join, you decide whether to
+              play anyway or cancel and get refunded.
             </p>
           </div>
 
@@ -263,7 +278,7 @@ export function HostForm({ slots }: { slots: HostSlotOption[] }) {
             disabled={pending || !slotId}
             className="btn-t btn-green-t mt-5 w-full"
           >
-            {pending ? "Creating…" : "Publish game"}
+            {pending ? "Reserving…" : slot ? `Pay ${formatNaira(hostTotalKobo)} & publish` : "Publish game"}
           </button>
         </div>
       </aside>

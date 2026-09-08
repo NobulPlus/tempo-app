@@ -46,10 +46,9 @@ export default async function HostPage() {
           Host a <span className="text-orange">game</span>
         </h1>
         <p className="mt-3 max-w-2xl text-[17px] leading-relaxed text-ink-soft">
-          Book the pitch, set your number, and let players come to you. Tempo tracks
-          who&apos;s in, runs the waitlist when it fills, and refunds everyone
-          automatically if the numbers don&apos;t come. No more counting heads in a
-          WhatsApp group at 11pm.
+          Reserve the pitch, set your number, and let players come to you. Tempo
+          tracks who&apos;s in, runs the waitlist when it fills, and lets you decide
+          whether to go ahead if the minimum is missed.
         </p>
 
         <div className="mt-10">

@@ -7,13 +7,13 @@ import { getMatchState, estimateTravelMinutes, leaveByTime } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime, splitKobo } from "@/lib/format";
 import { Countdown, FillBar, SpotPips, HeatPill, GuaranteePill } from "@/components/match/match-day";
 import { JoinButton } from "@/components/match/join-button";
+import { MinimumDecisionBanner, HostReimbursementCard } from "@/components/match/host-controls";
 import { PlayerChip } from "@/components/player/player-card";
 import {
   PinIcon,
   ClockIcon,
   CarIcon,
   StarIcon,
-  ShieldIcon,
   WhatsAppIcon,
   UsersIcon,
   CheckIcon,
@@ -54,9 +54,17 @@ export default async function GamePage({
   const user = await getCurrentUser();
   const state = getMatchState(game);
 
-  const confirmed = game.participants.filter((p) => p.status === "confirmed");
+  const confirmed = game.participants.filter(
+    (p) => p.status === "confirmed" || p.status === "pending_payment",
+  );
   const waitlist = game.participants.filter((p) => p.status === "waitlist");
   const mine = user ? game.participants.find((p) => p.userId === user.id) : undefined;
+  const isHost = Boolean(user && user.id === game.hostId);
+  const isCancelled = game.status === "cancelled";
+  const refundable = game.participants.filter(
+    (p) => (p.status === "confirmed" || p.status === "pending_payment") && p.paidKobo > 0,
+  );
+  const refundKobo = refundable.reduce((sum, p) => sum + p.paidKobo, 0);
 
   const kickoff = new Date(game.startsAt);
   const travel = estimateTravelMinutes(
@@ -65,6 +73,9 @@ export default async function GamePage({
     game.pitch.venue.side === "island",
   );
   const leaveBy = leaveByTime(kickoff, travel);
+
+  const committed = game.minimumDecisionStatus === "go_ahead" || game.minimumDecisionStatus === "not_needed";
+  const showReimbursement = isHost && committed && !isCancelled;
 
   const totalPitchKobo = game.pricePerPlayerKobo * game.capacity;
   const { each } = splitKobo(totalPitchKobo, Math.max(1, confirmed.length));
@@ -147,14 +158,15 @@ export default async function GamePage({
                   <span className="text-[13px] text-ink-soft">{state.label}</span>
                 </div>
 
-                {!state.guaranteed && (
-                  <p className="mt-4 flex items-start gap-2 rounded-lg border border-gold/25 bg-gold/8 px-3.5 py-2.5 text-[13px] text-gold">
-                    <ShieldIcon size={14} className="mt-0.5 shrink-0" />
-                    {game.minimumToGuarantee - state.filled} more{" "}
-                    {game.minimumToGuarantee - state.filled === 1 ? "player" : "players"}{" "}
-                    and this game is guaranteed. If it doesn&apos;t reach{" "}
-                    {game.minimumToGuarantee}, everyone is refunded in full — automatically.
-                  </p>
+                {!state.guaranteed && !isCancelled && (
+                  <MinimumDecisionBanner
+                    gameId={game.id}
+                    slug={game.slug}
+                    isHost={isHost}
+                    spotsNeeded={game.minimumToGuarantee - state.filled}
+                    minimum={game.minimumToGuarantee}
+                    deadline={game.minimumDecisionDeadline ?? null}
+                  />
                 )}
               </div>
             </div>
@@ -176,7 +188,9 @@ export default async function GamePage({
                     note={
                       p.userId === game.hostId
                         ? "Host"
-                        : `${p.player.position ?? "—"} · ${p.player.punctualityScore}% punctual`
+                        : p.status === "pending_payment"
+                          ? "Payment pending"
+                          : `${p.player.position ?? "—"} · ${p.player.punctualityScore}% punctual`
                     }
                   />
                 ))}
@@ -211,6 +225,15 @@ export default async function GamePage({
           </div>
 
           <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
+            {showReimbursement && (
+              <HostReimbursementCard
+                gameId={game.id}
+                slug={game.slug}
+                hostPaidKobo={game.hostPaidKobo ?? 0}
+                hostReimbursedKobo={game.hostReimbursedKobo ?? 0}
+              />
+            )}
+
             <div className="card-t p-6">
               <div className="flex items-end justify-between">
                 <div>
@@ -235,6 +258,13 @@ export default async function GamePage({
                   priceKobo={game.pricePerPlayerKobo}
                   isMember={Boolean(mine)}
                   isWaitlisted={mine?.status === "waitlist"}
+                  isPendingPayment={mine?.status === "pending_payment"}
+                  paidKobo={mine?.paidKobo ?? 0}
+                  paymentDeadline={mine?.paymentDeadline ?? null}
+                  isHost={isHost}
+                  isCancelled={isCancelled}
+                  refundCount={refundable.length}
+                  refundKobo={refundKobo}
                   spotsLeft={state.spotsLeft}
                   signedIn={Boolean(user)}
                   hasEnded={state.hasEnded}
@@ -295,7 +325,7 @@ export default async function GamePage({
                   "Pitch hire for the full slot",
                   game.bibsProvided ? "Bibs provided" : "Bring light and dark tops",
                   game.pitch.floodlights ? "Floodlights" : "Daylight only",
-                  "Full refund if the game doesn't fill",
+                  "Full refund if the game is cancelled",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2">
                     <CheckIcon size={14} className="mt-0.5 shrink-0 text-green" />

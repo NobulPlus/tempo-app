@@ -147,13 +147,22 @@ export default async function DashboardPage() {
             title="Games you've joined"
             empty="You haven't joined any games yet."
             cta={{ href: "/games", label: "Find a game" }}
-            items={playing.map((g) => ({
-              key: g.id,
-              href: `/games/${g.slug}`,
-              title: g.title,
-              meta: `${g.pitch.venue.name} · ${formatRelativeDay(g.startsAt)} ${formatTime(g.startsAt)}`,
-              right: formatNaira(g.pricePerPlayerKobo),
-            }))}
+            items={playing.map((g) => {
+              const mine = g.participants.find((p) => p.userId === user.id);
+              const suffix =
+                g.status === "cancelled"
+                  ? " · Cancelled"
+                  : mine?.status === "pending_payment"
+                    ? " · Payment pending"
+                    : "";
+              return {
+                key: g.id,
+                href: `/games/${g.slug}`,
+                title: g.title,
+                meta: `${g.pitch.venue.name} · ${formatRelativeDay(g.startsAt)} ${formatTime(g.startsAt)}${suffix}`,
+                right: formatNaira(g.pricePerPlayerKobo),
+              };
+            })}
           />
 
           <Section
@@ -166,7 +175,10 @@ export default async function DashboardPage() {
                 key: g.id,
                 href: `/games/${g.slug}`,
                 title: g.title,
-                meta: `${s.filled}/${s.capacity} filled · ${s.label}`,
+                meta:
+                  g.status === "cancelled"
+                    ? "Cancelled"
+                    : `${s.filled}/${s.capacity} filled · ${s.label}`,
                 right: formatRelativeDay(g.startsAt),
               };
             })}

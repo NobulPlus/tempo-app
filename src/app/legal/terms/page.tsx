@@ -56,9 +56,9 @@ export default function TermsPage() {
       </p>
       <p>
         Every game has a <strong>minimum number to go ahead</strong>. If that number
-        isn&apos;t reached by kickoff, the game is cancelled and{" "}
-        <strong>everyone is credited in full, automatically</strong>. This is the
-        guarantee — it is honoured by the platform, not left to the host.
+        is not reached, the host may still choose to play or may cancel the game.
+        When a host or Tempo cancels the game, player payments are credited back
+        through the platform.
       </p>
 
       <h2>5. Hosting a game</h2>

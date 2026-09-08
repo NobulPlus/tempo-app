@@ -38,11 +38,20 @@ export function FinanceBoard({
 
   return (
     <div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Wallet liability" value={formatNaira(summary.totalWalletLiabilityKobo)} />
         <Stat label="Top-up volume" value={formatNaira(summary.totalTopupVolumeKobo)} tone="text-green" />
         <Stat label="Booking payments" value={formatNaira(summary.totalBookingPaymentVolumeKobo)} />
+        <Stat label="Game payments" value={formatNaira(summary.totalGamePaymentVolumeKobo)} />
+        <Stat label="Host deposits" value={formatNaira(summary.totalHostDepositVolumeKobo)} />
         <Stat label="Cancellation credits" value={formatNaira(summary.totalCancellationCreditsKobo)} tone="text-gold" />
+        <Stat label="Game refunds" value={formatNaira(summary.totalGameRefundsKobo)} tone="text-gold" />
+        <Stat label="Host reimbursements" value={formatNaira(summary.totalHostReimbursementsKobo)} tone="text-green" />
+        <Stat label="Held game funds" value={formatNaira(summary.tempoHeldGameFundsKobo)} />
+        <Stat label="Venue payable" value={formatNaira(summary.totalVenuePendingKobo)} tone="text-gold" />
+        <Stat label="Ready for payout" value={formatNaira(summary.totalVenueAvailableKobo)} tone="text-green" />
+        <Stat label="Venue paid out" value={formatNaira(summary.totalVenuePaidOutKobo)} />
+        <Stat label="Platform fee ledger" value={formatNaira(summary.totalPlatformFeeLedgerKobo)} tone="text-green" />
         <Stat label="Est. service-fee revenue" value={formatNaira(summary.serviceFeeRevenueKobo)} tone="text-green" />
       </div>
 
@@ -108,10 +117,19 @@ export function FinanceBoard({
   );
 }
 
+const TXN_LABELS: Record<WalletTransactionAdminRow["type"], string> = {
+  topup: "Top-up",
+  booking_payment: "Booking payment",
+  cancellation_credit: "Cancellation credit",
+  game_payment: "Game payment",
+  game_refund: "Game refund",
+  host_game_deposit: "Pitch deposit (hosting)",
+  host_reimbursement: "Hosting reimbursement",
+};
+
 function TransactionRow({ txn }: { txn: WalletTransactionAdminRow }) {
   const isCredit = txn.amountKobo >= 0;
-  const label =
-    txn.type === "topup" ? "Top-up" : txn.type === "booking_payment" ? "Booking payment" : "Cancellation credit";
+  const label = TXN_LABELS[txn.type];
 
   return (
     <div className="card-t flex items-center gap-4 p-4">

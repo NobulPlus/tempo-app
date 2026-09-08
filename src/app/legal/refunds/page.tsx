@@ -85,7 +85,7 @@ export default function RefundsPage() {
           <tr>
             <td>The game doesn&apos;t reach its minimum</td>
             <td>
-              <strong>Full wallet credit to everyone, automatically</strong>
+              <strong>Host decides to play or cancel</strong>
             </td>
           </tr>
           <tr>
@@ -106,9 +106,9 @@ export default function RefundsPage() {
       <h2>The guarantee</h2>
       <p>
         Every game shows a minimum number of players needed to go ahead. If that
-        number isn&apos;t met by kickoff, the game is cancelled and everyone is
-        credited in full — automatically, without anyone having to ask. That promise
-        is enforced by the platform, not by the host&apos;s goodwill.
+        number is missed, the host can still choose to play with fewer people or
+        cancel. If the game is cancelled by the host or Tempo, player payments are
+        credited back through the platform.
       </p>
 
       <h2>Rain and unplayable pitches</h2>

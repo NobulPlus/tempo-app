@@ -84,14 +84,19 @@ export default async function WalletPage({
   );
 }
 
+const TXN_LABELS: Record<WalletTransaction["type"], string> = {
+  topup: "Wallet top-up",
+  booking_payment: "Pitch booking",
+  cancellation_credit: "Cancellation credit",
+  game_payment: "Game payment",
+  game_refund: "Game refund",
+  host_game_deposit: "Pitch deposit (hosting)",
+  host_reimbursement: "Hosting reimbursement",
+};
+
 function TransactionRow({ txn }: { txn: WalletTransaction }) {
   const isCredit = txn.amountKobo >= 0;
-  const label =
-    txn.type === "topup"
-      ? "Wallet top-up"
-      : txn.type === "booking_payment"
-        ? "Pitch booking"
-        : "Cancellation credit";
+  const label = TXN_LABELS[txn.type];
 
   return (
     <li className="card-t flex items-center gap-4 p-4">

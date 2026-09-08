@@ -18,7 +18,14 @@ export type BookingStatus =
 export type GameStatus = "open" | "locked" | "cancelled" | "played";
 export type PaymentMethod = "card" | "transfer" | "ussd" | "wallet";
 
-export type WalletTxnType = "topup" | "booking_payment" | "cancellation_credit";
+export type WalletTxnType =
+  | "topup"
+  | "booking_payment"
+  | "cancellation_credit"
+  | "game_payment"
+  | "game_refund"
+  | "host_game_deposit"
+  | "host_reimbursement";
 export type WalletTxnStatus = "pending" | "completed" | "failed";
 
 export interface WalletTransaction {
@@ -33,6 +40,7 @@ export interface WalletTransaction {
   provider: string | null;
   providerRef: string | null;
   bookingId: string | null;
+  gameId: string | null;
   createdAt: string;
 }
 
@@ -131,6 +139,10 @@ export interface Game {
   pricePerPlayerKobo: number;
   status: GameStatus;
   bibsProvided: boolean;
+  hostPaidKobo?: number;
+  hostReimbursedKobo?: number;
+  minimumDecisionDeadline?: string | null;
+  minimumDecisionStatus?: "pending" | "go_ahead" | "cancelled" | "not_needed";
   createdAt: string;
   pitch?: Pitch;
   host?: PlayerProfile;
@@ -145,7 +157,8 @@ export interface GameParticipant {
   userId: string;
   joinedAt: string;
   paidKobo: number;
-  status: "confirmed" | "waitlist" | "withdrawn" | "no_show" | "played";
+  status: "confirmed" | "waitlist" | "withdrawn" | "no_show" | "played" | "pending_payment";
+  paymentDeadline?: string | null;
   player?: PlayerProfile;
 }
 

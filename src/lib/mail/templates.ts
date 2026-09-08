@@ -262,3 +262,113 @@ View details: ${input.viewUrl}${textFooter()}`;
 
   return { subject: `Kicking off in ${label} — ${input.title}`, html, text };
 }
+
+export function gameCancelledEmail(input: {
+  fullName: string;
+  title: string;
+  venueName: string;
+  kickoffISO: string;
+  refundedKobo: number;
+}): EmailContent {
+  const when = `${formatDayShort(input.kickoffISO)}, ${formatTime(input.kickoffISO)}`;
+  const firstName = input.fullName.split(" ")[0];
+  const url = `${site()}/wallet`;
+  const refunded = input.refundedKobo > 0;
+
+  const html = emailLayout({
+    previewText: refunded
+      ? `Cancelled — ${formatNaira(input.refundedKobo)} credited to your wallet`
+      : `${input.title} was cancelled`,
+    ctaLabel: refunded ? "View your wallet" : undefined,
+    ctaUrl: refunded ? url : undefined,
+    bodyHtml: `
+      <p style="margin:0;">Hey ${firstName},</p>
+      <p style="margin:12px 0 0;">
+        <strong>${input.title}</strong> at ${input.venueName} for ${when} has been cancelled by the host.
+        ${
+          refunded
+            ? `<strong>${formatNaira(input.refundedKobo)}</strong> has been credited straight back to your Tempo wallet.`
+            : ""
+        }
+      </p>
+      ${highlightBox([
+        ["Game", input.title],
+        ["Venue", input.venueName],
+        ["Was", when],
+        ["Refunded", refunded ? formatNaira(input.refundedKobo) : "₦0"],
+      ])}
+    `,
+  });
+
+  const text = `Hey ${firstName},
+
+${input.title} at ${input.venueName} for ${when} has been cancelled by the host.
+${refunded ? `${formatNaira(input.refundedKobo)} has been credited straight back to your Tempo wallet.` : ""}
+
+Game: ${input.title}
+Venue: ${input.venueName}
+Was: ${when}
+Refunded: ${refunded ? formatNaira(input.refundedKobo) : "₦0"}
+${refunded ? `\nView your wallet: ${url}` : ""}${textFooter()}`;
+
+  return {
+    subject: refunded
+      ? `Cancelled — ${formatNaira(input.refundedKobo)} credited to your wallet`
+      : `${input.title} was cancelled`,
+    html,
+    text,
+  };
+}
+
+export function gameHoldExpiredEmail(input: {
+  fullName: string;
+  title: string;
+  venueName: string;
+  kickoffISO: string;
+  refundedKobo: number;
+}): EmailContent {
+  const when = `${formatDayShort(input.kickoffISO)}, ${formatTime(input.kickoffISO)}`;
+  const firstName = input.fullName.split(" ")[0];
+  const url = `${site()}/wallet`;
+  const refunded = input.refundedKobo > 0;
+
+  const html = emailLayout({
+    previewText: `Your spot in ${input.title} was released`,
+    ctaLabel: refunded ? "View your wallet" : undefined,
+    ctaUrl: refunded ? url : undefined,
+    bodyHtml: `
+      <p style="margin:0;">Hey ${firstName},</p>
+      <p style="margin:12px 0 0;">
+        Your payment deadline for <strong>${input.title}</strong> at ${input.venueName} (${when})
+        passed before you completed it, so your spot has gone to the next person waiting.
+        ${
+          refunded
+            ? `<strong>${formatNaira(input.refundedKobo)}</strong> you'd already paid in has been credited back to your Tempo wallet.`
+            : ""
+        }
+      </p>
+      ${highlightBox([
+        ["Game", input.title],
+        ["Venue", input.venueName],
+        ["Was", when],
+        ["Refunded", refunded ? formatNaira(input.refundedKobo) : "₦0"],
+      ])}
+      <p style="margin:16px 0 0;font-size:13px;color:${emailColors.inkSoft};">
+        Still want in? Head back to the game — if there's still a spot, you can join again.
+      </p>
+    `,
+  });
+
+  const text = `Hey ${firstName},
+
+Your payment deadline for ${input.title} at ${input.venueName} (${when}) passed before you completed it, so your spot has gone to the next person waiting.
+${refunded ? `${formatNaira(input.refundedKobo)} you'd already paid in has been credited back to your Tempo wallet.` : ""}
+
+Game: ${input.title}
+Venue: ${input.venueName}
+Was: ${when}
+Refunded: ${refunded ? formatNaira(input.refundedKobo) : "₦0"}
+${refunded ? `\nView your wallet: ${url}` : ""}${textFooter()}`;
+
+  return { subject: `Your spot in ${input.title} was released`, html, text };
+}

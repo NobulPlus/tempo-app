@@ -451,7 +451,9 @@ function mapGameRow(row: Record<string, unknown>): GameFull {
     ...c,
     host: mapProfileRow(c.host),
     participants,
-    filled: participants.filter((p) => p.status === "confirmed").length,
+    // A payment hold occupies a real spot, same as a fully-paid one.
+    filled: participants.filter((p) => p.status === "confirmed" || p.status === "pending_payment")
+      .length,
   };
 }
 
@@ -471,7 +473,8 @@ function hydrateGame(g: Omit<Game, "participants" | "filled">): GameFull {
     pitch,
     host,
     participants,
-    filled: participants.filter((p) => p.status === "confirmed").length,
+    filled: participants.filter((p) => p.status === "confirmed" || p.status === "pending_payment")
+      .length,
   };
 }
 
@@ -509,6 +512,7 @@ function applyGameQuery(all: GameFull[], query: GameQuery): GameFull[] {
   return all
     .filter((g) => {
       const start = new Date(g.startsAt).getTime();
+      if (g.status === "cancelled") return false;
       if (!query.includeePast && new Date(g.endsAt).getTime() < now) return false;
       if (level !== "all" && g.level !== level) return false;
       if (side !== "all" && g.pitch.venue.side !== side) return false;
@@ -551,19 +555,131 @@ export async function getGameById(id: string): Promise<GameFull | null> {
 /* --------------------------------------------------------------- mutations */
 
 export type JoinResult =
-  | { ok: true; status: "confirmed" | "waitlist" }
+  | {
+      ok: true;
+      status: "confirmed" | "waitlist" | "pending_payment";
+      paidKobo: number;
+      paymentDeadline: string | null;
+    }
   | { ok: false; error: string };
+
+/** now + 48h, capped so a hold can never outlive kickoff with no time left
+ * to reallocate the spot. Shared by every place that opens a payment hold
+ * (join_game, promote_next_waitlisted on the SQL side; mirrored here for
+ * demo mode). */
+function computePaymentDeadline(kickoffISO: string): string {
+  const cap = new Date(new Date(kickoffISO).getTime() - 2 * 60 * 60 * 1000);
+  const window = new Date(Date.now() + 48 * 60 * 60 * 1000);
+  return (window < cap ? window : cap).toISOString();
+}
+
+function demoChargeForJoin(
+  userId: string,
+  priceKobo: number,
+  gameId: string,
+): { paidKobo: number; status: "confirmed" | "pending_payment" } {
+  const s = store();
+  if (priceKobo <= 0) return { paidKobo: 0, status: "confirmed" };
+
+  const balance = s.wallets[userId] ?? 0;
+  const charge = Math.min(balance, priceKobo);
+  if (charge > 0) {
+    s.wallets[userId] = balance - charge;
+    s.walletTransactions.push({
+      id: `wt-${Date.now()}`,
+      userId,
+      type: "game_payment",
+      status: "completed",
+      amountKobo: -charge,
+      balanceAfterKobo: s.wallets[userId],
+      reference: `GPY-${Date.now().toString(36).toUpperCase()}`,
+      provider: "wallet",
+      providerRef: null,
+      bookingId: null,
+      gameId,
+      createdAt: new Date().toISOString(),
+    });
+  }
+  return { paidKobo: charge, status: charge >= priceKobo ? "confirmed" : "pending_payment" };
+}
+
+function demoRefreshGameMinimumStatus(gameId: string) {
+  const s = store();
+  const game = s.games.find((g) => g.id === gameId);
+  if (!game || (game.status !== "open" && game.status !== "locked")) return;
+  const count = s.participants.filter(
+    (p) => p.gameId === gameId && (p.status === "confirmed" || p.status === "pending_payment"),
+  ).length;
+  if (count >= game.minimumToGuarantee && game.minimumDecisionStatus === "pending") {
+    game.minimumDecisionStatus = "not_needed";
+  } else if (count < game.minimumToGuarantee && game.minimumDecisionStatus === "not_needed") {
+    game.minimumDecisionStatus = "pending";
+  }
+}
+
+function demoRefundGameParticipant(userId: string, refundKobo: number, type: "game_refund") {
+  if (refundKobo <= 0) return;
+  const s = store();
+  const balance = (s.wallets[userId] ?? 0) + refundKobo;
+  s.wallets[userId] = balance;
+  s.walletTransactions.push({
+    id: `wt-${Date.now()}`,
+    userId,
+    type,
+    status: "completed",
+    amountKobo: refundKobo,
+    balanceAfterKobo: balance,
+    reference: `GRF-${Date.now().toString(36).toUpperCase()}`,
+    provider: null,
+    providerRef: null,
+    bookingId: null,
+    gameId: null,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Promotes the next waitlisted player (if any) and tries to charge them —
+ * demo-mode counterpart to the SQL promote_next_waitlisted() helper. */
+function demoPromoteNextWaitlisted(gameId: string) {
+  const s = store();
+  const game = s.games.find((g) => g.id === gameId);
+  if (!game) return;
+
+  const next = s.participants
+    .filter((p) => p.gameId === gameId && p.status === "waitlist")
+    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))[0];
+
+  if (!next) {
+    if (game.status === "locked") game.status = "open";
+    return;
+  }
+
+  const { paidKobo, status } = demoChargeForJoin(next.userId, game.pricePerPlayerKobo, gameId);
+  next.status = status;
+  next.paidKobo = paidKobo;
+  next.paymentDeadline = status === "pending_payment" ? computePaymentDeadline(game.startsAt) : null;
+  demoRefreshGameMinimumStatus(gameId);
+}
 
 /**
  * Join a game. In Supabase mode this calls the `join_game` RPC, which locks
- * the game row so two people cannot take the last spot simultaneously.
+ * the game row so two people cannot take the last spot simultaneously and
+ * charges the player's wallet — the full price if it covers it, otherwise
+ * whatever's available, landing them in `pending_payment` with a deadline
+ * to top up the rest.
  */
 export async function joinGame(gameId: string, userId: string): Promise<JoinResult> {
   if (!demoMode()) {
     const sb = await createClient();
     const { data, error } = await sb.rpc("join_game", { p_game_id: gameId });
     if (error) return { ok: false, error: error.message };
-    return { ok: true, status: (data as { status: "confirmed" | "waitlist" }).status };
+    const row = camelize<GameParticipant>(data);
+    return {
+      ok: true,
+      status: row.status as "confirmed" | "waitlist" | "pending_payment",
+      paidKobo: row.paidKobo,
+      paymentDeadline: row.paymentDeadline ?? null,
+    };
   }
 
   const s = store();
@@ -576,30 +692,107 @@ export async function joinGame(gameId: string, userId: string): Promise<JoinResu
   if (existing && existing.status !== "withdrawn")
     return { ok: false, error: "You're already in this game." };
 
-  const confirmed = s.participants.filter(
-    (p) => p.gameId === gameId && p.status === "confirmed",
+  const held = s.participants.filter(
+    (p) => p.gameId === gameId && (p.status === "confirmed" || p.status === "pending_payment"),
   ).length;
-  const status: GameParticipant["status"] =
-    confirmed >= game.capacity ? "waitlist" : "confirmed";
+  const wouldHoldSpot = held < game.capacity;
+
+  let status: GameParticipant["status"] = wouldHoldSpot ? "confirmed" : "waitlist";
+  let paidKobo = 0;
+  let paymentDeadline: string | null = null;
+
+  if (wouldHoldSpot) {
+    const charge = demoChargeForJoin(userId, game.pricePerPlayerKobo, gameId);
+    status = charge.status;
+    paidKobo = charge.paidKobo;
+    paymentDeadline = status === "pending_payment" ? computePaymentDeadline(game.startsAt) : null;
+  }
 
   if (existing) {
     existing.status = status;
     existing.joinedAt = new Date().toISOString();
+    existing.paidKobo = paidKobo;
+    existing.paymentDeadline = paymentDeadline;
   } else {
     s.participants.push({
       id: `gp-${gameId}-${userId}-${Date.now()}`,
       gameId,
       userId,
       joinedAt: new Date().toISOString(),
-      paidKobo: game.pricePerPlayerKobo,
+      paidKobo,
+      paymentDeadline,
       status,
     });
   }
 
-  if (status === "confirmed" && confirmed + 1 >= game.capacity) game.status = "locked";
-  return { ok: true, status };
+  if (wouldHoldSpot && held + 1 >= game.capacity) game.status = "locked";
+  if (wouldHoldSpot) demoRefreshGameMinimumStatus(gameId);
+  return { ok: true, status, paidKobo, paymentDeadline };
 }
 
+/** Completes an outstanding partial payment. Live mode calls
+ * pay_game_balance(); demo mode mirrors the same "charge whatever's
+ * available toward what's left, flip to confirmed once covered" logic. */
+export async function payGameBalance(
+  gameId: string,
+  userId: string,
+): Promise<{ ok: true; status: "confirmed" | "pending_payment" } | { ok: false; error: string }> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("pay_game_balance", { p_game_id: gameId });
+    if (error) {
+      return {
+        ok: false,
+        error: error.message.includes("insufficient wallet balance")
+          ? "Not enough wallet balance to cover this."
+          : error.message,
+      };
+    }
+    const row = camelize<GameParticipant>(data);
+    return { ok: true, status: row.status as "confirmed" | "pending_payment" };
+  }
+
+  const s = store();
+  const game = s.games.find((g) => g.id === gameId);
+  if (!game) return { ok: false, error: "Game not found." };
+  const mine = s.participants.find((p) => p.gameId === gameId && p.userId === userId);
+  if (!mine || mine.status !== "pending_payment") {
+    return { ok: false, error: "No payment is due." };
+  }
+
+  const remaining = game.pricePerPlayerKobo - mine.paidKobo;
+  const balance = s.wallets[userId] ?? 0;
+  const charge = Math.min(balance, remaining);
+  if (charge <= 0) return { ok: false, error: "Not enough wallet balance to cover this." };
+
+  s.wallets[userId] = balance - charge;
+  s.walletTransactions.push({
+    id: `wt-${Date.now()}`,
+    userId,
+    type: "game_payment",
+    status: "completed",
+    amountKobo: -charge,
+    balanceAfterKobo: s.wallets[userId],
+    reference: `GPY-${Date.now().toString(36).toUpperCase()}`,
+    provider: "wallet",
+    providerRef: null,
+    bookingId: null,
+    gameId: null,
+    createdAt: new Date().toISOString(),
+  });
+
+  mine.paidKobo += charge;
+  if (mine.paidKobo >= game.pricePerPlayerKobo) {
+    mine.status = "confirmed";
+    mine.paymentDeadline = null;
+  }
+  demoRefreshGameMinimumStatus(gameId);
+  return { ok: true, status: mine.status as "confirmed" | "pending_payment" };
+}
+
+/** 6-hour cutoff, same policy cancel_booking() uses for direct bookings:
+ * 6h+ before kickoff refunds whatever the player had paid in; under 6h
+ * forfeits it. Either way their spot opens up for the next person waiting. */
 export async function leaveGame(
   gameId: string,
   userId: string,
@@ -612,20 +805,205 @@ export async function leaveGame(
   }
 
   const s = store();
+  const game = s.games.find((g) => g.id === gameId);
+  if (!game) return { ok: false, error: "Game not found." };
+  if (game.hostId === userId) return { ok: false, error: "Hosts must cancel the game instead." };
   const mine = s.participants.find((p) => p.gameId === gameId && p.userId === userId);
-  if (mine) mine.status = "withdrawn";
+  if (!mine) return { ok: false, error: "Not a participant in this game." };
 
-  // Promote the first person off the waitlist — the feature the prototype
-  // advertised but never built.
-  const next = s.participants
-    .filter((p) => p.gameId === gameId && p.status === "waitlist")
-    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))[0];
-  if (next) next.status = "confirmed";
-  else {
-    const game = s.games.find((g) => g.id === gameId);
-    if (game && game.status === "locked") game.status = "open";
+  mine.status = "withdrawn";
+
+  const sixHoursMs = 6 * 60 * 60 * 1000;
+  if (mine.paidKobo > 0 && new Date(game.startsAt).getTime() - Date.now() >= sixHoursMs) {
+    demoRefundGameParticipant(userId, mine.paidKobo, "game_refund");
   }
+
+  demoPromoteNextWaitlisted(gameId);
+  demoRefreshGameMinimumStatus(gameId);
   return { ok: true };
+}
+
+/** Host (or admin) calls off the whole game — refunds every paid/held
+ * participant in full regardless of the 6-hour cutoff (this isn't a player
+ * backing out, it's the game itself being cancelled) and reopens the slot. */
+export async function cancelGame(
+  gameId: string,
+  userId: string,
+  isAdmin: boolean,
+): Promise<{ ok: true; refundedKobo: number; refundedCount: number } | { ok: false; error: string }> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data, error } = await sb
+      .rpc("cancel_game_with_summary", { p_game_id: gameId })
+      .single<{
+        player_refunded_kobo: number | string | null;
+        player_refunded_count: number | string | null;
+        host_refunded_kobo: number | string | null;
+      }>();
+    if (error) return { ok: false, error: error.message };
+    return {
+      ok: true,
+      refundedKobo:
+        Math.max(0, Number(data?.player_refunded_kobo ?? 0)) +
+        Math.max(0, Number(data?.host_refunded_kobo ?? 0)),
+      refundedCount: Math.max(0, Number(data?.player_refunded_count ?? 0)),
+    };
+  }
+
+  const s = store();
+  const game = s.games.find((g) => g.id === gameId);
+  if (!game) return { ok: false, error: "Game not found." };
+  if (game.hostId !== userId && !isAdmin) return { ok: false, error: "Not authorized." };
+  if (game.status !== "open" && game.status !== "locked") {
+    return { ok: false, error: "Game cannot be cancelled." };
+  }
+  if (new Date(game.startsAt).getTime() <= Date.now()) {
+    return { ok: false, error: "Game has already started." };
+  }
+
+  game.status = "cancelled";
+  game.minimumDecisionStatus = "cancelled";
+  const slot = s.slots.find(
+    (x) => x.pitchId === game.pitchId && x.startsAt === game.startsAt && x.status === "booked",
+  );
+  if (slot) slot.status = "open";
+
+  const toRefund = s.participants.filter(
+    (p) => p.gameId === gameId && (p.status === "confirmed" || p.status === "pending_payment") && p.paidKobo > 0,
+  );
+  let refundedKobo = 0;
+  for (const p of toRefund) {
+    demoRefundGameParticipant(p.userId, p.paidKobo, "game_refund");
+    refundedKobo += p.paidKobo;
+  }
+  for (const p of s.participants.filter(
+    (p) => p.gameId === gameId && ["confirmed", "pending_payment", "waitlist"].includes(p.status),
+  )) {
+    p.status = "withdrawn";
+    p.paymentDeadline = null;
+  }
+
+  const hostRefund = Math.max(0, (game.hostPaidKobo ?? 0) - (game.hostReimbursedKobo ?? 0));
+  const sixHoursMs = 6 * 60 * 60 * 1000;
+  if (hostRefund > 0 && new Date(game.startsAt).getTime() - Date.now() >= sixHoursMs) {
+    demoRefundGameParticipant(game.hostId, hostRefund, "game_refund");
+    refundedKobo += hostRefund;
+  }
+
+  return { ok: true, refundedKobo, refundedCount: toRefund.length };
+}
+
+export async function decideGameMinimum(
+  gameId: string,
+  userId: string,
+  isAdmin: boolean,
+  decision: "go_ahead" | "cancel",
+): Promise<{ ok: true; status: Game["status"]; decisionStatus: NonNullable<Game["minimumDecisionStatus"]> } | { ok: false; error: string }> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("decide_game_minimum", {
+      p_game_id: gameId,
+      p_decision: decision,
+    });
+    if (error) return { ok: false, error: error.message };
+    const game = camelize<Game>(data);
+    return {
+      ok: true,
+      status: game.status,
+      decisionStatus: game.minimumDecisionStatus ?? "pending",
+    };
+  }
+
+  const s = store();
+  const game = s.games.find((g) => g.id === gameId);
+  if (!game) return { ok: false, error: "Game not found." };
+  if (game.hostId !== userId && !isAdmin) return { ok: false, error: "Not authorized." };
+  if (game.status !== "open" && game.status !== "locked") {
+    return { ok: false, error: "Game cannot be decided." };
+  }
+  if (new Date(game.startsAt).getTime() <= Date.now()) {
+    return { ok: false, error: "Game has already started." };
+  }
+
+  const count = s.participants.filter(
+    (p) => p.gameId === gameId && (p.status === "confirmed" || p.status === "pending_payment"),
+  ).length;
+  if (count >= game.minimumToGuarantee) {
+    game.minimumDecisionStatus = "not_needed";
+    return { ok: true, status: game.status, decisionStatus: "not_needed" };
+  }
+  const deadlineAt = game.minimumDecisionDeadline ? new Date(game.minimumDecisionDeadline).getTime() : new Date(game.startsAt).getTime();
+  if (!isAdmin && deadlineAt > Date.now()) {
+    return { ok: false, error: "Minimum decision is not due yet." };
+  }
+
+  if (decision === "cancel") {
+    const cancelled = await cancelGame(gameId, userId, isAdmin);
+    if (!cancelled.ok) return cancelled;
+    return { ok: true, status: "cancelled", decisionStatus: "cancelled" };
+  }
+
+  game.minimumDecisionStatus = "go_ahead";
+  return { ok: true, status: game.status, decisionStatus: "go_ahead" };
+}
+
+export async function settleGameHostReimbursement(
+  gameId: string,
+  userId: string,
+  isAdmin: boolean,
+): Promise<{ ok: true; reimbursedKobo: number } | { ok: false; error: string }> {
+  if (!demoMode()) {
+    const before = await getGameById(gameId);
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("settle_game_host_reimbursement", {
+      p_game_id: gameId,
+    });
+    if (error) return { ok: false, error: error.message };
+    const after = camelize<Game>(data);
+    return {
+      ok: true,
+      reimbursedKobo: (after.hostReimbursedKobo ?? 0) - (before?.hostReimbursedKobo ?? 0),
+    };
+  }
+
+  const s = store();
+  const game = s.games.find((g) => g.id === gameId);
+  if (!game) return { ok: false, error: "Game not found." };
+  if (game.hostId !== userId && !isAdmin) return { ok: false, error: "Not authorized." };
+  if (new Date(game.endsAt).getTime() > Date.now()) {
+    return { ok: false, error: "Game has not ended yet." };
+  }
+  if (game.minimumDecisionStatus !== "go_ahead" && game.minimumDecisionStatus !== "not_needed") {
+    return { ok: false, error: "Host has not committed this game." };
+  }
+
+  const collected = s.participants
+    .filter((p) => p.gameId === gameId && ["confirmed", "played", "no_show"].includes(p.status))
+    .reduce((sum, p) => sum + p.paidKobo, 0);
+  const paid = game.hostPaidKobo ?? 0;
+  const already = game.hostReimbursedKobo ?? 0;
+  const due = Math.max(0, Math.min(collected, paid) - already);
+  if (due <= 0) return { ok: true, reimbursedKobo: 0 };
+
+  const balance = (s.wallets[game.hostId] ?? 0) + due;
+  s.wallets[game.hostId] = balance;
+  game.hostReimbursedKobo = already + due;
+  s.walletTransactions.push({
+    id: `wt-${Date.now()}`,
+    userId: game.hostId,
+    type: "host_reimbursement",
+    status: "completed",
+    amountKobo: due,
+    balanceAfterKobo: balance,
+    reference: `HRB-${Date.now().toString(36).toUpperCase()}`,
+    provider: null,
+    providerRef: null,
+    bookingId: null,
+    gameId,
+    createdAt: new Date().toISOString(),
+  });
+
+  return { ok: true, reimbursedKobo: due };
 }
 
 /** 5% service fee. The real source of truth is create_booking() in
@@ -705,6 +1083,7 @@ export async function createBooking(
     provider: "wallet",
     providerRef: null,
     bookingId: booking.id,
+    gameId: null,
     createdAt: new Date().toISOString(),
   });
 
@@ -762,6 +1141,7 @@ export async function cancelBooking(
       provider: null,
       providerRef: null,
       bookingId: booking.id,
+      gameId: null,
       createdAt: new Date().toISOString(),
     });
   }
@@ -867,7 +1247,16 @@ export interface FinanceSummary {
   totalWalletLiabilityKobo: number;
   totalTopupVolumeKobo: number;
   totalBookingPaymentVolumeKobo: number;
+  totalGamePaymentVolumeKobo: number;
+  totalHostDepositVolumeKobo: number;
   totalCancellationCreditsKobo: number;
+  totalGameRefundsKobo: number;
+  totalHostReimbursementsKobo: number;
+  tempoHeldGameFundsKobo: number;
+  totalVenuePendingKobo: number;
+  totalVenueAvailableKobo: number;
+  totalVenuePaidOutKobo: number;
+  totalPlatformFeeLedgerKobo: number;
   serviceFeeRevenueKobo: number;
 }
 
@@ -879,15 +1268,25 @@ export async function getFinanceSummary(): Promise<FinanceSummary> {
       totalWalletLiabilityKobo: 0,
       totalTopupVolumeKobo: 0,
       totalBookingPaymentVolumeKobo: 0,
+      totalGamePaymentVolumeKobo: 0,
+      totalHostDepositVolumeKobo: 0,
       totalCancellationCreditsKobo: 0,
+      totalGameRefundsKobo: 0,
+      totalHostReimbursementsKobo: 0,
+      tempoHeldGameFundsKobo: 0,
+      totalVenuePendingKobo: 0,
+      totalVenueAvailableKobo: 0,
+      totalVenuePaidOutKobo: 0,
+      totalPlatformFeeLedgerKobo: 0,
       serviceFeeRevenueKobo: 0,
     };
   }
 
   const sb = await createClient();
-  const [{ data: wallets }, { data: txns }] = await Promise.all([
+  const [{ data: wallets }, { data: txns }, { data: settlements }] = await Promise.all([
     sb.from("wallets").select("balance_kobo"),
     sb.from("wallet_transactions").select("type, amount_kobo, status").eq("status", "completed"),
+    sb.from("venue_settlements").select("status, venue_amount_kobo, platform_fee_kobo, available_at"),
   ]);
 
   const totalWalletLiabilityKobo = (wallets ?? []).reduce((sum, w) => sum + (w.balance_kobo as number), 0);
@@ -899,15 +1298,57 @@ export async function getFinanceSummary(): Promise<FinanceSummary> {
       .filter((t) => t.type === "booking_payment")
       .reduce((sum, t) => sum + (t.amount_kobo as number), 0),
   );
+  const totalGamePaymentVolumeKobo = Math.abs(
+    (txns ?? [])
+      .filter((t) => t.type === "game_payment")
+      .reduce((sum, t) => sum + (t.amount_kobo as number), 0),
+  );
+  const totalHostDepositVolumeKobo = Math.abs(
+    (txns ?? [])
+      .filter((t) => t.type === "host_game_deposit")
+      .reduce((sum, t) => sum + (t.amount_kobo as number), 0),
+  );
   const totalCancellationCreditsKobo = (txns ?? [])
     .filter((t) => t.type === "cancellation_credit")
     .reduce((sum, t) => sum + (t.amount_kobo as number), 0);
+  const totalGameRefundsKobo = (txns ?? [])
+    .filter((t) => t.type === "game_refund")
+    .reduce((sum, t) => sum + (t.amount_kobo as number), 0);
+  const totalHostReimbursementsKobo = (txns ?? [])
+    .filter((t) => t.type === "host_reimbursement")
+    .reduce((sum, t) => sum + (t.amount_kobo as number), 0);
+  const tempoHeldGameFundsKobo = Math.max(
+    0,
+    totalGamePaymentVolumeKobo + totalHostDepositVolumeKobo - totalGameRefundsKobo - totalHostReimbursementsKobo,
+  );
+  const settlementRows = settlements ?? [];
+  const totalVenuePendingKobo = settlementRows
+    .filter((s) => s.status === "pending")
+    .reduce((sum, s) => sum + (s.venue_amount_kobo as number), 0);
+  const totalVenueAvailableKobo = settlementRows
+    .filter((s) => s.status === "pending" && new Date(s.available_at as string).getTime() <= Date.now())
+    .reduce((sum, s) => sum + (s.venue_amount_kobo as number), 0);
+  const totalVenuePaidOutKobo = settlementRows
+    .filter((s) => s.status === "paid")
+    .reduce((sum, s) => sum + (s.venue_amount_kobo as number), 0);
+  const totalPlatformFeeLedgerKobo = settlementRows
+    .filter((s) => s.status !== "cancelled")
+    .reduce((sum, s) => sum + (s.platform_fee_kobo as number), 0);
 
   return {
     totalWalletLiabilityKobo,
     totalTopupVolumeKobo,
     totalBookingPaymentVolumeKobo,
+    totalGamePaymentVolumeKobo,
+    totalHostDepositVolumeKobo,
     totalCancellationCreditsKobo,
+    totalGameRefundsKobo,
+    totalHostReimbursementsKobo,
+    tempoHeldGameFundsKobo,
+    totalVenuePendingKobo,
+    totalVenueAvailableKobo,
+    totalVenuePaidOutKobo,
+    totalPlatformFeeLedgerKobo,
     serviceFeeRevenueKobo: Math.round(
       (totalBookingPaymentVolumeKobo * SERVICE_FEE_RATE) / (1 + SERVICE_FEE_RATE),
     ),
