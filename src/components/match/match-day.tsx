@@ -25,12 +25,15 @@ export function Countdown({
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
-    setNow(Date.now());
     const ms = new Date(to).getTime() - Date.now();
     // Tick every second inside the last hour, otherwise every 30s.
     const interval = Math.abs(ms) < 3_600_000 ? 1000 : 30_000;
+    const initialId = setTimeout(() => setNow(Date.now()), 0);
     const id = setInterval(() => setNow(Date.now()), interval);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(initialId);
+      clearInterval(id);
+    };
   }, [to]);
 
   if (now === null) {
@@ -170,10 +173,15 @@ export function SpotCounter({ filled, capacity }: { filled: number; capacity: nu
 
   useEffect(() => {
     if (filled !== prev) {
-      setFlash(true);
-      setPrev(filled);
-      const id = setTimeout(() => setFlash(false), 900);
-      return () => clearTimeout(id);
+      const startId = setTimeout(() => {
+        setFlash(true);
+        setPrev(filled);
+      }, 0);
+      const endId = setTimeout(() => setFlash(false), 900);
+      return () => {
+        clearTimeout(startId);
+        clearTimeout(endId);
+      };
     }
   }, [filled, prev]);
 

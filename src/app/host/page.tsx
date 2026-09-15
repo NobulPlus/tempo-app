@@ -14,9 +14,14 @@ export const metadata: Metadata = {
     "List a game in under two minutes. Tempo handles the roster, the waitlist and the money, so you stop chasing people on WhatsApp.",
 };
 
-export default async function HostPage() {
+export default async function HostPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ slot?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/host");
+  const { slot: initialSlotId } = await searchParams;
 
   const pitches = await listPitches({ sort: "rated" });
 
@@ -54,7 +59,7 @@ export default async function HostPage() {
               Host a <span className="text-orange">game</span>
             </h1>
             <p className="mt-3 max-w-2xl text-[17px] leading-relaxed text-ink-soft">
-              Pick an open pitch from the calendar, reserve it with your wallet, set the price per player, and publish a game players can join.
+              Pick an open pitch from the calendar, reserve it with your wallet, set the price per player, and publish a public game players can join.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link href="/host/manage" className="btn-t btn-ghost-t !py-2.5 !text-[13.5px]">
@@ -86,12 +91,12 @@ export default async function HostPage() {
           <HostInsight
             label="Host flow"
             value="Pay, publish, monitor"
-            sub="Roster, minimum decision and reimbursements live in the host dashboard"
+            sub="One action reserves the pitch and creates the public game"
           />
         </div>
 
         <div className="mt-10">
-          <HostForm slots={slots} />
+          <HostForm slots={slots} initialSlotId={initialSlotId} />
         </div>
       </div>
     </div>

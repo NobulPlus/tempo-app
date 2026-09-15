@@ -376,6 +376,8 @@ npm run build         # production build
 npm run start         # serve the build
 npm run type-check    # tsc --noEmit
 npm run lint           # eslint
+npm run db:migrations       # compare local migrations with the linked Supabase project
+npm run db:migrations:push  # apply pending migrations to the linked Supabase project
 npm run seed           # push seed data to a real Supabase project (needs SUPABASE_SERVICE_ROLE_KEY)
 ```
 
@@ -384,9 +386,21 @@ sign in as any seeded player from the login page to experience the product
 as a player, a host, or a venue owner.
 
 When you're ready for a real database, follow the checklist on `/setup`
-(also mirrored there in-app): create a Supabase project, run every file in
-`supabase/migrations/` in order, copy `.env.example` to `.env.local`, then
-`npm run seed`.
+(also mirrored there in-app): create a Supabase project, copy `.env.example`
+to `.env.local`, then link the Supabase CLI once:
+
+```bash
+npx supabase login
+npx supabase link --project-ref <your-project-ref>
+```
+
+After that, use the migration commands instead of copy-pasting SQL:
+
+```bash
+npm run db:migrations       # see what has/hasn't run remotely
+npm run db:migrations:push  # apply only pending migrations
+npm run seed
+```
 
 ---
 

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatNaira, formatTime, formatRelativeDay } from "@/lib/format";
-import { ClockIcon, LightningIcon } from "@/components/icons";
+import { ClockIcon, LightningIcon, UsersIcon } from "@/components/icons";
 import type { Slot } from "@/lib/types";
 
 /**
@@ -46,9 +46,14 @@ export function SlotPicker({ slots, pitchSlug }: { slots: Slot[]; pitchSlug: str
 
   return (
     <div className="card-t p-5 md:p-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-[18px] font-bold">Pick your time</h2>
-        <span className="text-[13px] text-ink-muted">Prices shown per hour</span>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-[18px] font-bold">Book this pitch</h2>
+          <p className="mt-1 text-[13.5px] text-ink-soft">
+            Choose a free slot for private use, or use it to host a public game.
+          </p>
+        </div>
+        <span className="text-[13px] text-ink-muted">Pitch hire shown per hour</span>
       </div>
 
       {/* Day strip */}
@@ -146,17 +151,28 @@ export function SlotPicker({ slots, pitchSlug }: { slots: Slot[]; pitchSlug: str
             <div className="text-right">
               <div className="text-[11px] uppercase tracking-wide text-ink-muted">Total</div>
               <div className="text-[20px] font-extrabold">{formatNaira(selected.priceKobo)}</div>
+              <div className="text-[11px] text-ink-muted">Pitch hire</div>
             </div>
           )}
-          <button
-            disabled={!selected}
-            onClick={() =>
-              selected && router.push(`/pitches/${pitchSlug}/book?slot=${selected.id}`)
-            }
-            className="btn-t btn-green-t !py-3.5"
-          >
-            Continue
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              disabled={!selected}
+              onClick={() =>
+                selected && router.push(`/pitches/${pitchSlug}/book?slot=${selected.id}`)
+              }
+              className="btn-t btn-green-t !py-3.5"
+            >
+              Book privately
+            </button>
+            <button
+              disabled={!selected}
+              onClick={() => selected && router.push(`/host?slot=${selected.id}`)}
+              className="btn-t btn-ghost-t !py-3.5"
+            >
+              <UsersIcon size={16} />
+              Host public game
+            </button>
+          </div>
         </div>
       </div>
     </div>

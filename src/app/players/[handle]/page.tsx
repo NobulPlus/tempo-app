@@ -56,7 +56,8 @@ export default async function PlayerPage({
   if (!player) notFound();
 
   const games = await getGamesForUser(player.id);
-  const upcoming = games.filter((g) => new Date(g.endsAt).getTime() > Date.now());
+  const now = new Date().getTime();
+  const upcoming = games.filter((g) => new Date(g.endsAt).getTime() > now);
 
   return (
     <div className="py-12">

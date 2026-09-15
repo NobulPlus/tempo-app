@@ -47,7 +47,6 @@ interface Store {
 const DEMO_STARTING_BALANCE_KOBO = 25_000_00;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __tempoStore: Store | undefined;
 }
 
@@ -56,7 +55,7 @@ function build(): Store {
     venues: structuredClone(seedVenues),
     pitches: structuredClone(seedPitches),
     slots: generateSlots(),
-    games: seedGames.map(({ participantIds: _p, waitlistIds: _w, ...g }) => ({ ...g })),
+    games: seedGames.map(stripSeedOnlyGameFields),
     participants: buildParticipants(),
     profiles: structuredClone(seedProfiles),
     bookings: [],
@@ -65,6 +64,13 @@ function build(): Store {
     ),
     walletTransactions: [],
   };
+}
+
+function stripSeedOnlyGameFields(game: (typeof seedGames)[number]): Omit<Game, "participants" | "filled"> {
+  const clone: Partial<typeof game> = { ...game };
+  delete clone.participantIds;
+  delete clone.waitlistIds;
+  return clone as Omit<Game, "participants" | "filled">;
 }
 
 /** Survives hot reload in dev; fresh per cold start in production. */

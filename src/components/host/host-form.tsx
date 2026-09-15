@@ -44,15 +44,22 @@ const TIME_BANDS = [
   { key: "evening", label: "Evening" },
 ] as const;
 
-export function HostForm({ slots }: { slots: HostSlotOption[] }) {
+export function HostForm({
+  slots,
+  initialSlotId,
+}: {
+  slots: HostSlotOption[];
+  initialSlotId?: string;
+}) {
   const [state, action, pending] = useActionState(createGameAction, initial);
   useActionToast(state);
+  const initialSlot = initialSlotId ? slots.find((s) => s.id === initialSlotId) : null;
 
-  const [slotId, setSlotId] = useState("");
+  const [slotId, setSlotId] = useState(initialSlot?.id ?? "");
   const [level, setLevel] = useState<string>("casual");
   const [capacity, setCapacity] = useState(10);
   const [minimum, setMinimum] = useState(8);
-  const [dateKey, setDateKey] = useState("all");
+  const [dateKey, setDateKey] = useState(initialSlot ? slotDateKey(initialSlot.startsAt) : "all");
   const [area, setArea] = useState("all");
   const [timeBand, setTimeBand] = useState("all");
   const [query, setQuery] = useState("");

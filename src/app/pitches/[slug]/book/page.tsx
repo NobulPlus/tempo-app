@@ -10,7 +10,7 @@ import { PinIcon, ClockIcon, ShieldIcon } from "@/components/icons";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Confirm your booking",
+  title: "Confirm private pitch booking",
   robots: { index: false, follow: false },
 };
 
@@ -58,10 +58,10 @@ export default async function BookPage({
     <div className="py-12">
       <div className="container-t max-w-5xl">
         <h1 className="text-[clamp(26px,4.5vw,38px)] font-extrabold tracking-[-.02em]">
-          Confirm your booking
+          Confirm private pitch booking
         </h1>
         <p className="mt-2 text-[16px] text-ink-soft">
-          One hour, one pitch, locked to your name.
+          This reserves the pitch for your own group. To let public players join, host a game instead.
         </p>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_.85fr]">
@@ -105,6 +105,16 @@ export default async function BookPage({
               Your slot is held the moment payment clears. Cancel up to 6 hours before
               kickoff for a full wallet credit.
             </p>
+
+            <div className="mt-5 rounded-xl border border-orange/25 bg-orange/8 p-4">
+              <h3 className="text-[14px] font-bold text-orange">Want other players to join?</h3>
+              <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-soft">
+                Use this same pitch time to create a public game instead of a private booking.
+              </p>
+              <Link href={`/host?slot=${slot.id}`} className="btn-t btn-ghost-t mt-3 w-full !py-2.5 !text-[13px]">
+                Host a public game
+              </Link>
+            </div>
           </aside>
         </div>
       </div>

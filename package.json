@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "node scripts/seed.mjs",
+    "db:migrations": "node scripts/supabase-migrations.mjs status",
+    "db:migrations:push": "node scripts/supabase-migrations.mjs push",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
