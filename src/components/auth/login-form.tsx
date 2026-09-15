@@ -17,7 +17,7 @@ export function LoginForm({ next }: { next: string }) {
       <input type="hidden" name="next" value={next} />
 
       <div className="field-t">
-        <input id="email" name="email" type="email" required autoComplete="email" placeholder=" " />
+        <input id="email" name="email" type="email" required autoComplete="email" placeholder=" " suppressHydrationWarning />
         <span className="field-icon">
           <MailIcon size={19} />
         </span>

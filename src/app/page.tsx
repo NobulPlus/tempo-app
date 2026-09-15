@@ -23,10 +23,11 @@ import {
   DoodlePlayIcon,
 } from "@/components/icons";
 import { WaitlistForm } from "@/components/waitlist-form";
+import { LAGOS_AREA_OPTIONS } from "@/lib/lagos";
 
 export const dynamic = "force-dynamic";
 
-const AREAS = ["Lekki Phase 1", "Ikoyi", "Victoria Island", "Ikeja GRA", "Surulere", "Yaba"];
+const AREAS = LAGOS_AREA_OPTIONS.slice(0, 10);
 
 export default async function HomePage() {
   const [stats, urgent, topPitches] = await Promise.all([
@@ -34,6 +35,8 @@ export default async function HomePage() {
     getUrgentGames(2),
     listPitches({ sort: "rated" }),
   ]);
+  const topPitch = topPitches[0];
+  const topPitchPhoto = topPitch?.photos?.[0] ?? topPitch?.venue.photos[0];
 
   return (
     <>
@@ -365,9 +368,9 @@ export default async function HomePage() {
                 className="card-t card-t-hover relative mt-8 overflow-hidden lg:grid lg:grid-cols-[1.3fr_1fr]"
               >
                 <div className="relative h-[220px] overflow-hidden bg-bg-elevated lg:h-full">
-                  {topPitches[0].venue.photos[0] && (
+                  {topPitchPhoto && (
                     <Image
-                      src={topPitches[0].venue.photos[0]}
+                      src={topPitchPhoto}
                       alt=""
                       fill
                       unoptimized
@@ -391,6 +394,9 @@ export default async function HomePage() {
                   <h3 className="mt-1.5 font-display text-[26px] font-extrabold">
                     {topPitches[0].venue.name}
                   </h3>
+                  <div className="mt-1 text-[14px] font-semibold text-ink-soft">
+                    {topPitches[0].name}
+                  </div>
                   {topPitches[0].rating !== null && (
                     <div className="mt-2 flex items-center gap-1.5 text-[14px]">
                       <StarIcon size={15} className="text-gold" />
@@ -407,7 +413,7 @@ export default async function HomePage() {
                       </div>
                     </div>
                     <Link href={`/pitches/${topPitches[0].slug}`} className="btn-t btn-green-t">
-                      View venue
+                      View space
                     </Link>
                   </div>
                 </div>
@@ -460,9 +466,8 @@ export default async function HomePage() {
                 We&apos;re just <span className="text-gradient-brand">getting started</span>
               </h2>
               <p className="mt-4 text-[16.5px] leading-relaxed text-ink-soft">
-                Tempo is live in Lekki, Ikoyi, Victoria Island, Lagos Island, Surulere, Ikeja
-                GRA and Yaba. If your regular spot isn&apos;t here yet, tell us where you
-                play and we&apos;ll go and get it verified.
+                Tempo is built for Lagos-wide discovery. If your regular spot isn&apos;t
+                here yet, tell us where you play and we&apos;ll go and get it verified.
               </p>
 
               <div className="mt-8">

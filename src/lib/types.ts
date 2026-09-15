@@ -54,6 +54,8 @@ export interface Venue {
   address: string;
   lat: number;
   lng: number;
+  activityType?: string;
+  supportedActivities?: string[];
   verified: boolean;
   verifiedAt: string | null;
   verifiedBy?: string | null;
@@ -86,10 +88,18 @@ export interface Pitch {
   venueId: string;
   slug: string;
   name: string;
+  resourceType?: string;
+  activityType?: string;
+  supportedActivities?: string[];
   size: PitchSize;
   surface: PitchSurface;
   floodlights: boolean;
   covered: boolean;
+  photos?: string[];
+  amenities?: string[];
+  capacity?: number | null;
+  recommendedPlayers?: number | null;
+  description?: string;
   /** Base price per hour in kobo (smallest unit) — never store money as float */
   pricePerHourKobo: number;
   /** Peak-hour multiplier, e.g. 1.3 for evenings */
@@ -119,6 +129,11 @@ export interface Booking {
   totalKobo: number;
   paidKobo: number;
   paymentMethod: PaymentMethod | null;
+  checkInCode?: string;
+  checkedInAt?: string | null;
+  checkedInBy?: string | null;
+  attendanceStatus?: "booked" | "checked_in" | "late" | "no_show" | "flagged";
+  attendanceNote?: string | null;
   createdAt: string;
   slot?: Slot;
 }
@@ -158,6 +173,12 @@ export interface GameParticipant {
   joinedAt: string;
   paidKobo: number;
   status: "confirmed" | "waitlist" | "withdrawn" | "no_show" | "played" | "pending_payment";
+  checkInCode?: string;
+  checkedInAt?: string | null;
+  checkedInBy?: string | null;
+  minutesLate?: number | null;
+  attendanceStatus?: "booked" | "checked_in" | "late" | "no_show" | "flagged" | "replaced";
+  attendanceNote?: string | null;
   paymentDeadline?: string | null;
   player?: PlayerProfile;
 }
@@ -248,6 +269,7 @@ export interface MatchState {
    ------------------------------------------------------------------ */
 
 export type KycStatus = "pending" | "approved" | "rejected";
+export type ApplicationStatus = "pending" | "approved" | "rejected";
 
 export interface IdentityVerification {
   id: string;
@@ -268,4 +290,20 @@ export interface WaitlistLead {
   area: string | null;
   role: UserRole;
   createdAt: string;
+}
+
+export interface VenueOwnerApplication {
+  id: string;
+  userId: string;
+  venueName: string;
+  area: string;
+  address: string;
+  phone: string | null;
+  notes: string | null;
+  status: ApplicationStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+  applicant?: PlayerProfile;
 }

@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { setUserSuspendedAction, setUserRoleAction, type ActionState } from "@/app/actions";
 import { BallIcon, SearchIcon, ShieldIcon, StarIcon } from "@/components/icons";
+import { Select } from "@/components/ui/select";
+import { useActionToast } from "@/components/toast/use-action-toast";
 import type { PlayerProfile, UserRole } from "@/lib/types";
 
 const ROLES: UserRole[] = ["player", "host", "venue_owner", "admin"];
@@ -85,6 +87,8 @@ function UserModerationRow({ profile }: { profile: PlayerProfile }) {
     initial,
   );
   const [roleState, roleAction, rolePending] = useActionState(setUserRoleAction, initial);
+  useActionToast(suspendState);
+  useActionToast(roleState);
 
   return (
     <div className="card-t flex flex-wrap items-center gap-3 p-3.5">
@@ -114,18 +118,13 @@ function UserModerationRow({ profile }: { profile: PlayerProfile }) {
 
       <form action={roleAction} className="flex items-center gap-1.5">
         <input type="hidden" name="userId" value={profile.id} />
-        <select
+        <Select
           name="role"
           defaultValue={profile.role}
           disabled={rolePending}
-          className="rounded-lg border border-glass-border bg-glass px-2.5 py-2 text-[12.5px] outline-none transition focus:border-green/50"
-        >
-          {ROLES.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
+          options={ROLES.map((r) => ({ value: r, label: r }))}
+          className="w-44"
+        />
         <button type="submit" disabled={rolePending} className="btn-t btn-ghost-t !px-3 !py-2 !text-[12px]">
           Save
         </button>
@@ -142,10 +141,6 @@ function UserModerationRow({ profile }: { profile: PlayerProfile }) {
           {suspendPending ? "Working…" : profile.suspended ? "Unsuspend" : "Suspend"}
         </button>
       </form>
-
-      {(suspendState.error || roleState.error) && (
-        <p className="w-full text-[12px] text-orange">{suspendState.error || roleState.error}</p>
-      )}
     </div>
   );
 }

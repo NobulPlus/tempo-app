@@ -12,9 +12,9 @@ import { PinIcon, StarIcon } from "@/components/icons";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Find a pitch in Lagos",
+  title: "Find a sports space in Lagos",
   description:
-    "Every verified football pitch on Tempo — Lekki, Ikoyi, Victoria Island, Surulere, Ikeja GRA and Yaba. Real prices, real venues.",
+    "Find verified pitches, courts, fields and sports spaces across Lagos. Real prices, exact locations, real venues.",
 };
 
 export default async function PitchesPage({
@@ -36,6 +36,8 @@ export default async function PitchesPage({
     sort: (one("sort") as "near" | "cheap" | "rated") ?? (origin ? "near" : "rated"),
     origin,
   });
+  const featuredPitch = pitches[0];
+  const featuredPhoto = featuredPitch?.photos?.[0] ?? featuredPitch?.venue.photos[0];
 
   return (
     <div className="py-12">
@@ -73,9 +75,9 @@ export default async function PitchesPage({
                 className="card-t card-t-hover relative mt-8 overflow-hidden lg:grid lg:grid-cols-[1.3fr_1fr]"
               >
                 <div className="relative h-[220px] overflow-hidden bg-bg-elevated lg:h-full">
-                  {pitches[0].venue.photos[0] && (
+                  {featuredPhoto && (
                     <Image
-                      src={pitches[0].venue.photos[0]}
+                      src={featuredPhoto}
                       alt=""
                       fill
                       unoptimized
@@ -99,6 +101,9 @@ export default async function PitchesPage({
                   <h3 className="mt-1.5 font-display text-[26px] font-extrabold">
                     {pitches[0].venue.name}
                   </h3>
+                  <div className="mt-1 text-[14px] font-semibold text-ink-soft">
+                    {pitches[0].name}
+                  </div>
                   {pitches[0].rating !== null && (
                     <div className="mt-2 flex items-center gap-1.5 text-[14px]">
                       <StarIcon size={15} className="text-gold" />
@@ -115,7 +120,7 @@ export default async function PitchesPage({
                       </div>
                     </div>
                     <Link href={`/pitches/${pitches[0].slug}`} className="btn-t btn-green-t">
-                      View pitch
+                      View space
                     </Link>
                   </div>
                 </div>

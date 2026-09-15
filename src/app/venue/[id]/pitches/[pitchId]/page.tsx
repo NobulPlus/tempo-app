@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, isVenueOwner } from "@/lib/session";
 import { getPitchById, getSlotsForPitch } from "@/lib/data/repo";
 import { GenerateSlotsForm } from "@/components/venue/generate-slots-form";
 import { SlotList } from "@/components/venue/slot-list";
@@ -21,6 +21,7 @@ export default async function ManageAvailabilityPage({
   const { id, pitchId } = await params;
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=/venue/${id}/pitches/${pitchId}`);
+  if (!isVenueOwner(user)) redirect("/venue");
 
   const pitch = await getPitchById(pitchId);
   if (!pitch || pitch.venueId !== id) notFound();
@@ -30,7 +31,7 @@ export default async function ManageAvailabilityPage({
 
   return (
     <div className="py-12">
-      <div className="container-t max-w-4xl">
+      <div className="container-workspace-t">
         <nav className="mb-6 flex flex-wrap items-center gap-2 text-[13.5px] text-ink-muted">
           <Link href="/venue" className="transition hover:text-green">
             Venue dashboard
@@ -50,7 +51,7 @@ export default async function ManageAvailabilityPage({
         </p>
 
         <div className="mt-6">
-          <GenerateSlotsForm pitchId={pitchId} />
+          <GenerateSlotsForm pitchId={pitchId} basePriceKobo={pitch.pricePerHourKobo} />
         </div>
 
         <div className="mt-8">

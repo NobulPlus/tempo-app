@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, isVenueOwner } from "@/lib/session";
 import { getVenueById, getBookingsForVenue } from "@/lib/data/repo";
+import { markBookingAttendanceFormAction } from "@/app/actions";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
-import { ClockIcon, PinIcon } from "@/components/icons";
+import { CheckIcon, ClockIcon, PinIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export default async function VenueBookingsPage({
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=/venue/${id}/bookings`);
+  if (!isVenueOwner(user)) redirect("/venue");
 
   const venue = await getVenueById(id);
   if (!venue) notFound();
@@ -37,7 +39,7 @@ export default async function VenueBookingsPage({
 
   return (
     <div className="py-12">
-      <div className="container-t max-w-4xl">
+      <div className="container-workspace-t">
         <nav className="mb-6 flex items-center gap-2 text-[13.5px] text-ink-muted">
           <Link href="/venue" className="transition hover:text-green">
             Venue dashboard
@@ -86,9 +88,44 @@ export default async function VenueBookingsPage({
                     {formatRelativeDay(b.slot.startsAt)} · {formatTime(b.slot.startsAt)}
                   </span>
                   <span>{b.reference}</span>
+                  <span className="capitalize">{(b.attendanceStatus ?? "booked").replaceAll("_", " ")}</span>
                 </div>
               </div>
-              <div className="shrink-0 text-[15px] font-bold">{formatNaira(b.totalKobo)}</div>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <div className="text-[15px] font-bold">{formatNaira(b.totalKobo)}</div>
+                {b.status === "confirmed" && (
+                  <form action={markBookingAttendanceFormAction} className="flex flex-wrap justify-end gap-1.5">
+                    <input type="hidden" name="bookingId" value={b.id} />
+                    <input type="hidden" name="reference" value={b.reference} />
+                    <button
+                      type="submit"
+                      name="event"
+                      value="checked_in"
+                      className="btn-t btn-ghost-t !px-3 !py-1.5 !text-[12px]"
+                    >
+                      <CheckIcon size={13} />
+                      In
+                    </button>
+                    <button
+                      type="submit"
+                      name="event"
+                      value="late"
+                      className="btn-t btn-ghost-t !px-3 !py-1.5 !text-[12px]"
+                    >
+                      <ClockIcon size={13} />
+                      Late
+                    </button>
+                    <button
+                      type="submit"
+                      name="event"
+                      value="no_show"
+                      className="btn-t btn-ghost-t !px-3 !py-1.5 !text-[12px]"
+                    >
+                      No-show
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
           ))}
           {sorted.length === 0 && (

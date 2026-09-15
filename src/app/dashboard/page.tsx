@@ -2,7 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { getGamesForUser, getBookingsForUser, getWalletBalance, getIdentityVerification } from "@/lib/data/repo";
+import {
+  getGamesForUser,
+  getBookingsForUser,
+  getWalletBalance,
+  getIdentityVerification,
+  getVenueOwnerApplication,
+} from "@/lib/data/repo";
 import { getMatchState } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { Countdown, FillBar, HeatPill } from "@/components/match/match-day";
@@ -17,6 +23,7 @@ import {
   StarIcon,
   WalletIcon,
   ShieldIcon,
+  BuildingIcon,
 } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -30,14 +37,15 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/dashboard");
 
-  const [games, bookings, walletBalanceKobo, identityVerification] = await Promise.all([
+  const [games, bookings, walletBalanceKobo, identityVerification, venueOwnerApplication] = await Promise.all([
     getGamesForUser(user.id),
     getBookingsForUser(user.id),
     getWalletBalance(user.id),
     getIdentityVerification(user.id),
+    getVenueOwnerApplication(user.id),
   ]);
 
-  const now = Date.now();
+  const now = new Date().getTime();
   const upcoming = games.filter((g) => new Date(g.endsAt).getTime() > now);
   const hosting = upcoming.filter((g) => g.hostId === user.id);
   const playing = upcoming.filter((g) => g.hostId !== user.id);
@@ -64,6 +72,11 @@ export default async function DashboardPage() {
           <Link href={`/players/${user.handle}`} className="btn-t btn-ghost-t !py-3 !text-[14px]">
             My player card
           </Link>
+          {hosting.length > 0 && (
+            <Link href="/host/manage" className="btn-t btn-green-t !py-3 !text-[14px]">
+              Host dashboard
+            </Link>
+          )}
         </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -241,6 +254,40 @@ export default async function DashboardPage() {
                 </p>
                 <Link href="/verify-identity" className="btn-t btn-green-t mt-4 !py-2.5 !text-[13.5px]">
                   Verify identity
+                </Link>
+              </>
+            )}
+          </div>
+
+          <div className="card-t p-6">
+            <div className="flex items-center gap-2 text-[12px] text-ink-muted">
+              <BuildingIcon size={14} /> Venue owner
+            </div>
+            {user.role === "venue_owner" ? (
+              <>
+                <div className="mt-1.5 text-[18px] font-bold text-green">Access active</div>
+                <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
+                  You can manage venues, spaces, availability and bookings.
+                </p>
+                <Link href="/venue" className="btn-t btn-green-t mt-4 !py-2.5 !text-[13.5px]">
+                  Open venue dashboard
+                </Link>
+              </>
+            ) : venueOwnerApplication?.status === "pending" ? (
+              <>
+                <div className="mt-1.5 text-[18px] font-bold text-gold">Application pending</div>
+                <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
+                  Tempo is reviewing your venue owner access request.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="mt-1.5 text-[18px] font-bold">No venue access</div>
+                <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
+                  Operate a Lagos sports venue? Apply to list and manage it on Tempo.
+                </p>
+                <Link href="/partner" className="btn-t btn-ghost-t mt-4 !py-2.5 !text-[13.5px]">
+                  Apply as venue owner
                 </Link>
               </>
             )}

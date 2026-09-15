@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, isVenueOwner } from "@/lib/session";
 import { getVenueById, getPitchesForVenue } from "@/lib/data/repo";
 import { VenueDetailsForm } from "@/components/venue/venue-details-form";
 import { AddPitchForm } from "@/components/venue/add-pitch-form";
 import { PitchManageCard } from "@/components/venue/pitch-manage-card";
 import { ShieldIcon } from "@/components/icons";
+import { ACTIVITY_OPTIONS, venueOptionLabel } from "@/lib/venue-options";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function ManageVenuePage({
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=/venue/${id}`);
+  if (!isVenueOwner(user)) redirect("/venue");
 
   const venue = await getVenueById(id);
   if (!venue) notFound();
@@ -32,7 +34,7 @@ export default async function ManageVenuePage({
 
   return (
     <div className="py-12">
-      <div className="container-t max-w-4xl">
+      <div className="container-workspace-t">
         <nav className="mb-6 flex items-center gap-2 text-[13.5px] text-ink-muted">
           <Link href="/venue" className="transition hover:text-green">
             Venue dashboard
@@ -53,6 +55,9 @@ export default async function ManageVenuePage({
               Awaiting verification
             </span>
           )}
+          <span className="chip-t">
+            {venueOptionLabel(ACTIVITY_OPTIONS, venue.activityType ?? "football")}
+          </span>
         </div>
         {!venue.verified && (
           <p className="mt-2 max-w-xl text-[13.5px] leading-relaxed text-ink-soft">

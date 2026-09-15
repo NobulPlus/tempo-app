@@ -35,6 +35,7 @@ export function SignupOtpForm({ email, next }: { email: string; next: string }) 
             placeholder=" "
             defaultValue={email}
             className="cursor-not-allowed opacity-70"
+            suppressHydrationWarning
           />
           <span className="field-icon">
             <MailIcon size={19} />
@@ -78,7 +79,7 @@ export function SignupOtpForm({ email, next }: { email: string; next: string }) 
       </form>
 
       <form action={resendAction} className="rounded-xl border border-glass-border bg-glass p-4">
-        <input type="hidden" name="email" value={email} />
+        <input type="hidden" name="email" value={email} suppressHydrationWarning />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[13.5px] text-ink-soft">No code yet?</p>
           <button type="submit" disabled={resending || !email} className="btn-t btn-ghost-t !px-4 !py-2.5 !text-[13px]">

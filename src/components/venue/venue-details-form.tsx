@@ -4,8 +4,18 @@ import { useActionState } from "react";
 import { updateVenueAction, type ActionState } from "@/app/actions";
 import type { Venue } from "@/lib/types";
 import { useActionToast } from "@/components/toast/use-action-toast";
+import { Field, TextAreaField } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
+import { LagosAreaField } from "@/components/venue/lagos-area-field";
+import { VenueAddressLocationField } from "@/components/venue/venue-address-location-field";
+import { VenueActivityFields, VenueAmenityFields } from "@/components/venue/venue-feature-fields";
+import { VenuePhotoField } from "@/components/venue/venue-photo-field";
 
 const initial: ActionState = {};
+const SIDE_OPTIONS = [
+  { value: "island", label: "Island" },
+  { value: "mainland", label: "Mainland" },
+];
 
 export function VenueDetailsForm({ venue }: { venue: Venue }) {
   const [state, formAction, pending] = useActionState(updateVenueAction, initial);
@@ -17,81 +27,48 @@ export function VenueDetailsForm({ venue }: { venue: Venue }) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Venue name" name="name" defaultValue={venue.name} />
-        <Field label="Area" name="area" defaultValue={venue.area} />
+        <LagosAreaField defaultValue={venue.area} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="side" className="mb-1.5 block text-[13px] font-semibold text-ink-soft">
-            Lagos side
-          </label>
-          <select
-            id="side"
-            name="side"
-            defaultValue={venue.side}
-            className="w-full rounded-xl border border-white/12 bg-white/4 px-4 py-3.5 text-[15px] outline-none transition focus:border-green/50"
-          >
-            <option value="island">Island</option>
-            <option value="mainland">Mainland</option>
-          </select>
-        </div>
+        <Select label="Lagos side" name="side" defaultValue={venue.side} options={SIDE_OPTIONS} />
         <Field label="Contact phone" name="phone" defaultValue={venue.phone ?? ""} />
       </div>
 
-      <Field label="Street address" name="address" defaultValue={venue.address} />
+      <VenueActivityFields primary={venue.activityType} supported={venue.supportedActivities} />
+      <VenueAmenityFields selected={venue.amenities} />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Latitude" name="lat" type="number" step="any" defaultValue={String(venue.lat)} />
-        <Field label="Longitude" name="lng" type="number" step="any" defaultValue={String(venue.lng)} />
-      </div>
+      <VenuePhotoField label="Add venue photos" hint="New photos are added before older ones, up to 8 total." multiple />
 
-      <div>
-        <label htmlFor="description" className="mb-1.5 block text-[13px] font-semibold text-ink-soft">
-          Description
-        </label>
-        <textarea
-          id="description"
-          name="description"
-          rows={3}
-          maxLength={600}
-          defaultValue={venue.description}
-          className="w-full rounded-xl border border-white/12 bg-white/4 px-4 py-3.5 text-[15px] outline-none transition focus:border-green/50"
-        />
-      </div>
+      <VenueAddressLocationField defaultAddress={venue.address} defaultLat={venue.lat} defaultLng={venue.lng} />
+
+      <TextAreaField
+        label="Description"
+        id="description"
+        name="description"
+        rows={3}
+        maxLength={600}
+        defaultValue={venue.description}
+      />
+
+      {venue.photos.length > 0 && (
+        <div>
+          <div className="mb-2 text-[13px] font-semibold text-ink-soft">Current photos</div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {venue.photos.slice(0, 6).map((photo) => (
+              <div
+                key={photo}
+                className="aspect-[4/3] rounded-xl border border-glass-border bg-cover bg-center"
+                style={{ backgroundImage: `url(${photo})` }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <button type="submit" disabled={pending} className="btn-t btn-green-t">
         {pending ? "Saving…" : "Save venue details"}
       </button>
     </form>
-  );
-}
-
-function Field({
-  label,
-  name,
-  defaultValue,
-  type = "text",
-  step,
-}: {
-  label: string;
-  name: string;
-  defaultValue: string;
-  type?: string;
-  step?: string;
-}) {
-  return (
-    <div>
-      <label htmlFor={name} className="mb-1.5 block text-[13px] font-semibold text-ink-soft">
-        {label}
-      </label>
-      <input
-        id={name}
-        name={name}
-        type={type}
-        step={step}
-        defaultValue={defaultValue}
-        className="w-full rounded-xl border border-white/12 bg-white/4 px-4 py-3.5 text-[15px] outline-none transition focus:border-green/50"
-      />
-    </div>
   );
 }

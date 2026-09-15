@@ -5,6 +5,7 @@ import { getBookingByReference } from "@/lib/data/repo";
 import { formatNaira, formatRelativeDay, formatTime, formatDayShort } from "@/lib/format";
 import { estimateTravelMinutes, leaveByTime } from "@/lib/match";
 import { Countdown } from "@/components/match/match-day";
+import { CheckInQr } from "@/components/match/check-in-qr";
 import { CancelBookingButton } from "@/components/booking/cancel-booking-button";
 import {
   CheckIcon,
@@ -34,7 +35,6 @@ export default async function BookingPage({
   const { slot } = booking;
   const { pitch } = slot;
   const kickoff = new Date(slot.startsAt);
-  const now = Date.now();
 
   const travel = estimateTravelMinutes(
     pitch.venue.side === "island" ? 8 : 11,
@@ -65,6 +65,11 @@ export default async function BookingPage({
             Reference <b className="font-mono text-ink">{booking.reference}</b> — show
             this at the gate.
           </p>
+          {booking.checkInCode && (
+            <div className="relative mx-auto mt-4 max-w-xs">
+              <CheckInQr code={booking.checkInCode} label="Booking check-in pass" />
+            </div>
+          )}
 
           <div className="relative mt-7 rounded-2xl border border-green/25 bg-green/8 p-5 text-left">
             <div className="text-[19px] font-bold">{pitch.venue.name}</div>
@@ -145,7 +150,7 @@ export default async function BookingPage({
             <CancelBookingButton
               bookingId={booking.id}
               status={booking.status}
-              eligibleForCredit={kickoff.getTime() - now >= 6 * 60 * 60 * 1000}
+              creditCutoffISO={new Date(kickoff.getTime() - 6 * 60 * 60 * 1000).toISOString()}
             />
           )}
         </div>

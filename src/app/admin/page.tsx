@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { listGames, listProfiles, listVenues, listWaitlist, getFinanceSummary } from "@/lib/data/repo";
+import {
+  listGames,
+  listProfiles,
+  listVenues,
+  listVenueOwnerApplicationsAdmin,
+  listWaitlist,
+  getFinanceSummary,
+} from "@/lib/data/repo";
 import { getMatchState } from "@/lib/match";
 import { formatRelativeDay, formatTime, formatNaira } from "@/lib/format";
 import {
@@ -14,9 +21,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 export default async function AdminOverviewPage() {
-  const [venues, profiles, leads, games, finance] = await Promise.all([
+  const [venues, profiles, applications, leads, games, finance] = await Promise.all([
     listVenues(),
     listProfiles(),
+    listVenueOwnerApplicationsAdmin(),
     listWaitlist(),
     listGames(),
     getFinanceSummary(),
@@ -26,6 +34,7 @@ export default async function AdminOverviewPage() {
   const suspended = profiles.filter((p) => p.suspended);
   const hosts = profiles.filter((p) => p.role === "host");
   const venueOwners = profiles.filter((p) => p.role === "venue_owner");
+  const pendingApplications = applications.filter((a) => a.status === "pending");
   const partnerLeads = leads.filter((l) => l.role === "venue_owner");
   const playerLeads = leads.filter((l) => l.role !== "venue_owner");
   const urgentGames = games
@@ -79,7 +88,7 @@ export default async function AdminOverviewPage() {
           value={unverified.length}
           tone={unverified.length ? "text-gold" : "text-green"}
         />
-        <Metric label="Open leads" value={leads.length} sub={`${partnerLeads.length} partner`} />
+        <Metric label="Partner apps" value={pendingApplications.length} sub={`${partnerLeads.length} anonymous lead`} />
         <Metric label="Active hosts" value={hosts.length} sub={`${venueOwners.length} venue owner`} />
         <Metric
           label="Moderation flags"
@@ -227,8 +236,8 @@ export default async function AdminOverviewPage() {
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <Action
           href="/admin/leads"
-          title="Follow up partner leads"
-          meta={`${partnerLeads.length} venue-owner leads`}
+          title="Review partner applications"
+          meta={`${pendingApplications.length} pending application`}
         />
         <Action
           href="/admin/leads"

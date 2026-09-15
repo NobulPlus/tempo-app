@@ -14,6 +14,7 @@ import {
   LogOutIcon,
   ShieldIcon,
   WalletIcon,
+  BuildingIcon,
 } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
@@ -38,10 +39,6 @@ export function Nav({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -112,6 +109,16 @@ export function Nav({
                 <span className="hidden sm:block">
                   <NotificationBell isDemo={isDemo} />
                 </span>
+                {user.role === "venue_owner" && (
+                  <Link
+                    href="/venue"
+                    className="grid h-9 w-9 place-items-center rounded-full text-ink-soft transition hover:bg-glass hover:text-ink"
+                    aria-label="Venue dashboard"
+                    title="Venue dashboard"
+                  >
+                    <BuildingIcon size={17} />
+                  </Link>
+                )}
                 {user.role === "admin" && (
                   <Link
                     href="/admin"
@@ -173,6 +180,7 @@ export function Nav({
                   <li key={href}>
                     <Link
                       href={href}
+                      onClick={() => setOpen(false)}
                       className={`flex items-center gap-3 rounded-xl px-4 py-3.5 text-[15px] transition ${
                         isActive(href)
                           ? "bg-green/14 font-semibold text-green"
@@ -187,19 +195,42 @@ export function Nav({
               )}
             </ul>
             {user && (
-              <Link
-                href="/wallet"
-                className="mt-1 flex items-center justify-between rounded-xl bg-green/8 px-4 py-3.5 text-[15px] font-semibold text-ink"
-              >
-                <span className="flex items-center gap-2">
-                  <WalletIcon size={18} className="text-green" />
-                  Wallet
-                </span>
-                <span className="text-green">{formatNaira(walletBalanceKobo, { compact: true })}</span>
-              </Link>
+              <div className="mt-1 grid gap-1">
+                <Link
+                  href="/wallet"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center justify-between rounded-xl bg-green/8 px-4 py-3.5 text-[15px] font-semibold text-ink"
+                >
+                  <span className="flex items-center gap-2">
+                    <WalletIcon size={18} className="text-green" />
+                    Wallet
+                  </span>
+                  <span className="text-green">{formatNaira(walletBalanceKobo, { compact: true })}</span>
+                </Link>
+                {user.role === "venue_owner" && (
+                  <Link
+                    href="/venue"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 rounded-xl px-4 py-3.5 text-[15px] text-ink-soft transition hover:bg-glass"
+                  >
+                    <BuildingIcon size={19} />
+                    Venue dashboard
+                  </Link>
+                )}
+                {user.role === "admin" && (
+                  <Link
+                    href="/admin"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 rounded-xl px-4 py-3.5 text-[15px] text-ink-soft transition hover:bg-glass"
+                  >
+                    <ShieldIcon size={19} />
+                    Admin
+                  </Link>
+                )}
+              </div>
             )}
             <div className="mt-3 grid gap-2">
-              <Link href="/host" className="btn-t btn-ghost-t w-full !py-3.5 !text-sm">
+              <Link href="/host" onClick={() => setOpen(false)} className="btn-t btn-ghost-t w-full !py-3.5 !text-sm">
                 Host a game
               </Link>
               {user ? (
@@ -210,7 +241,7 @@ export function Nav({
                   </button>
                 </form>
               ) : (
-                <Link href="/signup" className="btn-t btn-green-t w-full !py-3.5 !text-sm">
+                <Link href="/signup" onClick={() => setOpen(false)} className="btn-t btn-green-t w-full !py-3.5 !text-sm">
                   Create account
                 </Link>
               )}

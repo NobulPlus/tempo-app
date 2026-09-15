@@ -20,6 +20,7 @@ import type {
   VenueVerificationEvent,
   IdentityVerification,
   KycStatus,
+  VenueOwnerApplication,
 } from "@/lib/types";
 
 /** The shape a `profiles` row has right after `camelize` — flat trait_*
@@ -185,10 +186,18 @@ export async function getPitchesForVenue(venueId: string): Promise<Pitch[]> {
 
 export interface CreatePitchInput {
   name: string;
+  resourceType?: string;
+  activityType?: string;
+  supportedActivities?: string[];
   size: PitchSize;
   surface: PitchSurface;
   floodlights: boolean;
   covered: boolean;
+  photos?: string[];
+  amenities?: string[];
+  capacity?: number | null;
+  recommendedPlayers?: number | null;
+  description?: string;
   pricePerHourKobo: number;
   peakMultiplier: number;
 }
@@ -205,10 +214,18 @@ export async function createPitch(
       venueId,
       slug,
       name: input.name,
+      resourceType: input.resourceType ?? "pitch",
+      activityType: input.activityType ?? "football",
+      supportedActivities: input.supportedActivities ?? [input.activityType ?? "football"],
       size: input.size,
       surface: input.surface,
       floodlights: input.floodlights,
       covered: input.covered,
+      photos: input.photos ?? [],
+      amenities: input.amenities ?? [],
+      capacity: input.capacity ?? null,
+      recommendedPlayers: input.recommendedPlayers ?? null,
+      description: input.description ?? "",
       pricePerHourKobo: input.pricePerHourKobo,
       peakMultiplier: input.peakMultiplier,
       rating: 0,
@@ -226,10 +243,18 @@ export async function createPitch(
       venue_id: venueId,
       slug,
       name: input.name,
+      resource_type: input.resourceType ?? "pitch",
+      activity_type: input.activityType ?? "football",
+      supported_activities: input.supportedActivities ?? [input.activityType ?? "football"],
       size: input.size,
       surface: input.surface,
       floodlights: input.floodlights,
       covered: input.covered,
+      photos: input.photos ?? [],
+      amenities: input.amenities ?? [],
+      capacity: input.capacity ?? null,
+      recommended_players: input.recommendedPlayers ?? null,
+      description: input.description ?? "",
       price_per_hour_kobo: input.pricePerHourKobo,
       peak_multiplier: input.peakMultiplier,
     })
@@ -242,10 +267,20 @@ export async function createPitch(
 
 export interface UpdatePitchInput {
   name?: string;
+  resourceType?: string;
+  activityType?: string;
+  supportedActivities?: string[];
+  size?: PitchSize;
+  surface?: PitchSurface;
   pricePerHourKobo?: number;
   peakMultiplier?: number;
   floodlights?: boolean;
   covered?: boolean;
+  photos?: string[];
+  amenities?: string[];
+  capacity?: number | null;
+  recommendedPlayers?: number | null;
+  description?: string;
   active?: boolean;
 }
 
@@ -263,10 +298,20 @@ export async function updatePitch(
   const sb = await createClient();
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) patch.name = input.name;
+  if (input.resourceType !== undefined) patch.resource_type = input.resourceType;
+  if (input.activityType !== undefined) patch.activity_type = input.activityType;
+  if (input.supportedActivities !== undefined) patch.supported_activities = input.supportedActivities;
+  if (input.size !== undefined) patch.size = input.size;
+  if (input.surface !== undefined) patch.surface = input.surface;
   if (input.pricePerHourKobo !== undefined) patch.price_per_hour_kobo = input.pricePerHourKobo;
   if (input.peakMultiplier !== undefined) patch.peak_multiplier = input.peakMultiplier;
   if (input.floodlights !== undefined) patch.floodlights = input.floodlights;
   if (input.covered !== undefined) patch.covered = input.covered;
+  if (input.photos !== undefined) patch.photos = input.photos;
+  if (input.amenities !== undefined) patch.amenities = input.amenities;
+  if (input.capacity !== undefined) patch.capacity = input.capacity;
+  if (input.recommendedPlayers !== undefined) patch.recommended_players = input.recommendedPlayers;
+  if (input.description !== undefined) patch.description = input.description;
   if (input.active !== undefined) patch.active = input.active;
 
   const { error } = await sb.from("pitches").update(patch).eq("id", pitchId);
@@ -298,11 +343,28 @@ export async function getSlotsForPitch(pitchId: string, days = 7): Promise<Slot[
 }
 
 export interface GenerateSlotsRules {
-  openHour: number;
-  closeHour: number;
   daysAhead: number;
-  peakStartHour: number;
-  peakEndHour: number;
+  slotDurationMinutes?: number;
+  bufferMinutes?: number;
+  rules?: WeeklySlotRule[];
+  /** Legacy single-rule fields kept for older callers and demo scripts. */
+  openHour?: number;
+  closeHour?: number;
+  peakStartHour?: number;
+  peakEndHour?: number;
+  daysOfWeek?: number[];
+  weekendMultiplier?: number;
+}
+
+export interface WeeklySlotRule {
+  name?: string;
+  daysOfWeek: number[];
+  openMinutes: number;
+  closeMinutes: number;
+  basePriceKobo: number;
+  peakStartMinutes?: number | null;
+  peakEndMinutes?: number | null;
+  peakPriceKobo?: number | null;
 }
 
 /**
@@ -320,35 +382,84 @@ export async function generateSlots(
   basePriceKobo: number,
   peakMultiplier: number,
   rules: GenerateSlotsRules,
-): Promise<{ ok: boolean; created: number; error?: string }> {
-  const { openHour, closeHour, daysAhead, peakStartHour, peakEndHour } = rules;
+): Promise<{ ok: boolean; created: number; skipped: number; candidates: number; error?: string }> {
+  const {
+    daysAhead,
+    slotDurationMinutes = 60,
+    bufferMinutes = 0,
+  } = rules;
+
+  const weeklyRules = rules.rules?.length
+    ? rules.rules
+    : [
+        {
+          daysOfWeek: rules.daysOfWeek ?? [0, 1, 2, 3, 4, 5, 6],
+          openMinutes: (rules.openHour ?? 6) * 60,
+          closeMinutes: (rules.closeHour ?? 21) * 60,
+          basePriceKobo,
+          peakStartMinutes: (rules.peakStartHour ?? 17) * 60,
+          peakEndMinutes: (rules.peakEndHour ?? 20) * 60,
+          peakPriceKobo: Math.round(basePriceKobo * peakMultiplier),
+        },
+      ];
+
   const now = new Date();
   const candidates: { startsAt: Date; endsAt: Date; priceKobo: number }[] = [];
+  const intervalMinutes = slotDurationMinutes + bufferMinutes;
 
   for (let d = 0; d < daysAhead; d++) {
-    for (let h = openHour; h <= closeHour; h++) {
-      const start = new Date(now);
-      start.setDate(start.getDate() + d);
-      start.setHours(h, 0, 0, 0);
-      if (start <= now) continue;
+    const day = lagosCalendarDay(now, d);
+    for (const rule of weeklyRules) {
+      if (!rule.daysOfWeek.includes(day.dayOfWeek)) continue;
 
-      const end = new Date(start.getTime() + 3_600_000);
-      const dow = start.getDay();
-      const peak = dow >= 1 && dow <= 5 && h >= peakStartHour && h <= peakEndHour;
-      const priceKobo = Math.round(basePriceKobo * (peak ? peakMultiplier : 1));
-      candidates.push({ startsAt: start, endsAt: end, priceKobo });
+      for (
+        let minute = rule.openMinutes;
+        minute + slotDurationMinutes <= rule.closeMinutes;
+        minute += intervalMinutes
+      ) {
+        const start = dateFromLagos(day.year, day.month, day.day, minute);
+        if (start <= now) continue;
+
+        const end = new Date(start.getTime() + slotDurationMinutes * 60_000);
+        const peak =
+          rule.peakPriceKobo !== null &&
+          rule.peakPriceKobo !== undefined &&
+          rule.peakStartMinutes !== null &&
+          rule.peakStartMinutes !== undefined &&
+          rule.peakEndMinutes !== null &&
+          rule.peakEndMinutes !== undefined &&
+          minute >= rule.peakStartMinutes &&
+          minute < rule.peakEndMinutes;
+        const priceKobo = peak && rule.peakPriceKobo ? rule.peakPriceKobo : rule.basePriceKobo;
+        candidates.push({ startsAt: start, endsAt: end, priceKobo });
+      }
     }
   }
-  if (candidates.length === 0) return { ok: true, created: 0 };
+  if (candidates.length === 0) return { ok: true, created: 0, skipped: 0, candidates: 0 };
 
   const existing = await getSlotsForPitch(pitchId, daysAhead + 1);
-  const existingStarts = new Set(existing.map((s) => s.startsAt));
-  const rows = candidates.filter((c) => !existingStarts.has(c.startsAt.toISOString()));
-  if (rows.length === 0) return { ok: true, created: 0 };
+  const accepted: typeof candidates = [];
+  for (const candidate of candidates.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())) {
+    const start = candidate.startsAt.getTime() - bufferMinutes * 60_000;
+    const end = candidate.endsAt.getTime() + bufferMinutes * 60_000;
+    const conflictsExisting = existing.some((slot) => {
+      const slotStart = new Date(slot.startsAt).getTime() - bufferMinutes * 60_000;
+      const slotEnd = new Date(slot.endsAt).getTime() + bufferMinutes * 60_000;
+      return start < slotEnd && end > slotStart;
+    });
+    const conflictsAccepted = accepted.some((slot) => {
+      const slotStart = slot.startsAt.getTime() - bufferMinutes * 60_000;
+      const slotEnd = slot.endsAt.getTime() + bufferMinutes * 60_000;
+      return start < slotEnd && end > slotStart;
+    });
+    if (!conflictsExisting && !conflictsAccepted) accepted.push(candidate);
+  }
+  const skipped = candidates.length - accepted.length;
+  if (accepted.length === 0) return { ok: true, created: 0, skipped, candidates: candidates.length };
 
   if (demoMode()) {
     const s = store();
-    for (const row of rows) {
+    for (const row of accepted) {
       s.slots.push({
         id: `sl-${pitchId}-${row.startsAt.getTime()}`,
         pitchId,
@@ -358,20 +469,39 @@ export async function generateSlots(
         status: "open",
       });
     }
-    return { ok: true, created: rows.length };
+    return { ok: true, created: accepted.length, skipped, candidates: candidates.length };
   }
 
   const sb = await createClient();
   const { error } = await sb.from("slots").insert(
-    rows.map((row) => ({
+    accepted.map((row) => ({
       pitch_id: pitchId,
       during: `[${row.startsAt.toISOString()},${row.endsAt.toISOString()})`,
       price_kobo: row.priceKobo,
       status: "open",
     })),
   );
-  if (error) return { ok: false, created: 0, error: error.message };
-  return { ok: true, created: rows.length };
+  if (error) return { ok: false, created: 0, skipped, candidates: candidates.length, error: error.message };
+  return { ok: true, created: accepted.length, skipped, candidates: candidates.length };
+}
+
+function lagosCalendarDay(base: Date, addDays: number): {
+  year: number;
+  month: number;
+  day: number;
+  dayOfWeek: number;
+} {
+  const lagosTime = new Date(base.getTime() + 60 * 60_000 + addDays * 86_400_000);
+  return {
+    year: lagosTime.getUTCFullYear(),
+    month: lagosTime.getUTCMonth(),
+    day: lagosTime.getUTCDate(),
+    dayOfWeek: lagosTime.getUTCDay(),
+  };
+}
+
+function dateFromLagos(year: number, month: number, day: number, minutes: number): Date {
+  return new Date(Date.UTC(year, month, day, Math.floor(minutes / 60) - 1, minutes % 60, 0, 0));
 }
 
 /** The "block this hour for maintenance" primitive. */
@@ -552,6 +682,22 @@ export async function getGameById(id: string): Promise<GameFull | null> {
   return g ? hydrateGame(g) : null;
 }
 
+export async function getGameCheckInCode(gameId: string, userId: string): Promise<string | null> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb
+      .from("game_participant_check_in_codes")
+      .select("code")
+      .eq("game_id", gameId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    return (data?.code as string | undefined) ?? null;
+  }
+
+  const participant = store().participants.find((p) => p.gameId === gameId && p.userId === userId);
+  return participant?.checkInCode ?? null;
+}
+
 /* --------------------------------------------------------------- mutations */
 
 export type JoinResult =
@@ -571,6 +717,10 @@ function computePaymentDeadline(kickoffISO: string): string {
   const cap = new Date(new Date(kickoffISO).getTime() - 2 * 60 * 60 * 1000);
   const window = new Date(Date.now() + 48 * 60 * 60 * 1000);
   return (window < cap ? window : cap).toISOString();
+}
+
+function demoCheckInCode(prefix: "BKG" | "GME" | "TRF"): string {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
 }
 
 function demoChargeForJoin(
@@ -713,6 +863,7 @@ export async function joinGame(gameId: string, userId: string): Promise<JoinResu
     existing.joinedAt = new Date().toISOString();
     existing.paidKobo = paidKobo;
     existing.paymentDeadline = paymentDeadline;
+    existing.checkInCode = demoCheckInCode("GME");
   } else {
     s.participants.push({
       id: `gp-${gameId}-${userId}-${Date.now()}`,
@@ -722,6 +873,7 @@ export async function joinGame(gameId: string, userId: string): Promise<JoinResu
       paidKobo,
       paymentDeadline,
       status,
+      checkInCode: demoCheckInCode("GME"),
     });
   }
 
@@ -1006,6 +1158,135 @@ export async function settleGameHostReimbursement(
   return { ok: true, reimbursedKobo: due };
 }
 
+export type AttendanceEvent = "checked_in" | "late" | "no_show" | "flagged";
+
+export async function markGameAttendance(
+  participantId: string,
+  actorId: string,
+  event: AttendanceEvent,
+  minutesLate: number | null = null,
+  note = "",
+  checkInCode = "",
+): Promise<{ ok: true; participant: GameParticipant } | { ok: false; error: string }> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("mark_game_attendance", {
+      p_participant_id: participantId,
+      p_event: event,
+      p_minutes_late: minutesLate,
+      p_note: note || null,
+      p_check_in_code: checkInCode || null,
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, participant: camelize<GameParticipant>(data) };
+  }
+
+  const s = store();
+  const p = s.participants.find((x) => x.id === participantId);
+  if (!p) return { ok: false, error: "Participant not found." };
+  const game = s.games.find((g) => g.id === p.gameId);
+  if (!game) return { ok: false, error: "Game not found." };
+  const pitch = s.pitches.find((x) => x.id === game.pitchId);
+  const venue = pitch ? s.venues.find((x) => x.id === pitch.venueId) : null;
+  if (game.hostId !== actorId && venue?.ownerId !== actorId && !s.profiles.find((x) => x.id === actorId && x.role === "admin")) {
+    return { ok: false, error: "Not authorized." };
+  }
+  if (checkInCode && p.checkInCode && checkInCode.toUpperCase() !== p.checkInCode.toUpperCase()) {
+    return { ok: false, error: "Invalid check-in code." };
+  }
+
+  p.attendanceStatus = event;
+  p.attendanceNote = note || null;
+  if (event === "checked_in" || event === "late") {
+    p.checkedInAt = p.checkedInAt ?? new Date().toISOString();
+    p.checkedInBy = actorId;
+    if (event === "late") p.minutesLate = Math.max(0, minutesLate ?? 0);
+    if (new Date(game.endsAt).getTime() <= Date.now()) p.status = "played";
+  } else if (event === "no_show") {
+    p.status = "no_show";
+  }
+  return { ok: true, participant: p };
+}
+
+export async function markBookingAttendance(
+  bookingId: string,
+  actorId: string,
+  event: AttendanceEvent,
+  minutesLate: number | null = null,
+  note = "",
+  checkInCode = "",
+): Promise<{ ok: true; booking: Booking } | { ok: false; error: string }> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("mark_booking_attendance", {
+      p_booking_id: bookingId,
+      p_event: event,
+      p_minutes_late: minutesLate,
+      p_note: note || null,
+      p_check_in_code: checkInCode || null,
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, booking: camelize<Booking>(data) };
+  }
+
+  const s = store();
+  const booking = s.bookings.find((b) => b.id === bookingId);
+  if (!booking) return { ok: false, error: "Booking not found." };
+  const slot = s.slots.find((x) => x.id === booking.slotId);
+  const pitch = slot ? s.pitches.find((x) => x.id === slot.pitchId) : null;
+  const venue = pitch ? s.venues.find((x) => x.id === pitch.venueId) : null;
+  if (venue?.ownerId !== actorId && !s.profiles.find((x) => x.id === actorId && x.role === "admin")) {
+    return { ok: false, error: "Not authorized." };
+  }
+  if (checkInCode && booking.checkInCode && checkInCode.toUpperCase() !== booking.checkInCode.toUpperCase()) {
+    return { ok: false, error: "Invalid check-in code." };
+  }
+  booking.attendanceStatus = event;
+  booking.attendanceNote = note || null;
+  if (event === "checked_in" || event === "late") {
+    booking.checkedInAt = booking.checkedInAt ?? new Date().toISOString();
+    booking.checkedInBy = actorId;
+    if (slot && new Date(slot.endsAt).getTime() <= Date.now()) booking.status = "completed";
+  }
+  return { ok: true, booking };
+}
+
+export async function createGameSlotTransferOffer(
+  gameId: string,
+  userId: string,
+): Promise<{ ok: true; code: string; expiresAt: string } | { ok: false; error: string }> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("offer_game_slot_transfer", { p_game_id: gameId });
+    if (error) return { ok: false, error: error.message };
+    const row = camelize<{ code: string; expiresAt: string }>(data);
+    return { ok: true, code: row.code, expiresAt: row.expiresAt };
+  }
+
+  const s = store();
+  const game = s.games.find((g) => g.id === gameId);
+  if (!game) return { ok: false, error: "Game not found." };
+  const mine = s.participants.find((p) => p.gameId === gameId && p.userId === userId && p.status === "confirmed");
+  if (!mine || mine.paidKobo < game.pricePerPlayerKobo) {
+    return { ok: false, error: "Only fully paid confirmed players can transfer a spot." };
+  }
+  if (game.hostId === userId) return { ok: false, error: "Hosts cannot transfer the host spot." };
+  const code = demoCheckInCode("TRF");
+  return { ok: true, code, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() };
+}
+
+export async function acceptGameSlotTransfer(
+  code: string,
+): Promise<{ ok: true; participant: GameParticipant } | { ok: false; error: string }> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("accept_game_slot_transfer", { p_code: code });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, participant: camelize<GameParticipant>(data) };
+  }
+  return { ok: false, error: "Slot transfer acceptance needs the live database." };
+}
+
 /** 5% service fee. The real source of truth is create_booking() in
  * supabase/migrations/0006_create_booking.sql, which computes the same rate
  * independently in SQL — this is for display, and must stay in sync. */
@@ -1068,6 +1349,8 @@ export async function createBooking(
     totalKobo,
     paidKobo: totalKobo,
     paymentMethod: "wallet",
+    checkInCode: demoCheckInCode("BKG"),
+    attendanceStatus: "booked",
     createdAt: new Date().toISOString(),
   };
   s.bookings.push(booking);
@@ -1508,6 +1791,83 @@ export async function listWaitlist(): Promise<WaitlistLead[]> {
   return camelize<WaitlistLead[]>(data ?? []);
 }
 
+export interface SubmitVenueOwnerApplicationInput {
+  venueName: string;
+  area: string;
+  address: string;
+  phone?: string | null;
+  notes?: string | null;
+}
+
+export async function submitVenueOwnerApplication(
+  userId: string,
+  input: SubmitVenueOwnerApplicationInput,
+): Promise<{ ok: true; application: VenueOwnerApplication } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Applications need a live database." };
+
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("venue_owner_applications")
+    .insert({
+      user_id: userId,
+      venue_name: input.venueName,
+      area: input.area,
+      address: input.address,
+      phone: input.phone ?? null,
+      notes: input.notes ?? null,
+    })
+    .select()
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, application: camelize<VenueOwnerApplication>(data) };
+}
+
+export async function getVenueOwnerApplication(userId: string): Promise<VenueOwnerApplication | null> {
+  if (demoMode()) return null;
+
+  const sb = await createClient();
+  const { data } = await sb
+    .from("venue_owner_applications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return data ? camelize<VenueOwnerApplication>(data) : null;
+}
+
+export async function listVenueOwnerApplicationsAdmin(): Promise<VenueOwnerApplication[]> {
+  if (demoMode()) return [];
+
+  const sb = await createClient();
+  const { data } = await sb
+    .from("venue_owner_applications")
+    .select("*, applicant:profiles!user_id(id, handle, full_name, avatar_url, area, role, identity_verified)")
+    .order("created_at", { ascending: false });
+
+  return camelize<VenueOwnerApplication[]>(data ?? []);
+}
+
+export async function reviewVenueOwnerApplication(
+  applicationId: string,
+  approve: boolean,
+  note: string,
+): Promise<{ ok: true; application: VenueOwnerApplication } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Applications need a live database." };
+
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("admin_review_venue_owner_application", {
+    p_application_id: applicationId,
+    p_approve: approve,
+    p_note: note,
+  });
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, application: camelize<VenueOwnerApplication>(data) };
+}
+
 export async function getGamesForUser(userId: string): Promise<GameFull[]> {
   if (!demoMode()) {
     const sb = await createClient();
@@ -1572,7 +1932,11 @@ export interface CreateVenueInput {
   address: string;
   lat: number;
   lng: number;
+  activityType?: string;
+  supportedActivities?: string[];
   phone?: string;
+  amenities?: string[];
+  photos?: string[];
   description?: string;
 }
 
@@ -1599,11 +1963,13 @@ export async function createVenue(
       address: input.address,
       lat: input.lat,
       lng: input.lng,
+      activityType: input.activityType ?? "football",
+      supportedActivities: input.supportedActivities ?? [input.activityType ?? "football"],
       verified: false,
       verifiedAt: null,
       phone: input.phone ?? null,
-      amenities: [],
-      photos: [],
+      amenities: input.amenities ?? [],
+      photos: input.photos ?? [],
       description: input.description ?? "",
       ownerId,
       createdAt: new Date().toISOString(),
@@ -1623,7 +1989,11 @@ export async function createVenue(
       address: input.address,
       lat: input.lat,
       lng: input.lng,
+      activity_type: input.activityType || "football",
+      supported_activities: input.supportedActivities ?? [input.activityType || "football"],
       phone: input.phone || null,
+      amenities: input.amenities ?? [],
+      photos: input.photos ?? [],
       description: input.description || "",
       owner_id: ownerId,
     })
@@ -1641,7 +2011,11 @@ export interface UpdateVenueInput {
   address?: string;
   lat?: number;
   lng?: number;
+  activityType?: string;
+  supportedActivities?: string[];
   phone?: string | null;
+  amenities?: string[];
+  photos?: string[];
   description?: string;
 }
 
@@ -1664,7 +2038,11 @@ export async function updateVenue(
   if (input.address !== undefined) patch.address = input.address;
   if (input.lat !== undefined) patch.lat = input.lat;
   if (input.lng !== undefined) patch.lng = input.lng;
+  if (input.activityType !== undefined) patch.activity_type = input.activityType;
+  if (input.supportedActivities !== undefined) patch.supported_activities = input.supportedActivities;
   if (input.phone !== undefined) patch.phone = input.phone;
+  if (input.amenities !== undefined) patch.amenities = input.amenities;
+  if (input.photos !== undefined) patch.photos = input.photos;
   if (input.description !== undefined) patch.description = input.description;
 
   const { error } = await sb.from("venues").update(patch).eq("id", venueId);
@@ -1878,6 +2256,7 @@ export async function getUrgentGames(limit = 3): Promise<GameFull[]> {
  */
 
 const IDENTITY_BUCKET = "identity-documents";
+const VENUE_PHOTOS_BUCKET = "venue-photos";
 
 /** Uploads to a {userId}/... path — the storage RLS policies require the
  * first path segment to match auth.uid(). */
@@ -1894,6 +2273,29 @@ export async function uploadIdentityDocument(
   const { error } = await sb.storage.from(IDENTITY_BUCKET).upload(path, file, { upsert: false });
   if (error) return { ok: false, error: error.message };
   return { ok: true, path };
+}
+
+export async function uploadVenuePhoto(
+  userId: string,
+  venueId: string,
+  file: File,
+): Promise<{ ok: true; url: string; path: string } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Photo upload needs the live database." };
+
+  const sb = await createClient();
+  const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+  const ext = safeName.includes(".") ? safeName.split(".").pop() : "jpg";
+  const path = `${userId}/${venueId}/${Date.now()}.${ext}`;
+
+  const { error } = await sb.storage.from(VENUE_PHOTOS_BUCKET).upload(path, file, {
+    cacheControl: "3600",
+    contentType: file.type || undefined,
+    upsert: false,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  const { data } = sb.storage.from(VENUE_PHOTOS_BUCKET).getPublicUrl(path);
+  return { ok: true, url: data.publicUrl, path };
 }
 
 export async function submitIdentityVerification(

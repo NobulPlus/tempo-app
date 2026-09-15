@@ -10,7 +10,7 @@ const initial: ActionState = {};
 export function CancelBookingButton({
   bookingId,
   status,
-  eligibleForCredit,
+  creditCutoffISO,
 }: {
   bookingId: string;
   /** The booking's status as of the last server render — this component stays
@@ -18,11 +18,12 @@ export function CancelBookingButton({
    * the tree, no conditional swap), so `state.message` from the action that
    * just ran survives even once `status` flips to "cancelled". */
   status: "confirmed" | "cancelled";
-  eligibleForCredit: boolean;
+  creditCutoffISO: string;
 }) {
   const [state, action, pending] = useActionState(cancelBookingAction, initial);
   useActionToast(state, { skipSuccess: true });
   const [confirming, setConfirming] = useState(false);
+  const [eligibleForCredit, setEligibleForCredit] = useState<boolean | null>(null);
 
   if (state.ok && state.message) {
     return (
@@ -44,7 +45,10 @@ export function CancelBookingButton({
     return (
       <button
         type="button"
-        onClick={() => setConfirming(true)}
+        onClick={() => {
+          setEligibleForCredit(new Date(creditCutoffISO).getTime() >= Date.now());
+          setConfirming(true);
+        }}
         className="mt-6 flex w-full items-center justify-center gap-1.5 text-[13px] font-semibold text-ink-muted transition hover:text-orange"
       >
         <CloseIcon size={13} />

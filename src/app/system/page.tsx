@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Field, SelectField } from "@/components/ui/field";
+import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { StepBadge } from "@/components/ui/step-badge";
 import { TestimonialCard } from "@/components/ui/testimonial-card";
 import { testimonials } from "@/lib/mock/testimonials";
@@ -191,11 +192,15 @@ export default function SystemPage() {
         <Section n="07" title="Form fields">
           <div className="card-t grid gap-5 p-7 sm:grid-cols-2">
             <Field label="Your name" placeholder="Tomiwa Adisa" />
-            <SelectField label="Skill level" defaultValue="intermediate">
-              <option value="casual">Casual</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="competitive">Competitive</option>
-            </SelectField>
+            <Select
+              label="Skill level"
+              defaultValue="intermediate"
+              options={[
+                { value: "casual", label: "Casual" },
+                { value: "intermediate", label: "Intermediate" },
+                { value: "competitive", label: "Competitive" },
+              ]}
+            />
           </div>
         </Section>
       </div>

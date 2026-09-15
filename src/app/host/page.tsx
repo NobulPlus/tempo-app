@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { listPitches, getSlotsForPitch } from "@/lib/data/repo";
+import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { HostForm, type HostSlotOption } from "@/components/host/host-form";
 
 export const dynamic = "force-dynamic";
@@ -20,10 +22,9 @@ export default async function HostPage() {
 
   const slotLists = await Promise.all(
     pitches.map(async (p) => {
-      const slots = await getSlotsForPitch(p.id, 10);
+      const slots = await getSlotsForPitch(p.id, 30);
       return slots
         .filter((s) => s.status === "open")
-        .slice(0, 4)
         .map<HostSlotOption>((s) => ({
           ...s,
           venueName: p.venue.name,
@@ -37,24 +38,82 @@ export default async function HostPage() {
   const slots = slotLists
     .flat()
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-    .slice(0, 40);
+    .slice(0, 240);
+  const venueCount = new Set(slots.map((s) => s.venueName)).size;
+  const areaCount = new Set(slots.map((s) => s.area)).size;
+  const lowestPrice = slots.reduce<number | null>((min, s) => (min === null ? s.priceKobo : Math.min(min, s.priceKobo)), null);
+  const nextSlot = slots[0] ?? null;
 
   return (
     <div className="py-12">
       <div className="container-t">
-        <h1 className="text-[clamp(32px,6vw,50px)] font-extrabold tracking-[-.03em]">
-          Host a <span className="text-orange">game</span>
-        </h1>
-        <p className="mt-3 max-w-2xl text-[17px] leading-relaxed text-ink-soft">
-          Reserve the pitch, set your number, and let players come to you. Tempo
-          tracks who&apos;s in, runs the waitlist when it fills, and lets you decide
-          whether to go ahead if the minimum is missed.
-        </p>
+        <div className="grid gap-6 lg:grid-cols-[1.25fr_.75fr] lg:items-end">
+          <div>
+            <p className="text-[12px] font-bold uppercase tracking-[.14em] text-orange">Create demand</p>
+            <h1 className="mt-2 text-[clamp(34px,6vw,58px)] font-extrabold tracking-[-.035em]">
+              Host a <span className="text-orange">game</span>
+            </h1>
+            <p className="mt-3 max-w-2xl text-[17px] leading-relaxed text-ink-soft">
+              Pick an open pitch from the calendar, reserve it with your wallet, set the price per player, and publish a game players can join.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link href="/host/manage" className="btn-t btn-ghost-t !py-2.5 !text-[13.5px]">
+                Manage hosted games
+              </Link>
+              <Link href="/games" className="btn-t btn-ghost-t !py-2.5 !text-[13.5px]">
+                See public games
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <HostStat label="Open slots" value={String(slots.length)} sub="Next 30 days" />
+            <HostStat label="Venues available" value={String(venueCount)} sub={`${areaCount} area${areaCount === 1 ? "" : "s"}`} />
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 md:grid-cols-3">
+          <HostInsight
+            label="Lowest pitch hire"
+            value={lowestPrice === null ? "No slots" : formatNaira(lowestPrice)}
+            sub="Before the 5% host service fee"
+          />
+          <HostInsight
+            label="Next opening"
+            value={nextSlot ? `${formatRelativeDay(nextSlot.startsAt)} ${formatTime(nextSlot.startsAt)}` : "No open slot"}
+            sub={nextSlot ? `${nextSlot.venueName} · ${nextSlot.area}` : "Generate availability from venue dashboard"}
+          />
+          <HostInsight
+            label="Host flow"
+            value="Pay, publish, monitor"
+            sub="Roster, minimum decision and reimbursements live in the host dashboard"
+          />
+        </div>
 
         <div className="mt-10">
           <HostForm slots={slots} />
         </div>
       </div>
+    </div>
+  );
+}
+
+function HostStat({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="card-t p-5">
+      <div className="text-[12px] font-semibold uppercase tracking-[.08em] text-ink-muted">{label}</div>
+      <div className="mt-1 text-[30px] font-extrabold">{value}</div>
+      <div className="text-[12.5px] text-ink-soft">{sub}</div>
+    </div>
+  );
+}
+
+function HostInsight({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="rounded-2xl border border-glass-border bg-glass p-4">
+      <div className="text-[11px] font-bold uppercase tracking-[.1em] text-ink-muted">{label}</div>
+      <div className="mt-1 text-[16px] font-extrabold">{value}</div>
+      <div className="mt-0.5 text-[12px] text-ink-soft">{sub}</div>
     </div>
   );
 }

@@ -48,7 +48,7 @@ export function SignupForm() {
       </div>
 
       <div className="field-t">
-        <input id="email" name="email" type="email" required autoComplete="email" placeholder=" " />
+        <input id="email" name="email" type="email" required autoComplete="email" placeholder=" " suppressHydrationWarning />
         <span className="field-icon">
           <MailIcon size={19} />
         </span>

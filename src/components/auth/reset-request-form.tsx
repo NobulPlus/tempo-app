@@ -26,7 +26,7 @@ export function ResetRequestForm() {
   return (
     <form className="space-y-4" action={formAction}>
       <div className="field-t">
-        <input id="email" name="email" type="email" required autoComplete="email" placeholder=" " />
+        <input id="email" name="email" type="email" required autoComplete="email" placeholder=" " suppressHydrationWarning />
         <span className="field-icon">
           <MailIcon size={19} />
         </span>

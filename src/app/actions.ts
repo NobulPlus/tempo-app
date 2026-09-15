@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { DEMO_COOKIE } from "@/lib/session";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, isVenueOwner } from "@/lib/session";
 import {
   joinGame,
   leaveGame,
@@ -12,6 +12,10 @@ import {
   cancelGame,
   decideGameMinimum,
   settleGameHostReimbursement,
+  markGameAttendance,
+  markBookingAttendance,
+  createGameSlotTransferOffer,
+  acceptGameSlotTransfer,
   getGameBySlug,
   createBooking,
   cancelBooking,
@@ -27,9 +31,12 @@ import {
   getPitchById,
   generateSlots,
   setSlotStatus,
+  uploadVenuePhoto,
   uploadIdentityDocument,
   submitIdentityVerification,
   reviewIdentityVerification,
+  submitVenueOwnerApplication,
+  reviewVenueOwnerApplication,
 } from "@/lib/data/repo";
 import type { UserRole, PitchSize, PitchSurface } from "@/lib/types";
 import { normalisePhone, formatNaira, generateReference, formatDayShort, formatTime } from "@/lib/format";
@@ -41,6 +48,13 @@ import { initializeFlutterwavePayment } from "@/lib/payments/flutterwave";
 import { sendMail } from "@/lib/mail/transport";
 import { bookingConfirmationEmail, bookingCancelledEmail, welcomeEmail, gameCancelledEmail } from "@/lib/mail/templates";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  ACTIVITY_VALUES,
+  AMENITY_VALUES,
+  RESOURCE_FEATURE_VALUES,
+  RESOURCE_TYPE_VALUES,
+} from "@/lib/venue-options";
+import { isCoordinateInLagos } from "@/lib/lagos";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
 
@@ -100,6 +114,14 @@ const partnerSchema = z.object({
   area: z.string().min(1, "Tell us where your venue is"),
 });
 
+const venueOwnerApplicationSchema = z.object({
+  venueName: z.string().min(2, "Enter your venue name").max(120),
+  area: z.string().min(1, "Tell us the venue area").max(80),
+  address: z.string().min(4, "Enter the venue address").max(220),
+  phone: z.string().optional(),
+  notes: z.string().max(800).optional(),
+});
+
 export async function joinPartnerWaitlist(
   _prev: ActionState,
   formData: FormData,
@@ -135,6 +157,53 @@ export async function joinPartnerWaitlist(
     ok: true,
     message: "Got it. Someone from Tempo will reach out to arrange a visit.",
   };
+}
+
+export async function submitVenueOwnerApplicationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Venue owner applications need a live database." };
+  }
+
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  if (isVenueOwner(user)) return { ok: false, error: "Your account already has venue owner access." };
+
+  const parsed = venueOwnerApplicationSchema.safeParse({
+    venueName: formData.get("venueName"),
+    area: formData.get("area"),
+    address: formData.get("address"),
+    phone: formData.get("phone") || undefined,
+    notes: formData.get("notes") || undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
+  }
+
+  const phone = parsed.data.phone ? normalisePhone(parsed.data.phone) : null;
+  if (parsed.data.phone && !phone) {
+    return { ok: false, error: "That doesn't look like a Nigerian phone number." };
+  }
+
+  const result = await submitVenueOwnerApplication(user.id, {
+    venueName: parsed.data.venueName,
+    area: parsed.data.area,
+    address: parsed.data.address,
+    phone,
+    notes: parsed.data.notes ?? null,
+  });
+  if (!result.ok) {
+    const message = result.error.toLowerCase().includes("pending")
+      ? "You already have a pending venue owner application."
+      : result.error;
+    return { ok: false, error: message };
+  }
+
+  revalidatePath("/partner");
+  revalidatePath("/admin/leads");
+  return { ok: true, message: "Application submitted. Tempo will review your venue owner access request." };
 }
 
 /* ----------------------------------------------------------------- games -- */
@@ -295,6 +364,88 @@ export async function settleGameHostReimbursementAction(
         ? `${formatNaira(result.reimbursedKobo)} moved back to the host wallet.`
         : "No new host reimbursement is due yet.",
   };
+}
+
+export async function markGameAttendanceAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const participantId = String(formData.get("participantId") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  const event = String(formData.get("event") ?? "checked_in") as "checked_in" | "late" | "no_show" | "flagged";
+  const minutesLateRaw = String(formData.get("minutesLate") ?? "");
+  const minutesLate = minutesLateRaw ? Number(minutesLateRaw) : null;
+  const note = String(formData.get("note") ?? "");
+  const code = String(formData.get("code") ?? "");
+
+  const result = await markGameAttendance(participantId, user.id, event, minutesLate, note, code);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/games/${slug}`);
+  revalidatePath("/dashboard");
+  return { ok: true, message: "Attendance updated." };
+}
+
+export async function markBookingAttendanceAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  if (!isVenueOwner(user) && user.role !== "admin") return { ok: false, error: "Venue owner access required." };
+
+  const bookingId = String(formData.get("bookingId") ?? "");
+  const reference = String(formData.get("reference") ?? "");
+  const event = String(formData.get("event") ?? "checked_in") as "checked_in" | "late" | "no_show" | "flagged";
+  const minutesLateRaw = String(formData.get("minutesLate") ?? "");
+  const minutesLate = minutesLateRaw ? Number(minutesLateRaw) : null;
+  const note = String(formData.get("note") ?? "");
+  const code = String(formData.get("code") ?? "");
+
+  const result = await markBookingAttendance(bookingId, user.id, event, minutesLate, note, code);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/bookings/${reference}`);
+  revalidatePath("/venue");
+  return { ok: true, message: "Booking attendance updated." };
+}
+
+export async function markBookingAttendanceFormAction(formData: FormData): Promise<void> {
+  await markBookingAttendanceAction({}, formData);
+}
+
+export async function createGameSlotTransferOfferAction(gameId: string, slug: string): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const result = await createGameSlotTransferOffer(gameId, user.id);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/games/${slug}`);
+  return {
+    ok: true,
+    message: `Transfer code created: ${result.code}. It expires ${formatDayShort(result.expiresAt)}, ${formatTime(result.expiresAt)}.`,
+  };
+}
+
+export async function acceptGameSlotTransferAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const code = String(formData.get("code") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  const result = await acceptGameSlotTransfer(code);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/games/${slug}`);
+  revalidatePath("/dashboard");
+  return { ok: true, message: "Spot transferred. You are now on the roster." };
 }
 
 /** Emails every refunded player, not just the host who triggered the
@@ -613,6 +764,8 @@ export async function createGameAction(
       joinedAt: new Date().toISOString(),
       paidKobo: 0,
       status: "confirmed",
+      checkInCode: `GME-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
+      attendanceStatus: "booked",
     });
 
     revalidatePath("/", "layout");
@@ -717,10 +870,11 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
   }
 
   // Supabase only withholds a session when the project's "Confirm email"
-  // setting is on. Signing out here makes OTP verification mandatory
-  // regardless of that dashboard toggle, instead of silently skipping it.
+  // setting is on. If it returns a session, no signup OTP was sent, so don't
+  // route the user to an impossible code-entry step.
   if (data.session) {
     await sb.auth.signOut();
+    redirect("/login?verified=1&next=%2Fdashboard");
   }
 
   redirect(`/signup/verify?email=${encodeURIComponent(email)}`);
@@ -961,9 +1115,35 @@ const createVenueSchema = z.object({
   address: z.string().min(4, "Enter an address"),
   lat: z.coerce.number().min(-90).max(90),
   lng: z.coerce.number().min(-180).max(180),
+  activityType: z.string().refine((value) => ACTIVITY_VALUES.includes(value), "Choose a valid primary activity"),
+  supportedActivities: z
+    .array(z.string().refine((value) => ACTIVITY_VALUES.includes(value), "Choose valid supported activities"))
+    .min(1),
+  amenities: z.array(z.string().refine((value) => AMENITY_VALUES.includes(value), "Choose valid venue features")),
   phone: z.string().optional(),
   description: z.string().max(600).optional(),
 });
+
+function uniqueFormStrings(values: FormDataEntryValue[]) {
+  return [...new Set(values.map(String).filter(Boolean))];
+}
+
+function venuePhotosFromForm(formData: FormData): File[] {
+  return formData
+    .getAll("photo")
+    .filter((file): file is File => file instanceof File && file.size > 0)
+    .slice(0, 8);
+}
+
+function validateVenuePhoto(file: File): string | null {
+  if (!file.type.startsWith("image/")) return "Venue photo must be an image.";
+  if (file.size > 6 * 1024 * 1024) return "Venue photo is too large — keep it under 6MB.";
+  return null;
+}
+
+function validateLagosCoordinates(lat: number, lng: number): string | null {
+  return isCoordinateInLagos(lat, lng) ? null : "Venue location must be inside Lagos.";
+}
 
 export async function createVenueAction(
   _prev: ActionState,
@@ -971,7 +1151,9 @@ export async function createVenueAction(
 ): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  if (!isVenueOwner(user)) return { ok: false, error: "Venue owner access required." };
 
+  const activityType = String(formData.get("activityType") || "football");
   const parsed = createVenueSchema.safeParse({
     name: formData.get("name"),
     area: formData.get("area"),
@@ -979,15 +1161,37 @@ export async function createVenueAction(
     address: formData.get("address"),
     lat: formData.get("lat"),
     lng: formData.get("lng"),
+    activityType,
+    supportedActivities: uniqueFormStrings([activityType, ...formData.getAll("supportedActivities")]),
+    amenities: uniqueFormStrings(formData.getAll("amenities")),
     phone: formData.get("phone") || undefined,
     description: formData.get("description") || undefined,
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
   }
+  const invalidLocation = validateLagosCoordinates(parsed.data.lat, parsed.data.lng);
+  if (invalidLocation) return { ok: false, error: invalidLocation };
+
+  const photos = venuePhotosFromForm(formData);
+  for (const photo of photos) {
+    const invalid = validateVenuePhoto(photo);
+    if (invalid) return { ok: false, error: invalid };
+  }
 
   const result = await createVenue(user.id, parsed.data);
   if (!result.ok) return { ok: false, error: result.error };
+
+  if (photos.length > 0) {
+    const uploadedUrls: string[] = [];
+    for (const photo of photos) {
+      const uploaded = await uploadVenuePhoto(user.id, result.venue.id, photo);
+      if (!uploaded.ok) return { ok: false, error: uploaded.error };
+      uploadedUrls.push(uploaded.url);
+    }
+    const photoSaved = await updateVenue(result.venue.id, { photos: uploadedUrls });
+    if (!photoSaved.ok) return { ok: false, error: photoSaved.error ?? "Venue created, but the photo could not be saved." };
+  }
 
   revalidatePath("/venue");
   redirect(`/venue/${result.venue.id}`);
@@ -1000,6 +1204,12 @@ const updateVenueSchema = z.object({
   address: z.string().min(4).optional(),
   lat: z.coerce.number().min(-90).max(90).optional(),
   lng: z.coerce.number().min(-180).max(180).optional(),
+  activityType: z.string().refine((value) => ACTIVITY_VALUES.includes(value), "Choose a valid primary activity").optional(),
+  supportedActivities: z
+    .array(z.string().refine((value) => ACTIVITY_VALUES.includes(value), "Choose valid supported activities"))
+    .min(1)
+    .optional(),
+  amenities: z.array(z.string().refine((value) => AMENITY_VALUES.includes(value), "Choose valid venue features")).optional(),
   phone: z.string().optional(),
   description: z.string().max(600).optional(),
 });
@@ -1010,11 +1220,13 @@ export async function updateVenueAction(
 ): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  if (!isVenueOwner(user)) return { ok: false, error: "Venue owner access required." };
 
   const venueId = String(formData.get("venueId") ?? "");
   const venue = await getVenueById(venueId);
   if (!venue || venue.ownerId !== user.id) return { ok: false, error: "Not authorized." };
 
+  const nextActivityType = String(formData.get("activityType") || venue.activityType || "football");
   const parsed = updateVenueSchema.safeParse({
     name: formData.get("name") || undefined,
     area: formData.get("area") || undefined,
@@ -1022,14 +1234,37 @@ export async function updateVenueAction(
     address: formData.get("address") || undefined,
     lat: formData.get("lat") || undefined,
     lng: formData.get("lng") || undefined,
+    activityType: nextActivityType,
+    supportedActivities: uniqueFormStrings([nextActivityType, ...formData.getAll("supportedActivities")]),
+    amenities: uniqueFormStrings(formData.getAll("amenities")),
     phone: formData.get("phone") || undefined,
     description: formData.get("description") || undefined,
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
   }
+  if (parsed.data.lat !== undefined && parsed.data.lng !== undefined) {
+    const invalidLocation = validateLagosCoordinates(parsed.data.lat, parsed.data.lng);
+    if (invalidLocation) return { ok: false, error: invalidLocation };
+  }
 
-  const result = await updateVenue(venueId, parsed.data);
+  const patch: Parameters<typeof updateVenue>[1] = { ...parsed.data };
+  const photos = venuePhotosFromForm(formData);
+  for (const photo of photos) {
+    const invalid = validateVenuePhoto(photo);
+    if (invalid) return { ok: false, error: invalid };
+  }
+  if (photos.length > 0) {
+    const uploadedUrls: string[] = [];
+    for (const photo of photos) {
+      const uploaded = await uploadVenuePhoto(user.id, venueId, photo);
+      if (!uploaded.ok) return { ok: false, error: uploaded.error };
+      uploadedUrls.push(uploaded.url);
+    }
+    patch.photos = [...uploadedUrls, ...venue.photos].slice(0, 8);
+  }
+
+  const result = await updateVenue(venueId, patch);
   if (!result.ok) return { ok: false, error: result.error };
 
   revalidatePath(`/venue/${venueId}`);
@@ -1039,14 +1274,30 @@ export async function updateVenueAction(
 /* ------------------------------------------------------------------ pitch -- */
 
 const createPitchSchema = z.object({
-  name: z.string().min(2, "Give this pitch a name"),
+  name: z.string().min(2, "Give this bookable space a name"),
+  resourceType: z.string().refine((value) => RESOURCE_TYPE_VALUES.includes(value), "Choose a valid resource type"),
+  activityType: z.string().refine((value) => ACTIVITY_VALUES.includes(value), "Choose a valid primary activity"),
+  supportedActivities: z
+    .array(z.string().refine((value) => ACTIVITY_VALUES.includes(value), "Choose valid supported activities"))
+    .min(1),
   size: z.enum(["5-a-side", "7-a-side", "11-a-side"]),
   surface: z.enum(["astro", "grass", "indoor", "concrete"]),
   floodlights: z.coerce.boolean().optional(),
   covered: z.coerce.boolean().optional(),
+  amenities: z.array(z.string().refine((value) => RESOURCE_FEATURE_VALUES.includes(value), "Choose valid resource features")),
+  capacity: z.coerce.number().int().min(1).max(500).optional(),
+  recommendedPlayers: z.coerce.number().int().min(1).max(100).optional(),
+  description: z.string().max(600).optional(),
   pricePerHourNaira: z.coerce.number().int().min(500).max(500000),
   peakMultiplier: z.coerce.number().min(1).max(3),
 });
+
+function resourcePhotosFromForm(formData: FormData): File[] {
+  return formData
+    .getAll("resourcePhotos")
+    .filter((file): file is File => file instanceof File && file.size > 0)
+    .slice(0, 8);
+}
 
 export async function createPitchAction(
   _prev: ActionState,
@@ -1054,17 +1305,24 @@ export async function createPitchAction(
 ): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  if (!isVenueOwner(user)) return { ok: false, error: "Venue owner access required." };
 
   const venueId = String(formData.get("venueId") ?? "");
   const venue = await getVenueById(venueId);
   if (!venue || venue.ownerId !== user.id) return { ok: false, error: "Not authorized." };
 
+  const activityType = String(formData.get("activityType") || "football");
   const parsed = createPitchSchema.safeParse({
     name: formData.get("name"),
+    resourceType: formData.get("resourceType") || "pitch",
+    activityType,
+    supportedActivities: uniqueFormStrings([activityType, ...formData.getAll("supportedActivities")]),
     size: formData.get("size"),
     surface: formData.get("surface"),
-    floodlights: formData.get("floodlights") === "on",
-    covered: formData.get("covered") === "on",
+    amenities: uniqueFormStrings(formData.getAll("amenities")),
+    capacity: formData.get("capacity") || undefined,
+    recommendedPlayers: formData.get("recommendedPlayers") || undefined,
+    description: formData.get("description") || undefined,
     pricePerHourNaira: formData.get("pricePerHourNaira"),
     peakMultiplier: formData.get("peakMultiplier"),
   });
@@ -1073,16 +1331,40 @@ export async function createPitchAction(
   }
 
   const v = parsed.data;
+  const photos = resourcePhotosFromForm(formData);
+  for (const photo of photos) {
+    const invalid = validateVenuePhoto(photo);
+    if (invalid) return { ok: false, error: invalid };
+  }
+
   const result = await createPitch(venueId, {
     name: v.name,
+    resourceType: v.resourceType,
+    activityType: v.activityType,
+    supportedActivities: v.supportedActivities,
     size: v.size as PitchSize,
     surface: v.surface as PitchSurface,
-    floodlights: Boolean(v.floodlights),
-    covered: Boolean(v.covered),
+    floodlights: v.amenities.includes("floodlights"),
+    covered: v.amenities.includes("covered"),
+    amenities: v.amenities,
+    capacity: v.capacity ?? null,
+    recommendedPlayers: v.recommendedPlayers ?? null,
+    description: v.description ?? "",
     pricePerHourKobo: v.pricePerHourNaira * 100,
     peakMultiplier: v.peakMultiplier,
   });
   if (!result.ok) return { ok: false, error: result.error };
+
+  if (photos.length > 0) {
+    const uploadedUrls: string[] = [];
+    for (const photo of photos) {
+      const uploaded = await uploadVenuePhoto(user.id, venueId, photo);
+      if (!uploaded.ok) return { ok: false, error: uploaded.error };
+      uploadedUrls.push(uploaded.url);
+    }
+    const saved = await updatePitch(result.pitch.id, { photos: uploadedUrls });
+    if (!saved.ok) return { ok: false, error: saved.error ?? "Bookable space created, but the photos could not be saved." };
+  }
 
   revalidatePath(`/venue/${venueId}`);
   return { ok: true, message: `${result.pitch.name} added.` };
@@ -1090,10 +1372,22 @@ export async function createPitchAction(
 
 const updatePitchSchema = z.object({
   name: z.string().min(2).optional(),
+  resourceType: z.string().refine((value) => RESOURCE_TYPE_VALUES.includes(value), "Choose a valid resource type").optional(),
+  activityType: z.string().refine((value) => ACTIVITY_VALUES.includes(value), "Choose a valid primary activity").optional(),
+  supportedActivities: z
+    .array(z.string().refine((value) => ACTIVITY_VALUES.includes(value), "Choose valid supported activities"))
+    .min(1)
+    .optional(),
+  size: z.enum(["5-a-side", "7-a-side", "11-a-side"]).optional(),
+  surface: z.enum(["astro", "grass", "indoor", "concrete"]).optional(),
   pricePerHourNaira: z.coerce.number().int().min(500).max(500000).optional(),
   peakMultiplier: z.coerce.number().min(1).max(3).optional(),
   floodlights: z.coerce.boolean().optional(),
   covered: z.coerce.boolean().optional(),
+  amenities: z.array(z.string().refine((value) => RESOURCE_FEATURE_VALUES.includes(value), "Choose valid resource features")).optional(),
+  capacity: z.coerce.number().int().min(1).max(500).optional(),
+  recommendedPlayers: z.coerce.number().int().min(1).max(100).optional(),
+  description: z.string().max(600).optional(),
   active: z.coerce.boolean().optional(),
 });
 
@@ -1103,17 +1397,26 @@ export async function updatePitchAction(
 ): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  if (!isVenueOwner(user)) return { ok: false, error: "Venue owner access required." };
 
   const pitchId = String(formData.get("pitchId") ?? "");
   const pitch = await getPitchById(pitchId);
   if (!pitch || pitch.venue.ownerId !== user.id) return { ok: false, error: "Not authorized." };
 
+  const nextActivityType = String(formData.get("activityType") || pitch.activityType || "football");
   const parsed = updatePitchSchema.safeParse({
     name: formData.get("name") || undefined,
+    resourceType: formData.get("resourceType") || undefined,
+    activityType: nextActivityType,
+    supportedActivities: uniqueFormStrings([nextActivityType, ...formData.getAll("supportedActivities")]),
+    size: formData.get("size") || undefined,
+    surface: formData.get("surface") || undefined,
     pricePerHourNaira: formData.get("pricePerHourNaira") || undefined,
     peakMultiplier: formData.get("peakMultiplier") || undefined,
-    floodlights: formData.has("floodlights") ? formData.get("floodlights") === "on" : undefined,
-    covered: formData.has("covered") ? formData.get("covered") === "on" : undefined,
+    amenities: formData.has("amenitiesMarker") ? uniqueFormStrings(formData.getAll("amenities")) : undefined,
+    capacity: formData.get("capacity") || undefined,
+    recommendedPlayers: formData.get("recommendedPlayers") || undefined,
+    description: formData.get("description") || undefined,
     active: formData.has("active") ? formData.get("active") === "true" : undefined,
   });
   if (!parsed.success) {
@@ -1121,14 +1424,40 @@ export async function updatePitchAction(
   }
 
   const v = parsed.data;
-  const result = await updatePitch(pitchId, {
+  const patch: Parameters<typeof updatePitch>[1] = {
     name: v.name,
+    resourceType: v.resourceType,
+    activityType: v.activityType,
+    supportedActivities: v.supportedActivities,
+    size: v.size as PitchSize | undefined,
+    surface: v.surface as PitchSurface | undefined,
     pricePerHourKobo: v.pricePerHourNaira !== undefined ? v.pricePerHourNaira * 100 : undefined,
     peakMultiplier: v.peakMultiplier,
-    floodlights: v.floodlights,
-    covered: v.covered,
+    floodlights: v.amenities?.includes("floodlights"),
+    covered: v.amenities?.includes("covered"),
+    amenities: v.amenities,
+    capacity: v.capacity ?? undefined,
+    recommendedPlayers: v.recommendedPlayers ?? undefined,
+    description: v.description,
     active: v.active,
-  });
+  };
+
+  const photos = resourcePhotosFromForm(formData);
+  for (const photo of photos) {
+    const invalid = validateVenuePhoto(photo);
+    if (invalid) return { ok: false, error: invalid };
+  }
+  if (photos.length > 0) {
+    const uploadedUrls: string[] = [];
+    for (const photo of photos) {
+      const uploaded = await uploadVenuePhoto(user.id, pitch.venueId, photo);
+      if (!uploaded.ok) return { ok: false, error: uploaded.error };
+      uploadedUrls.push(uploaded.url);
+    }
+    patch.photos = [...uploadedUrls, ...(pitch.photos ?? [])].slice(0, 8);
+  }
+
+  const result = await updatePitch(pitchId, patch);
   if (!result.ok) return { ok: false, error: result.error };
 
   revalidatePath(`/venue/${pitch.venueId}`);
@@ -1138,11 +1467,24 @@ export async function updatePitchAction(
 /* ------------------------------------------------------------------ slots -- */
 
 const generateSlotsSchema = z.object({
-  openHour: z.coerce.number().int().min(0).max(23),
-  closeHour: z.coerce.number().int().min(0).max(23),
   daysAhead: z.coerce.number().int().min(1).max(60),
-  peakStartHour: z.coerce.number().int().min(0).max(23),
-  peakEndHour: z.coerce.number().int().min(0).max(23),
+  slotDurationMinutes: z.coerce.number().int().min(30).max(240),
+  bufferMinutes: z.coerce.number().int().min(0).max(120),
+  rules: z
+    .array(
+      z.object({
+        name: z.string().max(40).optional(),
+        daysOfWeek: z.array(z.coerce.number().int().min(0).max(6)).min(1),
+        openMinutes: z.coerce.number().int().min(0).max(1439),
+        closeMinutes: z.coerce.number().int().min(1).max(1440),
+        basePriceNaira: z.coerce.number().int().min(500).max(500000),
+        peakStartMinutes: z.coerce.number().int().min(0).max(1439).nullable().optional(),
+        peakEndMinutes: z.coerce.number().int().min(1).max(1440).nullable().optional(),
+        peakPriceNaira: z.coerce.number().int().min(500).max(500000).nullable().optional(),
+      }),
+    )
+    .min(1)
+    .max(7),
 });
 
 export async function generateSlotsAction(
@@ -1151,35 +1493,102 @@ export async function generateSlotsAction(
 ): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  if (!isVenueOwner(user)) return { ok: false, error: "Venue owner access required." };
 
   const pitchId = String(formData.get("pitchId") ?? "");
   const pitch = await getPitchById(pitchId);
   if (!pitch || pitch.venue.ownerId !== user.id) return { ok: false, error: "Not authorized." };
 
+  const parsedRules = parseSlotRules(formData);
+  if (!parsedRules.ok) return { ok: false, error: parsedRules.error };
+
   const parsed = generateSlotsSchema.safeParse({
-    openHour: formData.get("openHour"),
-    closeHour: formData.get("closeHour"),
     daysAhead: formData.get("daysAhead"),
-    peakStartHour: formData.get("peakStartHour"),
-    peakEndHour: formData.get("peakEndHour"),
+    slotDurationMinutes: formData.get("slotDurationMinutes"),
+    bufferMinutes: formData.get("bufferMinutes"),
+    rules: parsedRules.rules,
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
   }
-  if (parsed.data.openHour >= parsed.data.closeHour) {
-    return { ok: false, error: "Closing hour must be after opening hour." };
+  for (const rule of parsed.data.rules) {
+    if (rule.openMinutes >= rule.closeMinutes) {
+      return { ok: false, error: `${rule.name || "A rule"} closes before it opens.` };
+    }
+    if (
+      rule.peakPriceNaira &&
+      (rule.peakStartMinutes === null ||
+        rule.peakStartMinutes === undefined ||
+        rule.peakEndMinutes === null ||
+        rule.peakEndMinutes === undefined ||
+        rule.peakStartMinutes >= rule.peakEndMinutes)
+    ) {
+      return { ok: false, error: `${rule.name || "A rule"} needs a valid peak time window.` };
+    }
   }
 
   const result = await generateSlots(
     pitchId,
     pitch.pricePerHourKobo,
     pitch.peakMultiplier,
-    parsed.data,
+    {
+      daysAhead: parsed.data.daysAhead,
+      slotDurationMinutes: parsed.data.slotDurationMinutes,
+      bufferMinutes: parsed.data.bufferMinutes,
+      rules: parsed.data.rules.map((rule) => ({
+        name: rule.name,
+        daysOfWeek: rule.daysOfWeek,
+        openMinutes: rule.openMinutes,
+        closeMinutes: rule.closeMinutes,
+        basePriceKobo: rule.basePriceNaira * 100,
+        peakStartMinutes: rule.peakStartMinutes,
+        peakEndMinutes: rule.peakEndMinutes,
+        peakPriceKobo: rule.peakPriceNaira ? rule.peakPriceNaira * 100 : null,
+      })),
+    },
   );
   if (!result.ok) return { ok: false, error: result.error };
 
   revalidatePath(`/venue/${pitch.venueId}/pitches/${pitchId}`);
-  return { ok: true, message: `${result.created} slot${result.created === 1 ? "" : "s"} added.` };
+  const skipped = result.skipped ? ` ${result.skipped} conflict${result.skipped === 1 ? "" : "s"} skipped.` : "";
+  return { ok: true, message: `${result.created} slot${result.created === 1 ? "" : "s"} added.${skipped}` };
+}
+
+function parseSlotRules(formData: FormData):
+  | { ok: true; rules: unknown[] }
+  | { ok: false; error: string } {
+  const ruleIndexes = uniqueFormStrings(formData.getAll("ruleIndex"));
+  const rules = ruleIndexes
+    .filter((index) => formData.get(`ruleEnabled-${index}`) === "true")
+    .map((index) => {
+      const peakPriceNaira = String(formData.get(`peakPriceNaira-${index}`) || "").trim();
+      return {
+        name: String(formData.get(`ruleName-${index}`) || ""),
+        daysOfWeek: formData.getAll(`daysOfWeek-${index}`),
+        openMinutes: parseTimeToMinutes(String(formData.get(`openTime-${index}`) || "")),
+        closeMinutes: parseTimeToMinutes(String(formData.get(`closeTime-${index}`) || "")),
+        basePriceNaira: formData.get(`basePriceNaira-${index}`),
+        peakStartMinutes: parseOptionalTimeToMinutes(String(formData.get(`peakStartTime-${index}`) || "")),
+        peakEndMinutes: parseOptionalTimeToMinutes(String(formData.get(`peakEndTime-${index}`) || "")),
+        peakPriceNaira: peakPriceNaira ? peakPriceNaira : null,
+      };
+    });
+
+  if (rules.length === 0) return { ok: false, error: "Choose at least one operating rule." };
+  if (rules.some((rule) => rule.openMinutes === null || rule.closeMinutes === null)) {
+    return { ok: false, error: "Enter valid opening and closing times." };
+  }
+  return { ok: true, rules };
+}
+
+function parseTimeToMinutes(value: string): number | null {
+  const match = value.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function parseOptionalTimeToMinutes(value: string): number | null {
+  return value ? parseTimeToMinutes(value) : null;
 }
 
 /**
@@ -1195,6 +1604,7 @@ export async function setSlotStatusAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Not authorized." };
+  if (!isVenueOwner(user)) return { ok: false, error: "Venue owner access required." };
 
   return setSlotStatus(slotId, status);
 }
@@ -1280,6 +1690,29 @@ export async function dismissWaitlistLeadAction(id: string): Promise<{ ok: boole
   revalidatePath("/admin");
   revalidatePath("/admin/leads");
   return { ok: true };
+}
+
+export async function reviewVenueOwnerApplicationAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, error: "Not authorized." };
+
+  const applicationId = String(formData.get("applicationId") ?? "");
+  const approve = formData.get("approve") === "true";
+  const note = String(formData.get("note") ?? "");
+
+  const result = await reviewVenueOwnerApplication(applicationId, approve, note);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/leads");
+  revalidatePath("/admin/users");
+  return {
+    ok: true,
+    message: approve ? "Application approved. Venue owner access granted." : "Application rejected.",
+  };
 }
 
 export async function reviewIdentityVerificationAction(

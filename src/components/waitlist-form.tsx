@@ -36,6 +36,7 @@ export function WaitlistForm() {
             aria-label="Email address or phone number"
             autoComplete="email"
             className="w-full rounded-full border border-glass-border bg-glass py-3.5 pl-11 pr-4 text-[14.5px] outline-none transition focus:border-green/50"
+            suppressHydrationWarning
           />
         </div>
         <input

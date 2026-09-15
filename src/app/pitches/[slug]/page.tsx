@@ -18,6 +18,13 @@ import {
   CarIcon,
   CheckIcon,
 } from "@/components/icons";
+import {
+  ACTIVITY_OPTIONS,
+  AMENITY_OPTIONS,
+  RESOURCE_FEATURE_OPTIONS,
+  RESOURCE_TYPE_OPTIONS,
+  venueOptionLabel,
+} from "@/lib/venue-options";
 
 const AMENITY_ICON: Record<string, typeof LightsIcon> = {
   Floodlights: LightsIcon,
@@ -33,6 +40,11 @@ const SURFACE_LABEL: Record<string, string> = {
   indoor: "Indoor court",
   concrete: "Concrete",
 };
+
+function featureLabel(value: string) {
+  const label = venueOptionLabel(RESOURCE_FEATURE_OPTIONS, value);
+  return label === value ? venueOptionLabel(AMENITY_OPTIONS, value) : label;
+}
 
 export async function generateMetadata({
   params,
@@ -61,7 +73,11 @@ export default async function PitchPage({
   const [allGames, slots] = await Promise.all([listGames(), getSlotsForPitch(pitch.id)]);
   const gamesHere = allGames.filter((g) => g.pitchId === pitch.id);
   const { venue } = pitch;
-  const photo = venue.photos[0];
+  const photo = pitch.photos?.[0] ?? venue.photos[0];
+  const resourceLabel = venueOptionLabel(RESOURCE_TYPE_OPTIONS, pitch.resourceType ?? "pitch");
+  const activityLabel = venueOptionLabel(ACTIVITY_OPTIONS, pitch.activityType ?? "football");
+  const featureValues = pitch.amenities?.length ? pitch.amenities : venue.amenities;
+  const description = pitch.description || venue.description;
 
   const travel = estimateTravelMinutes(
     venue.side === "island" ? 8 : 11,
@@ -89,7 +105,8 @@ export default async function PitchPage({
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/10 to-transparent" />
             <div className="absolute left-5 top-5 flex flex-wrap gap-2">
-              <span className="chip-t !bg-black/40">{pitch.size}</span>
+              <span className="chip-t !bg-black/40">{resourceLabel}</span>
+              <span className="chip-t !bg-black/40">{activityLabel}</span>
               <span className="chip-t !bg-black/40">{SURFACE_LABEL[pitch.surface]}</span>
               {pitch.covered && <span className="chip-t !bg-black/40">Covered</span>}
             </div>
@@ -109,6 +126,7 @@ export default async function PitchPage({
                 <h1 className="font-display text-[clamp(26px,4.5vw,38px)] font-extrabold tracking-[-.02em]">
                   {venue.name}
                 </h1>
+                <div className="mt-1.5 text-[16px] font-semibold text-ink-soft">{pitch.name}</div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[14.5px] text-ink-soft">
                   <span className="flex items-center gap-1.5">
                     <PinIcon size={15} />
@@ -132,16 +150,17 @@ export default async function PitchPage({
             </div>
 
             <p className="mt-5 max-w-3xl text-[15.5px] leading-relaxed text-ink-soft">
-              {venue.description}
+              {description}
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
-              {venue.amenities.map((a) => {
-                const Icon = AMENITY_ICON[a];
+              {featureValues.map((a) => {
+                const label = featureLabel(a);
+                const Icon = AMENITY_ICON[label];
                 return (
                   <span key={a} className="chip-t">
                     {Icon ? <Icon size={12} /> : <CheckIcon size={11} />}
-                    {a}
+                    {label}
                   </span>
                 );
               })}
@@ -195,9 +214,19 @@ export default async function PitchPage({
                   <b>{formatNaira(Math.round(pitch.pricePerHourKobo * pitch.peakMultiplier))}</b>
                 </div>
                 <div className="flex justify-between">
-                  <span>Pitch</span>
+                  <span>Space</span>
                   <b>{pitch.name}</b>
                 </div>
+                <div className="flex justify-between">
+                  <span>Best for</span>
+                  <b>{activityLabel}</b>
+                </div>
+                {pitch.recommendedPlayers && (
+                  <div className="flex justify-between">
+                    <span>Recommended players</span>
+                    <b>{pitch.recommendedPlayers}</b>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Floodlights</span>
                   <b>{pitch.floodlights ? "Yes" : "No"}</b>

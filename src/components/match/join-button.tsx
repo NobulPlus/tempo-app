@@ -7,6 +7,7 @@ import {
   leaveGameAction,
   payGameBalanceAction,
   cancelGameAction,
+  createGameSlotTransferOfferAction,
   type ActionState,
 } from "@/app/actions";
 import { formatNaira, formatDayShort, formatTime } from "@/lib/format";
@@ -181,6 +182,15 @@ export function JoinButton({
           >
             {pending ? "Updating…" : "Can't make it? Drop out"}
           </button>
+          {!isWaitlisted && (
+            <button
+              onClick={() => run(() => createGameSlotTransferOfferAction(gameId, slug))}
+              disabled={pending}
+              className="mt-2 w-full text-[13.5px] text-ink-muted underline underline-offset-4 transition hover:text-green"
+            >
+              {pending ? "Creating transfer…" : "Create transfer code"}
+            </button>
+          )}
         </>
       ) : (
         <button

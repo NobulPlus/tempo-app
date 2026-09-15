@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Figtree, Caveat, JetBrains_Mono } from "next/font/
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
+import { ConditionalFooter } from "@/components/conditional-footer";
 import { ToastProvider } from "@/components/toast/toast-provider";
 import { getCurrentUser } from "@/lib/session";
 import { demoMode, getWalletBalance } from "@/lib/data/repo";
@@ -86,7 +87,7 @@ export default async function RootLayout({
       data-scroll-behavior="smooth"
       className={`${display.variable} ${body.variable} ${accent.variable} ${mono.variable}`}
     >
-      <body className="antialiased">
+      <body className="antialiased" suppressHydrationWarning>
         <script
           // Runs before paint so a returning visitor's saved theme applies
           // immediately — no flash of the wrong theme. Kept tiny and inline
@@ -109,7 +110,9 @@ export default async function RootLayout({
             {children}
           </main>
 
-          <Footer />
+          <ConditionalFooter>
+            <Footer />
+          </ConditionalFooter>
         </ToastProvider>
       </body>
     </html>

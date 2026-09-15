@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getGameBySlug } from "@/lib/data/repo";
+import { getGameBySlug, getGameCheckInCode } from "@/lib/data/repo";
 import { getCurrentUser } from "@/lib/session";
 import { getMatchState, estimateTravelMinutes, leaveByTime } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime, splitKobo } from "@/lib/format";
 import { Countdown, FillBar, SpotPips, HeatPill, GuaranteePill } from "@/components/match/match-day";
 import { JoinButton } from "@/components/match/join-button";
 import { MinimumDecisionBanner, HostReimbursementCard } from "@/components/match/host-controls";
+import { AttendancePanel } from "@/components/match/attendance-panel";
 import { PlayerChip } from "@/components/player/player-card";
 import {
   PinIcon,
@@ -60,6 +61,9 @@ export default async function GamePage({
   const waitlist = game.participants.filter((p) => p.status === "waitlist");
   const mine = user ? game.participants.find((p) => p.userId === user.id) : undefined;
   const isHost = Boolean(user && user.id === game.hostId);
+  const canManageAttendance = Boolean(
+    user && (isHost || user.role === "admin" || user.id === game.pitch.venue.ownerId),
+  );
   const isCancelled = game.status === "cancelled";
   const refundable = game.participants.filter(
     (p) => (p.status === "confirmed" || p.status === "pending_payment") && p.paidKobo > 0,
@@ -76,6 +80,7 @@ export default async function GamePage({
 
   const committed = game.minimumDecisionStatus === "go_ahead" || game.minimumDecisionStatus === "not_needed";
   const showReimbursement = isHost && committed && !isCancelled;
+  const mineCode = user && mine && !isCancelled ? await getGameCheckInCode(game.id, user.id) : null;
 
   const totalPitchKobo = game.pricePerPlayerKobo * game.capacity;
   const { each } = splitKobo(totalPitchKobo, Math.max(1, confirmed.length));
@@ -222,6 +227,15 @@ export default async function GamePage({
                 </div>
               )}
             </section>
+
+            {!isCancelled && (
+              <AttendancePanel
+                slug={game.slug}
+                canManage={canManageAttendance}
+                mineCode={mineCode}
+                participants={confirmed}
+              />
+            )}
           </div>
 
           <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">

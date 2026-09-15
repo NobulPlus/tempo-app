@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, isVenueOwner } from "@/lib/session";
 import { listVenues, getVenueStats, listPitches, getBookingsForVenue } from "@/lib/data/repo";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
-import { BuildingIcon, TrendIcon, ShieldIcon, ClockIcon, PinIcon } from "@/components/icons";
+import { ACTIVITY_OPTIONS, AMENITY_OPTIONS, venueOptionLabel } from "@/lib/venue-options";
+import { BuildingIcon, TrendIcon, ShieldIcon, ClockIcon, PinIcon, WalletIcon, PitchIcon, BallIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +18,40 @@ export default async function VenuePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/venue");
 
+  if (!isVenueOwner(user)) {
+    return (
+      <div className="py-20">
+        <div className="container-readable-t">
+          <div className="card-t p-10 text-center">
+            <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-green/12 text-green">
+              <BuildingIcon size={26} />
+            </span>
+            <h1 className="mt-5 text-[26px] font-extrabold">Venue owner access required</h1>
+            <p className="mt-3 text-[15.5px] leading-relaxed text-ink-soft">
+              This workspace is for verified venue operators to manage listings,
+              spaces, availability and bookings. Your current account is a {user.role.replace("_", " ")} account.
+            </p>
+            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link href="/partner" className="btn-t btn-green-t">
+                Apply as a venue owner
+              </Link>
+              <Link href="/dashboard" className="btn-t btn-ghost-t">
+                Back to my games
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const allVenues = await listVenues();
   const mine = allVenues.filter((v) => v.ownerId === user.id);
 
   if (mine.length === 0) {
     return (
       <div className="py-20">
-        <div className="container-t max-w-2xl">
+        <div className="container-readable-t">
           <div className="card-t p-10 text-center">
             <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-green/12 text-green">
               <BuildingIcon size={26} />
@@ -59,17 +87,18 @@ export default async function VenuePage() {
   }
 
   const allPitches = await listPitches();
+  const single = mine.length === 1;
 
   return (
     <div className="py-12">
-      <div className="container-t">
-        <h1 className="text-[clamp(28px,5vw,42px)] font-extrabold tracking-[-.025em]">
+      <div className="container-workspace-t">
+        <p className="text-[13px] font-semibold uppercase tracking-[.7px] text-ink-muted">
           Venue dashboard
-        </h1>
-        <p className="mt-2 text-[16px] text-ink-soft">
-          {mine.length === 1 ? mine[0].name : `${mine.length} venues`} · managed by{" "}
-          {user.fullName}
         </p>
+        <h1 className="mt-1.5 text-[clamp(28px,5vw,42px)] font-extrabold tracking-[-.025em]">
+          {single ? mine[0].name : `${mine.length} venues`}
+        </h1>
+        <p className="mt-2 text-[16px] text-ink-soft">managed by {user.fullName}</p>
 
         {await Promise.all(
           mine.map(async (venue) => {
@@ -83,10 +112,10 @@ export default async function VenuePage() {
               .slice(0, 5);
 
             return (
-              <section key={venue.id} className="mt-10">
+              <section key={venue.id} className={single ? "mt-8" : "card-t mt-8 p-6 md:p-7"}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-[22px] font-bold">{venue.name}</h2>
+                    {!single && <h2 className="text-[22px] font-bold">{venue.name}</h2>}
                     {venue.verified ? (
                       <span className="chip-t !border-green/35 !bg-green/12 !text-green">
                         <ShieldIcon size={12} />
@@ -101,6 +130,9 @@ export default async function VenuePage() {
                       <PinIcon size={13} />
                       {venue.area}
                     </span>
+                    <span className="chip-t capitalize">
+                      {venueOptionLabel(ACTIVITY_OPTIONS, venue.activityType ?? "football")}
+                    </span>
                   </div>
                   <Link href={`/venue/${venue.id}`} className="btn-t btn-ghost-t !py-2.5 !text-[13.5px]">
                     Manage inventory
@@ -110,22 +142,39 @@ export default async function VenuePage() {
                 {/* KPIs */}
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <Kpi
+                    icon={<TrendIcon size={16} />}
                     label="Utilisation"
                     value={`${stats.utilisation}%`}
                     hint={`${stats.bookedSlots} of ${stats.upcomingSlots} upcoming hours`}
                     accent
                   />
                   <Kpi
+                    icon={<WalletIcon size={16} />}
                     label="Projected revenue"
                     value={formatNaira(stats.projectedRevenueKobo)}
                     hint="Confirmed bookings ahead"
                   />
-                  <Kpi label="Pitches" value={String(stats.pitchCount)} />
-                  <Kpi label="Games hosted here" value={String(stats.gamesHosted)} />
+                  <Kpi icon={<PitchIcon size={16} />} label="Pitches" value={String(stats.pitchCount)} />
+                  <Kpi icon={<BallIcon size={16} />} label="Games hosted here" value={String(stats.gamesHosted)} />
                 </div>
 
+                {Boolean((venue.supportedActivities?.length ?? 0) + venue.amenities.length) && (
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {(venue.supportedActivities ?? [venue.activityType ?? "football"]).slice(0, 5).map((activity) => (
+                      <span key={activity} className="chip-t !border-green/30 !bg-green/10 !text-green">
+                        {venueOptionLabel(ACTIVITY_OPTIONS, activity)}
+                      </span>
+                    ))}
+                    {venue.amenities.slice(0, 6).map((amenity) => (
+                      <span key={amenity} className="chip-t">
+                        {venueOptionLabel(AMENITY_OPTIONS, amenity)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 {/* Utilisation bar */}
-                <div className="card-t mt-5 p-6">
+                <div className={`mt-5 p-6 ${single ? "card-t" : "rounded-2xl border border-glass-border bg-bg-primary/40"}`}>
                   <div className="flex items-center justify-between">
                     <h3 className="flex items-center gap-2 text-[16px] font-bold">
                       <TrendIcon size={17} className="text-green" />
@@ -170,7 +219,7 @@ export default async function VenuePage() {
                 </div>
 
                 {/* Upcoming bookings */}
-                <div className="card-t mt-5 p-6">
+                <div className={`mt-5 p-6 ${single ? "card-t" : "rounded-2xl border border-glass-border bg-bg-primary/40"}`}>
                   <div className="flex items-center justify-between">
                     <h3 className="flex items-center gap-2 text-[16px] font-bold">
                       <ClockIcon size={17} />
@@ -221,11 +270,13 @@ export default async function VenuePage() {
 }
 
 function Kpi({
+  icon,
   label,
   value,
   hint,
   accent,
 }: {
+  icon: React.ReactNode;
   label: string;
   value: string;
   hint?: string;
@@ -233,8 +284,11 @@ function Kpi({
 }) {
   return (
     <div className="card-t p-5">
-      <div className="text-[12px] text-ink-muted">{label}</div>
-      <div className={`mt-1 text-[26px] font-extrabold ${accent ? "text-green" : ""}`}>
+      <div className="flex items-center gap-1.5 text-[12px] text-ink-muted">
+        <span className={accent ? "text-green" : ""}>{icon}</span>
+        {label}
+      </div>
+      <div className={`mt-1.5 text-[26px] font-extrabold ${accent ? "text-green" : ""}`}>
         {value}
       </div>
       {hint && <div className="mt-0.5 text-[11.5px] text-ink-muted">{hint}</div>}

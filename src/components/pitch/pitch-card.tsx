@@ -10,6 +10,13 @@ import {
   ParkingIcon,
 } from "@/components/icons";
 import type { PitchWithVenue } from "@/lib/data/repo";
+import {
+  ACTIVITY_OPTIONS,
+  AMENITY_OPTIONS,
+  RESOURCE_FEATURE_OPTIONS,
+  RESOURCE_TYPE_OPTIONS,
+  venueOptionLabel,
+} from "@/lib/venue-options";
 
 const AMENITY_ICON: Record<string, typeof LightsIcon> = {
   Floodlights: LightsIcon,
@@ -24,9 +31,17 @@ const SURFACE_LABEL: Record<string, string> = {
   concrete: "Concrete",
 };
 
+function featureLabel(value: string) {
+  const label = venueOptionLabel(RESOURCE_FEATURE_OPTIONS, value);
+  return label === value ? venueOptionLabel(AMENITY_OPTIONS, value) : label;
+}
+
 export function PitchCard({ pitch }: { pitch: PitchWithVenue }) {
   const { venue } = pitch;
-  const photo = venue.photos[0];
+  const photo = pitch.photos?.[0] ?? venue.photos[0];
+  const resourceLabel = venueOptionLabel(RESOURCE_TYPE_OPTIONS, pitch.resourceType ?? "pitch");
+  const activityLabel = venueOptionLabel(ACTIVITY_OPTIONS, pitch.activityType ?? "football");
+  const features = (pitch.amenities?.length ? pitch.amenities : venue.amenities).slice(0, 3);
 
   return (
     <article className="card-t card-t-hover overflow-hidden">
@@ -44,7 +59,7 @@ export function PitchCard({ pitch }: { pitch: PitchWithVenue }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
 
         <span className="absolute left-3 top-3">
-          <span className="chip-t !bg-black/40">{pitch.size}</span>
+          <span className="chip-t !bg-black/40">{resourceLabel}</span>
         </span>
 
         {venue.verified && (
@@ -65,6 +80,7 @@ export function PitchCard({ pitch }: { pitch: PitchWithVenue }) {
                 {venue.name}
               </h3>
             </Link>
+            <div className="mt-0.5 truncate text-[13px] text-ink-muted">{pitch.name}</div>
             <div className="mt-1 flex items-center gap-1.5 text-[13.5px] text-ink-soft">
               <PinIcon size={14} />
               <span className="truncate">
@@ -84,13 +100,15 @@ export function PitchCard({ pitch }: { pitch: PitchWithVenue }) {
         </div>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
+          <span className="chip-t">{activityLabel}</span>
           <span className="chip-t">{SURFACE_LABEL[pitch.surface]}</span>
-          {venue.amenities.slice(0, 3).map((a) => {
-            const Icon = AMENITY_ICON[a];
+          {features.map((a) => {
+            const label = featureLabel(a);
+            const Icon = AMENITY_ICON[label];
             return (
               <span key={a} className="chip-t">
                 {Icon && <Icon size={12} />}
-                {a}
+                {label}
               </span>
             );
           })}

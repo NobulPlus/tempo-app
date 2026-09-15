@@ -3,18 +3,9 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { SearchIcon, PinIcon } from "@/components/icons";
+import { LAGOS_AREA_OPTIONS } from "@/lib/lagos";
 
-const AREAS = [
-  "all",
-  "Lekki Phase 1",
-  "Ikoyi",
-  "Victoria Island",
-  "Lagos Island",
-  "Surulere",
-  "Ikeja GRA",
-  "Yaba",
-  "Gbagada",
-];
+const AREAS = ["all", ...LAGOS_AREA_OPTIONS] as const;
 
 const SIZES = ["all", "5-a-side", "7-a-side", "11-a-side"];
 

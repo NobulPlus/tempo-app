@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, isVenueOwner } from "@/lib/session";
 import { getVenueById, getBookingsForVenue, getGamesForVenue } from "@/lib/data/repo";
 import { VenueCalendar } from "@/components/venue/venue-calendar";
 
@@ -20,6 +20,7 @@ export default async function VenueCalendarPage({
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=/venue/${id}/calendar`);
+  if (!isVenueOwner(user)) redirect("/venue");
 
   const venue = await getVenueById(id);
   if (!venue) notFound();
@@ -29,7 +30,7 @@ export default async function VenueCalendarPage({
 
   return (
     <div className="py-12">
-      <div className="container-t max-w-4xl">
+      <div className="container-workspace-t">
         <nav className="mb-6 flex items-center gap-2 text-[13.5px] text-ink-muted">
           <Link href="/venue" className="transition hover:text-green">
             Venue dashboard

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, isVenueOwner } from "@/lib/session";
 import { CreateVenueForm } from "@/components/venue/create-venue-form";
 import { BuildingIcon } from "@/components/icons";
 
@@ -14,10 +14,11 @@ export const metadata: Metadata = {
 export default async function NewVenuePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/venue/new");
+  if (!isVenueOwner(user)) redirect("/venue");
 
   return (
     <div className="py-14">
-      <div className="container-t max-w-lg">
+      <div className="container-form-t">
         <div className="card-t relative overflow-hidden p-8">
           <span className="spokes-t" />
           <div className="relative text-center">

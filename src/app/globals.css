@@ -187,6 +187,24 @@ body {
     margin-inline: auto;
     padding-inline: 24px;
   }
+  .container-readable-t {
+    width: 100%;
+    max-width: 960px;
+    margin-inline: auto;
+    padding-inline: 24px;
+  }
+  .container-form-t {
+    width: 100%;
+    max-width: 860px;
+    margin-inline: auto;
+    padding-inline: 24px;
+  }
+  .container-workspace-t {
+    width: 100%;
+    max-width: 1320px;
+    margin-inline: auto;
+    padding-inline: 24px;
+  }
 
   .band-t {
     background: var(--color-bg-secondary);
@@ -364,6 +382,37 @@ body {
     background: var(--color-bg-elevated);
   }
 
+  .input-t {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--color-glass-border);
+    background: var(--color-glass);
+    padding: 14px 16px;
+    color: var(--color-ink);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s, background-color 0.2s;
+  }
+  .input-t:focus {
+    border-color: rgba(76, 141, 255, 0.55);
+    background: var(--color-bg-elevated);
+  }
+  .input-compact-t {
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid var(--color-glass-border);
+    background: var(--color-glass);
+    padding: 10px 12px;
+    color: var(--color-ink);
+    font-size: 13.5px;
+    outline: none;
+    transition: border-color 0.2s, background-color 0.2s;
+  }
+  .input-compact-t:focus {
+    border-color: rgba(76, 141, 255, 0.55);
+    background: var(--color-bg-elevated);
+  }
+
   .reveal-t {
     animation: var(--animate-rise);
   }
@@ -445,6 +494,15 @@ body {
   .reveal-on-t[data-revealed="true"] {
     opacity: 1;
     transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .container-t,
+  .container-readable-t,
+  .container-form-t,
+  .container-workspace-t {
+    padding-inline: 16px;
   }
 }
 

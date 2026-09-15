@@ -23,39 +23,52 @@ export function PartnerForm() {
   }
 
   return (
-    <form action={formAction} className="mx-auto max-w-lg">
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted">
-            <MailIcon size={17} />
+    <form action={formAction} className="mx-auto max-w-xl text-left">
+      <div className="grid gap-4">
+        <label>
+          <span className="mb-1.5 block text-[13px] font-semibold text-ink-soft">
+            Email or phone
           </span>
-          <input
-            name="contact"
-            required
-            placeholder="Email or 0801 234 5678"
-            aria-label="Email address or phone number"
-            autoComplete="email"
-            className="w-full rounded-full border border-glass-border bg-glass py-3.5 pl-11 pr-4 text-[14.5px] outline-none transition focus:border-green/50"
-          />
-        </div>
-        <div className="relative sm:w-48">
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted">
-            <PinIcon size={16} />
+          <span className="relative block">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted">
+              <MailIcon size={17} />
+            </span>
+            <input
+              name="contact"
+              required
+              placeholder="you@example.com or 0801 234 5678"
+              aria-label="Email address or phone number"
+              autoComplete="email"
+              className="input-t pl-11"
+              suppressHydrationWarning
+            />
           </span>
-          <input
-            name="area"
-            required
-            placeholder="Where's your venue?"
-            aria-label="Venue area"
-            className="w-full rounded-full border border-glass-border bg-glass py-3.5 pl-10 pr-4 text-[14.5px] outline-none transition focus:border-green/50"
-          />
-        </div>
-        <button type="submit" disabled={pending} className="btn-t btn-green-t !py-3.5">
+        </label>
+
+        <label>
+          <span className="mb-1.5 block text-[13px] font-semibold text-ink-soft">
+            Venue area
+          </span>
+          <span className="relative block">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted">
+              <PinIcon size={16} />
+            </span>
+            <input
+              name="area"
+              required
+              placeholder="Lekki, Surulere, Yaba..."
+              aria-label="Venue area"
+              className="input-t pl-11"
+            />
+          </span>
+        </label>
+
+        <button type="submit" disabled={pending} className="btn-t btn-green-t w-full !py-3.5">
           {pending ? "Sending…" : "List my venue"}
         </button>
       </div>
 
-      <p className="mt-3 text-[12px] text-ink-muted">
+      <p className="mt-4 text-center text-[12px] leading-relaxed text-ink-muted">
         No commitment — we&apos;ll reach out to arrange a visit before anything goes live.
       </p>
     </form>
