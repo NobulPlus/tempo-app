@@ -25,7 +25,8 @@ export type WalletTxnType =
   | "game_payment"
   | "game_refund"
   | "host_game_deposit"
-  | "host_reimbursement";
+  | "host_reimbursement"
+  | "host_game_earnings";
 export type WalletTxnStatus = "pending" | "completed" | "failed";
 
 export interface WalletTransaction {
@@ -156,6 +157,9 @@ export interface Game {
   bibsProvided: boolean;
   hostPaidKobo?: number;
   hostReimbursedKobo?: number;
+  hostPitchCostKobo?: number;
+  hostBookingFeeKobo?: number;
+  hostEarningsKobo?: number;
   minimumDecisionDeadline?: string | null;
   minimumDecisionStatus?: "pending" | "go_ahead" | "cancelled" | "not_needed";
   createdAt: string;

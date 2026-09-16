@@ -4,6 +4,7 @@ const PAGES = [
   { href: "/legal/terms", label: "Terms of Service" },
   { href: "/legal/privacy", label: "Privacy Policy" },
   { href: "/legal/refunds", label: "Cancellations & Refunds" },
+  { href: "/legal/venue-owners", label: "Venue Owner Terms" },
   { href: "/legal/community", label: "Community Rules" },
 ];
 

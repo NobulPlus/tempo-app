@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { listPitches, getSlotsForPitch } from "@/lib/data/repo";
+import { listPitches, getSlotsForPitch, getWalletBalance } from "@/lib/data/repo";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { HostForm, type HostSlotOption } from "@/components/host/host-form";
 
@@ -23,7 +23,10 @@ export default async function HostPage({
   if (!user) redirect("/login?next=/host");
   const { slot: initialSlotId } = await searchParams;
 
-  const pitches = await listPitches({ sort: "rated" });
+  const [pitches, walletBalanceKobo] = await Promise.all([
+    listPitches({ sort: "rated" }),
+    getWalletBalance(user.id),
+  ]);
 
   const slotLists = await Promise.all(
     pitches.map(async (p) => {
@@ -59,7 +62,7 @@ export default async function HostPage({
               Host a <span className="text-orange">game</span>
             </h1>
             <p className="mt-3 max-w-2xl text-[17px] leading-relaxed text-ink-soft">
-              Pick an open pitch from the calendar, reserve it with your wallet, set the price per player, and publish a public game players can join.
+              Pick an open pitch from the calendar, pay to reserve it, set the price per player, and publish a public game players can join.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link href="/host/manage" className="btn-t btn-ghost-t !py-2.5 !text-[13.5px]">
@@ -96,7 +99,7 @@ export default async function HostPage({
         </div>
 
         <div className="mt-10">
-          <HostForm slots={slots} initialSlotId={initialSlotId} />
+          <HostForm slots={slots} initialSlotId={initialSlotId} walletBalanceKobo={walletBalanceKobo} />
         </div>
       </div>
     </div>

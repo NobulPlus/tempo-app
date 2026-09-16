@@ -85,9 +85,8 @@ export default function SetupPage() {
           <p>
             Create a <a href="https://flutterwave.com">Flutterwave</a> account and add{" "}
             <code>FLUTTERWAVE_SECRET_KEY</code> and <code>FLUTTERWAVE_SECRET_HASH</code>{" "}
-            to your environment. The wallet, top-up flow, checkout and cancellation
-            credits are already built and wired to Flutterwave&apos;s hosted
-            checkout — switch from test keys to live keys, and add your production
+            to your environment. Booking checkout, game payments and cancellation
+            credits are wired to hosted payment checkout — switch from test keys to live keys, and add your production
             domain&apos;s <code>/api/webhooks/flutterwave</code> URL and matching
             secret hash in the Flutterwave dashboard.
           </p>

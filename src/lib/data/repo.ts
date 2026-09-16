@@ -556,7 +556,7 @@ export interface GameFull extends Game {
   filled: number;
 }
 
-const GAME_SELECT = `*, pitch:pitches(${PITCH_SELECT}), host:profiles(*), game_participants(*, player:profiles(*))`;
+const GAME_SELECT = `*, pitch:pitches(${PITCH_SELECT}), host:profiles(*), game_participants(*, player:profiles!game_participants_user_id_fkey(*))`;
 
 interface RawParticipantRow extends Omit<GameParticipant, "player"> {
   player: Record<string, unknown>;
@@ -1114,7 +1114,9 @@ export async function settleGameHostReimbursement(
     const after = camelize<Game>(data);
     return {
       ok: true,
-      reimbursedKobo: (after.hostReimbursedKobo ?? 0) - (before?.hostReimbursedKobo ?? 0),
+      reimbursedKobo:
+        (after.hostReimbursedKobo ?? 0) - (before?.hostReimbursedKobo ?? 0) +
+        (after.hostEarningsKobo ?? 0) - (before?.hostEarningsKobo ?? 0),
     };
   }
 
@@ -1132,30 +1134,53 @@ export async function settleGameHostReimbursement(
   const collected = s.participants
     .filter((p) => p.gameId === gameId && ["confirmed", "played", "no_show"].includes(p.status))
     .reduce((sum, p) => sum + p.paidKobo, 0);
-  const paid = game.hostPaidKobo ?? 0;
+  const pitchCost = game.hostPitchCostKobo ?? Math.max(0, (game.hostPaidKobo ?? 0) - Math.round((game.hostPaidKobo ?? 0) * 0.05));
   const already = game.hostReimbursedKobo ?? 0;
-  const due = Math.max(0, Math.min(collected, paid) - already);
-  if (due <= 0) return { ok: true, reimbursedKobo: 0 };
+  const earningsAlready = game.hostEarningsKobo ?? 0;
+  const due = Math.max(0, Math.min(collected, pitchCost) - already);
+  const earnings = Math.max(0, collected - pitchCost - earningsAlready);
+  if (due <= 0 && earnings <= 0) return { ok: true, reimbursedKobo: 0 };
 
-  const balance = (s.wallets[game.hostId] ?? 0) + due;
-  s.wallets[game.hostId] = balance;
+  let balance = (s.wallets[game.hostId] ?? 0);
   game.hostReimbursedKobo = already + due;
-  s.walletTransactions.push({
-    id: `wt-${Date.now()}`,
-    userId: game.hostId,
-    type: "host_reimbursement",
-    status: "completed",
-    amountKobo: due,
-    balanceAfterKobo: balance,
-    reference: `HRB-${Date.now().toString(36).toUpperCase()}`,
-    provider: null,
-    providerRef: null,
-    bookingId: null,
-    gameId,
-    createdAt: new Date().toISOString(),
-  });
+  game.hostEarningsKobo = earningsAlready + earnings;
+  if (due > 0) {
+    balance += due;
+    s.walletTransactions.push({
+      id: `wt-${Date.now()}`,
+      userId: game.hostId,
+      type: "host_reimbursement",
+      status: "completed",
+      amountKobo: due,
+      balanceAfterKobo: balance,
+      reference: `HRB-${Date.now().toString(36).toUpperCase()}`,
+      provider: null,
+      providerRef: null,
+      bookingId: null,
+      gameId,
+      createdAt: new Date().toISOString(),
+    });
+  }
+  if (earnings > 0) {
+    balance += earnings;
+    s.walletTransactions.push({
+      id: `wt-${Date.now()}-earnings`,
+      userId: game.hostId,
+      type: "host_game_earnings",
+      status: "completed",
+      amountKobo: earnings,
+      balanceAfterKobo: balance,
+      reference: `HPE-${Date.now().toString(36).toUpperCase()}`,
+      provider: null,
+      providerRef: null,
+      bookingId: null,
+      gameId,
+      createdAt: new Date().toISOString(),
+    });
+  }
+  s.wallets[game.hostId] = balance;
 
-  return { ok: true, reimbursedKobo: due };
+  return { ok: true, reimbursedKobo: due + earnings };
 }
 
 export type AttendanceEvent = "checked_in" | "late" | "no_show" | "flagged";

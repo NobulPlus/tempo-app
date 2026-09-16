@@ -212,18 +212,15 @@ export default async function DashboardPage() {
 
           <div className="card-t p-6">
             <div className="flex items-center gap-2 text-[12px] text-ink-muted">
-              <WalletIcon size={14} /> Tempo wallet
+              <WalletIcon size={14} /> Tempo credit
             </div>
             <div className="mt-1.5 text-[28px] font-extrabold">{formatNaira(walletBalanceKobo)}</div>
             <p className="mt-2 text-[13.5px] leading-relaxed text-ink-soft">
-              Top up to book, or spend what a cancellation credited back to you.
+              Reuse credit from refunds, reimbursements and hosting earnings.
             </p>
             <div className="mt-4 flex gap-2.5">
-              <Link href="/wallet" className="btn-t btn-green-t !py-2.5 !text-[13.5px]">
-                Top up
-              </Link>
               <Link href="/wallet" className="btn-t btn-ghost-t !py-2.5 !text-[13.5px]">
-                View transactions
+                View ledger
               </Link>
             </div>
           </div>

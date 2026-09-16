@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import Image from "next/image";
 import { createGameAction, type ActionState } from "@/app/actions";
 import {
   formatDayShort,
@@ -47,9 +48,11 @@ const TIME_BANDS = [
 export function HostForm({
   slots,
   initialSlotId,
+  walletBalanceKobo,
 }: {
   slots: HostSlotOption[];
   initialSlotId?: string;
+  walletBalanceKobo: number;
 }) {
   const [state, action, pending] = useActionState(createGameAction, initial);
   useActionToast(state);
@@ -104,6 +107,7 @@ export function HostForm({
   const covers = slot ? projected >= slot.priceKobo : false;
   const hostTotalKobo = slot ? slot.priceKobo + Math.round(slot.priceKobo * 0.05) : 0;
   const reimbursementTarget = slot ? Math.max(0, slot.priceKobo - minimumCollection) : 0;
+  const canUseCredit = Boolean(slot && walletBalanceKobo >= hostTotalKobo);
 
   return (
     <form action={action} className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(330px,.75fr)]">
@@ -115,7 +119,7 @@ export function HostForm({
                 <p className="text-[12px] font-bold uppercase tracking-[.12em] text-green">Hosting board</p>
                 <h2 className="mt-1 text-[22px] font-extrabold">Choose the best slot</h2>
                 <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-ink-soft">
-                  Browse 30 days of venue availability, filter by area and time, then reserve the pitch for your game.
+                  Browse 30 days of venue availability, filter by area and time, then pay to reserve the pitch for your game.
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
@@ -394,7 +398,7 @@ export function HostForm({
 
             {slot && (
               <div className="mt-4 rounded-2xl border border-gold/30 bg-gold/8 p-4 text-center">
-                <div className="text-[12px] text-ink-muted">You pay now, from your wallet</div>
+                  <div className="text-[12px] text-ink-muted">You pay now to reserve the pitch</div>
                 <div className="mt-0.5 text-[24px] font-extrabold text-gold">{formatNaira(hostTotalKobo)}</div>
                 <div className="mt-0.5 text-[11.5px] text-ink-muted">
                   {formatNaira(slot.priceKobo)} pitch hire + 5% service fee
@@ -432,8 +436,28 @@ export function HostForm({
               </div>
             )}
 
+            <fieldset className="mt-5">
+              <legend className="mb-2 text-[13px] font-semibold text-ink-soft">Payment channel</legend>
+              <div className="grid gap-2">
+                <PaymentOption value="korapay" label="KoraPay" logo="/payments/korapay.png" defaultChecked />
+                <PaymentOption value="flutterwave" label="Flutterwave" logo="/payments/flutterwave.png" />
+                {canUseCredit && (
+                  <PaymentOption
+                    value="wallet"
+                    label="Tempo credit"
+                    hint={`${formatNaira(walletBalanceKobo)} available`}
+                  />
+                )}
+              </div>
+              {slot && walletBalanceKobo > 0 && !canUseCredit && (
+                <p className="mt-2 text-[11.5px] text-ink-muted">
+                  Tempo credit available: {formatNaira(walletBalanceKobo)}. This can only be used when it covers the full amount.
+                </p>
+              )}
+            </fieldset>
+
             <button type="submit" disabled={pending || !slotId} className="btn-t btn-green-t mt-5 w-full">
-              {pending ? "Reserving..." : slot ? `Pay ${formatNaira(hostTotalKobo)} & publish` : "Publish game"}
+              {pending ? "Opening checkout..." : slot ? `Pay ${formatNaira(hostTotalKobo)} & publish` : "Publish game"}
             </button>
           </div>
         </div>
@@ -609,5 +633,41 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
       <dt className={strong ? "" : "text-ink-soft"}>{label}</dt>
       <dd>{value}</dd>
     </div>
+  );
+}
+
+function PaymentOption({
+  value,
+  label,
+  logo,
+  hint,
+  defaultChecked,
+}: {
+  value: "korapay" | "flutterwave" | "wallet";
+  label: string;
+  logo?: string;
+  hint?: string;
+  defaultChecked?: boolean;
+}) {
+  return (
+    <label className="flex min-h-[78px] cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/4 p-3 text-[13.5px] font-semibold transition has-[:checked]:border-green/45 has-[:checked]:bg-green/10">
+      <span className="min-w-0 flex-1">
+        {logo ? (
+          <span className="flex h-12 w-full items-center justify-center rounded-lg bg-white px-3 shadow-[inset_0_0_0_1px_rgba(10,20,35,0.06)]">
+            <Image
+              src={logo}
+              alt={label}
+              width={190}
+              height={44}
+              className={`w-full object-contain ${value === "flutterwave" ? "max-h-6" : "max-h-9"}`}
+            />
+          </span>
+        ) : (
+          <span>{label}</span>
+        )}
+        {hint && <span className="mt-0.5 block text-[11px] font-normal text-ink-muted">{hint}</span>}
+      </span>
+      <input type="radio" name="provider" value={value} defaultChecked={defaultChecked} className="h-4 w-4 accent-[#00e676]" />
+    </label>
   );
 }

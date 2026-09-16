@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { getWalletBalance, getWalletTransactions } from "@/lib/data/repo";
 import { formatNaira, formatDayShort, formatTime } from "@/lib/format";
-import { TopupForm } from "@/components/wallet/topup-form";
 import { WalletIcon, CheckIcon, ClockIcon, CloseIcon } from "@/components/icons";
 import type { WalletTransaction } from "@/lib/types";
 
@@ -35,19 +34,19 @@ export default async function WalletPage({
           Your wallet
         </h1>
         <p className="mt-2 text-[15px] text-ink-soft">
-          Top up, book pitches, and get instant credit back on eligible cancellations.
+          Your Tempo credit ledger for refunds, reimbursements and hosting earnings.
         </p>
 
         {topup === "success" && (
           <p className="mt-4 flex items-center gap-2 rounded-lg border border-green/30 bg-green/10 px-4 py-3 text-[13.5px] text-green">
             <CheckIcon size={15} />
-            Top-up successful — your balance is updated below.
+            Payment successful — your ledger is updated below.
           </p>
         )}
         {topup === "error" && (
           <p className="mt-4 flex items-center gap-2 rounded-lg border border-orange/30 bg-orange/10 px-4 py-3 text-[13.5px] text-orange">
             <CloseIcon size={15} />
-            {reason || "That top-up didn't go through — nothing was charged."}
+            {reason || "That payment didn't go through — nothing was applied."}
           </p>
         )}
 
@@ -56,20 +55,21 @@ export default async function WalletPage({
             <WalletIcon size={24} />
           </span>
           <div>
-            <div className="text-[12px] text-ink-muted">Available balance</div>
+            <div className="text-[12px] text-ink-muted">Available credit</div>
             <div className="text-[32px] font-extrabold tracking-[-.02em]">{formatNaira(balanceKobo)}</div>
           </div>
         </div>
 
-        <div className="mt-6">
-          <TopupForm />
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/4 p-5 text-[13.5px] leading-relaxed text-ink-soft">
+          Payments now start from the booking or game you are paying for. This page only shows reusable credit from refunds,
+          reimbursements and hosting earnings.
         </div>
 
         <section className="mt-10">
           <h2 className="text-[18px] font-bold">Transaction history</h2>
           {transactions.length === 0 ? (
             <div className="card-t mt-4 p-6 text-center text-[14px] text-ink-soft">
-              Nothing here yet — top up to get started.
+              Nothing here yet. Credits and payment ledger entries will appear here.
             </div>
           ) : (
             <ul className="mt-4 space-y-2.5">
@@ -92,6 +92,7 @@ const TXN_LABELS: Record<WalletTransaction["type"], string> = {
   game_refund: "Game refund",
   host_game_deposit: "Pitch deposit (hosting)",
   host_reimbursement: "Hosting reimbursement",
+  host_game_earnings: "Hosting earnings",
 };
 
 function TransactionRow({ txn }: { txn: WalletTransaction }) {

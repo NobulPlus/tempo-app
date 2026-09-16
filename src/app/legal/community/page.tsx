@@ -62,17 +62,26 @@ export default function CommunityPage() {
 
       <h2>Pay properly</h2>
       <p>
-        Pay through Tempo. Arranging cash on the side leaves you with no refund, no
-        guarantee and no record if something goes wrong — and it takes money from
-        venues that gave you a rate on the understanding the platform brings volume.
+        Pay through Tempo for the booking or game you are joining. Arranging cash on
+        the side leaves you with no platform record if something goes wrong and can
+        remove access to credits, reimbursements and dispute support.
       </p>
 
       <h2>Hosts have extra responsibility</h2>
       <ul>
         <li>Describe the game accurately, including the level</li>
+        <li>Reserve the pitch before publishing the game</li>
         <li>Show up early enough to sort teams</li>
         <li>Cancel as early as you know, never on the day if avoidable</li>
         <li>Mark attendance honestly — the whole reputation system depends on it</li>
+      </ul>
+
+      <h2>Venue owners have extra responsibility</h2>
+      <ul>
+        <li>Keep venue details, photos, prices and availability accurate</li>
+        <li>Honour confirmed bookings and hosted games</li>
+        <li>Tell Tempo early when a pitch is unavailable or unplayable</li>
+        <li>Do not pressure players or hosts into side payments</li>
       </ul>
 
       <h2>What happens when rules are broken</h2>

@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
+import { adminVerifyPendingKorapayTopupAction, type ActionState } from "@/app/actions";
 import { SearchIcon, WalletIcon } from "@/components/icons";
+import { useActionToast } from "@/components/toast/use-action-toast";
 import { formatNaira, formatDayShort, formatTime } from "@/lib/format";
 import type { FinanceSummary, WalletAdminRow, WalletTransactionAdminRow } from "@/lib/data/repo";
 
@@ -125,11 +127,14 @@ const TXN_LABELS: Record<WalletTransactionAdminRow["type"], string> = {
   game_refund: "Game refund",
   host_game_deposit: "Pitch deposit (hosting)",
   host_reimbursement: "Hosting reimbursement",
+  host_game_earnings: "Hosting earnings",
 };
 
 function TransactionRow({ txn }: { txn: WalletTransactionAdminRow }) {
   const isCredit = txn.amountKobo >= 0;
   const label = TXN_LABELS[txn.type];
+  const [state, action, pending] = useActionState(adminVerifyPendingKorapayTopupAction, {} as ActionState);
+  useActionToast(state);
 
   return (
     <div className="card-t flex items-center gap-4 p-4">
@@ -153,6 +158,14 @@ function TransactionRow({ txn }: { txn: WalletTransactionAdminRow }) {
         {isCredit ? "+" : "−"}
         {formatNaira(Math.abs(txn.amountKobo))}
       </div>
+      {txn.type === "topup" && txn.status === "pending" && (
+        <form action={action} className="shrink-0">
+          <input type="hidden" name="reference" value={txn.reference} />
+          <button type="submit" disabled={pending} className="btn-t btn-ghost-t !px-3 !py-2 !text-[12px]">
+            {pending ? "Checking..." : "Verify Korapay"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }

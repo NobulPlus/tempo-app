@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { verifyFlutterwaveTransaction } from "@/lib/payments/flutterwave";
 import { completeVerifiedWalletTopup } from "@/lib/payments/wallet";
+import { completeVerifiedActionPayment } from "@/lib/payments/action-payments";
 
 /**
  * Durable backstop for wallet top-ups: covers the case where a user closes
@@ -41,12 +42,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, skipped: true });
   }
 
-  const completed = await completeVerifiedWalletTopup({
-    reference: verified.txRef,
-    amountKobo: verified.amountKobo,
-    providerRef: String(transactionId),
-    raw: verified.raw,
-  });
+  const completed = verified.txRef.startsWith("TOPUP-")
+    ? await completeVerifiedWalletTopup({
+        reference: verified.txRef,
+        amountKobo: verified.amountKobo,
+        providerRef: String(transactionId),
+        raw: verified.raw,
+      })
+    : await completeVerifiedActionPayment({
+        reference: verified.txRef,
+        amountKobo: verified.amountKobo,
+        providerRef: String(transactionId),
+        raw: verified.raw,
+      });
 
   if (!completed.ok) {
     return NextResponse.json({ error: completed.error }, { status: 500 });

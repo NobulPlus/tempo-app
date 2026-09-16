@@ -20,6 +20,8 @@ import {
   createBooking,
   cancelBooking,
   getBookingByReference,
+  getSlot,
+  getGameById,
   getProfileById,
   listProfiles,
   verifyVenue,
@@ -44,7 +46,9 @@ import { isSupabaseConfigured, createClient } from "@/lib/supabase/server";
 import { store } from "@/lib/data/store";
 import { redirect } from "next/navigation";
 import { safeNext } from "@/lib/url";
-import { initializeFlutterwavePayment } from "@/lib/payments/flutterwave";
+import { initializeFlutterwavePayment, isFlutterwaveConfigured } from "@/lib/payments/flutterwave";
+import { initializeKorapayPayment, isKorapayConfigured, verifyKorapayTransaction } from "@/lib/payments/korapay";
+import { completeVerifiedWalletTopup } from "@/lib/payments/wallet";
 import { sendMail } from "@/lib/mail/transport";
 import { bookingConfirmationEmail, bookingCancelledEmail, welcomeEmail, gameCancelledEmail } from "@/lib/mail/templates";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -212,9 +216,71 @@ export async function joinGameAction(
   gameId: string,
   slug: string,
   priceKobo: number = 0,
+  providerInput: "korapay" | "flutterwave" | "wallet" = "korapay",
 ): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  if (isSupabaseConfigured()) {
+    const parsedProvider = parsePaymentProvider(providerInput);
+    if (!parsedProvider.ok) return { ok: false, error: parsedProvider.error };
+    const provider = parsedProvider.provider;
+    const game = await getGameById(gameId);
+    if (!game) return { ok: false, error: "Game not found." };
+
+    if (provider === "wallet") {
+      const result = await joinGame(gameId, user.id);
+      if (!result.ok) return { ok: false, error: result.error };
+      revalidatePath(`/games/${slug}`);
+      revalidatePath("/games");
+      revalidatePath("/dashboard");
+      revalidatePath("/", "layout");
+      return result.status === "waitlist"
+        ? {
+            ok: true,
+            message: "Game is full — you're on the waitlist. We'll message you the moment a spot opens.",
+          }
+        : { ok: true, message: "Tempo credit applied. You're in." };
+    }
+
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("start_external_game_join", { p_game_id: gameId });
+    if (error) return { ok: false, error: friendlyPaymentSetupError(error.message) };
+
+    const participant = data as { id: string; status: string; paid_kobo?: number | string | null };
+    if (participant.status === "waitlist") {
+      revalidatePath(`/games/${slug}`);
+      revalidatePath("/games");
+      revalidatePath("/dashboard");
+      return {
+        ok: true,
+        message: "Game is full — you're on the waitlist. We'll message you the moment a spot opens.",
+      };
+    }
+
+    const paidKobo = Number(participant.paid_kobo ?? 0);
+    const dueKobo = Math.max(0, game.pricePerPlayerKobo - paidKobo);
+    if (dueKobo <= 0) {
+      revalidatePath(`/games/${slug}`);
+      return { ok: true, message: "You're in. See you on the pitch." };
+    }
+
+    return startExactPayment({
+      kind: "join_game",
+      provider,
+      amountKobo: dueKobo,
+      gameId,
+      participantId: participant.id,
+      referencePrefix: "GPY",
+      title: "Tempo game spot",
+      description: `Join ${game.title}`,
+      payload: {
+        game_id: gameId,
+        game_slug: slug,
+        participant_id: participant.id,
+      },
+    });
+  }
 
   const result = await joinGame(gameId, user.id);
   if (!result.ok) return { ok: false, error: result.error };
@@ -238,8 +304,8 @@ export async function joinGameAction(
       ok: true,
       message:
         result.paidKobo > 0
-          ? `You're in — wallet covered ${formatNaira(result.paidKobo)} of ${formatNaira(priceKobo)}. Top up ${formatNaira(dueKobo)} by ${deadline} to keep your spot.`
-          : `You're in, on hold — top up ${formatNaira(dueKobo)} by ${deadline} to keep your spot.`,
+          ? `You're in — Tempo credit covered ${formatNaira(result.paidKobo)} of ${formatNaira(priceKobo)}. Pay ${formatNaira(dueKobo)} by ${deadline} to keep your spot.`
+          : `You're in, on hold — pay ${formatNaira(dueKobo)} by ${deadline} to keep your spot.`,
     };
   }
   return { ok: true, message: "You're in. See you on the pitch." };
@@ -258,9 +324,58 @@ export async function leaveGameAction(gameId: string, slug: string): Promise<Act
   return { ok: true, message: "You've left the game. Your spot went to the next person waiting." };
 }
 
-export async function payGameBalanceAction(gameId: string, slug: string): Promise<ActionState> {
+export async function payGameBalanceAction(
+  gameId: string,
+  slug: string,
+  providerInput: "korapay" | "flutterwave" | "wallet" = "korapay",
+): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  if (isSupabaseConfigured()) {
+    const parsedProvider = parsePaymentProvider(providerInput);
+    if (!parsedProvider.ok) return { ok: false, error: parsedProvider.error };
+    const provider = parsedProvider.provider;
+    const game = await getGameById(gameId);
+    if (!game) return { ok: false, error: "Game not found." };
+
+    if (provider === "wallet") {
+      const result = await payGameBalance(gameId, user.id);
+      if (!result.ok) return { ok: false, error: result.error };
+      revalidatePath(`/games/${slug}`);
+      revalidatePath("/dashboard");
+      revalidatePath("/", "layout");
+      return {
+        ok: true,
+        message:
+          result.status === "confirmed"
+            ? "Tempo credit applied. You're all paid up."
+            : "Tempo credit applied — still a balance left on this one.",
+      };
+    }
+    const participant = game.participants.find((p) => p.userId === user.id);
+    if (!participant || participant.status !== "pending_payment") {
+      return { ok: false, error: "No payment is due." };
+    }
+    const dueKobo = Math.max(0, game.pricePerPlayerKobo - participant.paidKobo);
+    if (dueKobo <= 0) return { ok: true, message: "You're all paid up. See you on the pitch." };
+
+    return startExactPayment({
+      kind: "game_balance",
+      provider,
+      amountKobo: dueKobo,
+      gameId,
+      participantId: participant.id,
+      referencePrefix: "GBL",
+      title: "Tempo game balance",
+      description: `Complete payment for ${game.title}`,
+      payload: {
+        game_id: gameId,
+        game_slug: slug,
+        participant_id: participant.id,
+      },
+    });
+  }
 
   const result = await payGameBalance(gameId, user.id);
   if (!result.ok) return { ok: false, error: result.error };
@@ -520,6 +635,56 @@ export async function createBookingAction(
 
   const slotId = String(formData.get("slotId") ?? "");
 
+  const parsedProvider = parsePaymentProvider(formData.get("provider"));
+  if (!parsedProvider.ok) return { ok: false, error: parsedProvider.error };
+  const provider = parsedProvider.provider;
+
+  if (isSupabaseConfigured()) {
+    const slot = await getSlot(slotId);
+    if (!slot) return { ok: false, error: "That slot no longer exists." };
+    if (slot.status !== "open") return { ok: false, error: "Sorry — someone just took that slot." };
+    if (new Date(slot.startsAt).getTime() <= Date.now()) return { ok: false, error: "That time has already passed." };
+    const totalKobo = slot.priceKobo + Math.round(slot.priceKobo * 0.05);
+
+    if (provider === "wallet") {
+      const result = await createBooking(slotId, user.id);
+      if (!result.ok) return { ok: false, error: result.error };
+      const email = await currentUserEmail();
+      if (email) {
+        const full = await getBookingByReference(result.booking.reference);
+        if (full) {
+          const { subject, html, text } = bookingConfirmationEmail({
+            fullName: user.fullName,
+            reference: full.reference,
+            venueName: full.slot.pitch.venue.name,
+            address: full.slot.pitch.venue.address,
+            pitchName: full.slot.pitch.name,
+            kickoffISO: full.slot.startsAt,
+            totalKobo: full.totalKobo,
+          });
+          await sendMail({ to: email, subject, html, text });
+        }
+      }
+      revalidatePath("/", "layout");
+      redirect(`/bookings/${result.booking.reference}`);
+    }
+
+    return startExactPayment({
+      kind: "booking",
+      provider,
+      amountKobo: totalKobo,
+      slotId,
+      referencePrefix: "BKG",
+      title: "Tempo pitch booking",
+      description: `Book ${slot.pitch.venue.name} for ${formatDayShort(slot.startsAt)}, ${formatTime(slot.startsAt)}`,
+      payload: {
+        slot_id: slotId,
+        pitch_name: slot.pitch.name,
+        venue_name: slot.pitch.venue.name,
+      },
+    });
+  }
+
   const result = await createBooking(slotId, user.id);
   if (!result.ok) return { ok: false, error: result.error };
 
@@ -588,7 +753,103 @@ export async function cancelBookingAction(
 
 const topupSchema = z.object({
   amountNaira: z.coerce.number().int().min(500, "Minimum top-up is ₦500").max(500_000, "Maximum top-up is ₦500,000"),
+  provider: z.enum(["korapay", "flutterwave"]).default("korapay"),
 });
+
+const paymentProviderSchema = z.enum(["korapay", "flutterwave", "wallet"]).default("korapay");
+const paymentSetupMissingMessage =
+  "Payment setup is not active on the database yet. Run the latest migrations, then try again.";
+
+function friendlyPaymentSetupError(message: string) {
+  return message.includes("action_payment_intents") ||
+    message.includes("start_external_game_join") ||
+    message.includes("complete_action_payment") ||
+    message.includes("schema cache")
+    ? paymentSetupMissingMessage
+    : message;
+}
+
+function parsePaymentProvider(value: FormDataEntryValue | string | null | undefined):
+  | { ok: true; provider: "korapay" | "flutterwave" | "wallet" }
+  | { ok: false; error: string } {
+  const parsed = paymentProviderSchema.safeParse(value ?? undefined);
+  if (!parsed.success) return { ok: false, error: "Choose a valid payment channel." };
+  return { ok: true, provider: parsed.data };
+}
+
+async function startExactPayment(input: {
+  kind: "booking" | "host_game" | "join_game" | "game_balance";
+  provider: "korapay" | "flutterwave";
+  amountKobo: number;
+  slotId?: string;
+  gameId?: string;
+  participantId?: string;
+  payload?: Record<string, unknown>;
+  referencePrefix: "BKG" | "HST" | "GPY" | "GBL";
+  title: string;
+  description: string;
+}): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  if (!isSupabaseConfigured()) return { ok: false, error: "Payments need the live database." };
+
+  if (input.provider === "korapay" && !isKorapayConfigured()) {
+    return { ok: false, error: "Korapay is not configured yet." };
+  }
+  if (input.provider === "flutterwave" && !isFlutterwaveConfigured()) {
+    return { ok: false, error: "Flutterwave is not configured yet." };
+  }
+
+  const sb = await createClient();
+  const {
+    data: { user: authUser },
+  } = await sb.auth.getUser();
+  if (!authUser?.email) return { ok: false, error: "Your account has no email on file." };
+
+  const reference = `${input.referencePrefix}-${generateReference().replace("TMP-", "")}`;
+  const admin = createAdminClient();
+  const { error } = await admin.from("action_payment_intents").insert({
+    reference,
+    user_id: user.id,
+    kind: input.kind,
+    provider: input.provider,
+    amount_kobo: input.amountKobo,
+    slot_id: input.slotId ?? null,
+    game_id: input.gameId ?? null,
+    participant_id: input.participantId ?? null,
+    payload: input.payload ?? {},
+  });
+  if (error) return { ok: false, error: friendlyPaymentSetupError(error.message) };
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const callback = `${site}/wallet/callback${input.provider === "korapay" ? `?provider=korapay&tempo_reference=${encodeURIComponent(reference)}` : ""}`;
+
+  const payment =
+    input.provider === "korapay"
+      ? await initializeKorapayPayment({
+          reference,
+          amountKobo: input.amountKobo,
+          email: authUser.email,
+          name: user.fullName,
+          redirectUrl: callback,
+          notificationUrl: `${site}/api/webhooks/korapay`,
+          narration: input.description,
+          metadata: { kind: input.kind },
+        })
+      : await initializeFlutterwavePayment({
+          reference,
+          amountKobo: input.amountKobo,
+          email: authUser.email,
+          name: user.fullName,
+          redirectUrl: callback,
+          title: input.title,
+          description: input.description,
+          metadata: { kind: input.kind },
+        });
+
+  if (!payment.ok) return { ok: false, error: payment.error };
+  redirect(payment.link);
+}
 
 export async function initiateWalletTopupAction(
   _prev: ActionState,
@@ -597,7 +858,10 @@ export async function initiateWalletTopupAction(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
 
-  const parsed = topupSchema.safeParse({ amountNaira: formData.get("amountNaira") });
+  const parsed = topupSchema.safeParse({
+    amountNaira: formData.get("amountNaira"),
+    provider: formData.get("provider") ?? undefined,
+  });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Enter a valid amount." };
   }
@@ -634,6 +898,10 @@ export async function initiateWalletTopupAction(
     p_amount_kobo: amountKobo,
   });
   if (initError) return { ok: false, error: initError.message };
+  await createAdminClient()
+    .from("wallet_transactions")
+    .update({ provider: parsed.data.provider })
+    .eq("reference", reference);
 
   const {
     data: { user: authUser },
@@ -641,16 +909,113 @@ export async function initiateWalletTopupAction(
   if (!authUser?.email) return { ok: false, error: "Your account has no email on file." };
 
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const result = await initializeFlutterwavePayment({
-    reference,
-    amountKobo,
-    email: authUser.email,
-    name: user.fullName,
-    redirectUrl: `${site}/wallet/callback`,
-  });
+  if (parsed.data.provider === "korapay" && !isKorapayConfigured()) {
+    return { ok: false, error: "Korapay is not configured yet." };
+  }
+  if (parsed.data.provider === "flutterwave" && !isFlutterwaveConfigured()) {
+    return { ok: false, error: "Flutterwave is not configured yet." };
+  }
+
+  const result =
+    parsed.data.provider === "korapay"
+      ? await initializeKorapayPayment({
+          reference,
+          amountKobo,
+          email: authUser.email,
+          name: user.fullName,
+          redirectUrl: `${site}/wallet/callback?provider=korapay&tempo_reference=${encodeURIComponent(reference)}`,
+          notificationUrl: `${site}/api/webhooks/korapay`,
+        })
+      : await initializeFlutterwavePayment({
+          reference,
+          amountKobo,
+          email: authUser.email,
+          name: user.fullName,
+          redirectUrl: `${site}/wallet/callback`,
+        });
   if (!result.ok) return { ok: false, error: result.error };
 
   redirect(result.link);
+}
+
+const verifyTopupSchema = z.object({
+  reference: z.string().startsWith("TOPUP-"),
+});
+
+export async function verifyPendingKorapayTopupAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login?next=/wallet");
+
+  const parsed = verifyTopupSchema.safeParse({ reference: formData.get("reference") });
+  if (!parsed.success) {
+    redirect("/wallet?topup=error&reason=Invalid%20top-up%20reference.");
+  }
+
+  const sb = await createClient();
+  const { data: pendingTopup, error } = await sb
+    .from("wallet_transactions")
+    .select("reference, status, type")
+    .eq("reference", parsed.data.reference)
+    .maybeSingle();
+
+  if (error || !pendingTopup || pendingTopup.type !== "topup") {
+    redirect("/wallet?topup=error&reason=We%20couldn't%20find%20that%20pending%20top-up.");
+  }
+  if (pendingTopup.status === "completed") {
+    redirect("/wallet?topup=success");
+  }
+
+  const verified = await verifyKorapayTransaction(parsed.data.reference);
+  if (!verified.ok) {
+    redirect(`/wallet?topup=error&reason=${encodeURIComponent(`Couldn't verify that Korapay payment — ${verified.error}`)}`);
+  }
+  if (verified.status !== "success" || verified.currency !== "NGN") {
+    redirect("/wallet?topup=error&reason=Korapay%20has%20not%20marked%20that%20payment%20as%20successful%20yet.");
+  }
+
+  const completed = await completeVerifiedWalletTopup({
+    reference: parsed.data.reference,
+    amountKobo: verified.amountKobo,
+    providerRef: verified.providerRef,
+    raw: verified.raw,
+  });
+
+  if (!completed.ok) {
+    redirect(`/wallet?topup=error&reason=${encodeURIComponent(completed.error)}`);
+  }
+
+  redirect("/wallet?topup=success");
+}
+
+export async function adminVerifyPendingKorapayTopupAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, error: "Not authorized." };
+
+  const parsed = verifyTopupSchema.safeParse({ reference: formData.get("reference") });
+  if (!parsed.success) return { ok: false, error: "Invalid top-up reference." };
+
+  const verified = await verifyKorapayTransaction(parsed.data.reference);
+  if (!verified.ok) return { ok: false, error: `Couldn't verify Korapay payment — ${verified.error}` };
+  if (verified.status !== "success" || verified.currency !== "NGN") {
+    return { ok: false, error: "Korapay has not marked that payment as successful yet." };
+  }
+
+  const completed = await completeVerifiedWalletTopup({
+    reference: parsed.data.reference,
+    amountKobo: verified.amountKobo,
+    providerRef: verified.providerRef,
+    raw: verified.raw,
+  });
+
+  if (!completed.ok) return { ok: false, error: completed.error };
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/finance");
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Payment verified and wallet credited." };
 }
 
 /* ------------------------------------------------------------------ host -- */
@@ -704,7 +1069,7 @@ export async function createGameAction(
     if (hostBalance < hostTotalKobo) {
       return {
         ok: false,
-        error: `Top up your wallet with at least ${formatNaira(hostTotalKobo - hostBalance)} to reserve this pitch.`,
+        error: `Add at least ${formatNaira(hostTotalKobo - hostBalance)} in demo credit to reserve this pitch.`,
       };
     }
 
@@ -773,32 +1138,65 @@ export async function createGameAction(
     redirect(`/games/${slug}`);
   }
 
-  const sb = await createClient();
-  const { data, error } = await sb.rpc("host_game", {
-    p_slot_id: v.slotId,
-    p_title: v.title,
-    p_description: v.description ?? "",
-    p_level: v.level,
-    p_capacity: v.capacity,
-    p_minimum_to_guarantee: v.minimumToGuarantee,
-    p_price_per_player_kobo: v.pricePerPlayerNaira * 100,
-    p_bibs_provided: Boolean(v.bibsProvided),
-  });
+  const parsedProvider = parsePaymentProvider(formData.get("provider"));
+  if (!parsedProvider.ok) return { ok: false, error: parsedProvider.error };
+  const provider = parsedProvider.provider;
+  const slot = await getSlot(v.slotId);
+  if (!slot) return { ok: false, error: "That slot no longer exists." };
+  if (slot.status !== "open") return { ok: false, error: "Someone just booked that slot." };
+  if (new Date(slot.startsAt).getTime() <= Date.now()) return { ok: false, error: "That time has already passed." };
 
-  if (error) {
-    return {
-      ok: false,
-      error: error.message.includes("no longer available")
-        ? "Someone just booked that slot."
-        : error.message.includes("insufficient wallet balance")
-          ? "Top up your wallet to reserve this pitch before hosting."
-        : error.message,
-    };
+  const hostTotalKobo = slot.priceKobo + Math.round(slot.priceKobo * 0.05);
+  if (provider === "wallet") {
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("host_game", {
+      p_slot_id: v.slotId,
+      p_title: v.title,
+      p_description: v.description ?? "",
+      p_level: v.level,
+      p_capacity: v.capacity,
+      p_minimum_to_guarantee: v.minimumToGuarantee,
+      p_price_per_player_kobo: v.pricePerPlayerNaira * 100,
+      p_bibs_provided: Boolean(v.bibsProvided),
+    });
+
+    if (error) {
+      return {
+        ok: false,
+        error: error.message.includes("no longer available")
+          ? "Someone just booked that slot."
+          : error.message.includes("insufficient wallet balance")
+            ? "Not enough Tempo credit to reserve this pitch."
+            : error.message,
+      };
+    }
+
+    revalidatePath("/", "layout");
+    revalidatePath("/games");
+    redirect(`/games/${(data as { slug: string }).slug}`);
   }
 
-  revalidatePath("/", "layout");
-  revalidatePath("/games");
-  redirect(`/games/${(data as { slug: string }).slug}`);
+  return startExactPayment({
+    kind: "host_game",
+    provider,
+    amountKobo: hostTotalKobo,
+    slotId: v.slotId,
+    referencePrefix: "HST",
+    title: "Tempo hosted game",
+    description: `Reserve ${slot.pitch.venue.name} and publish ${v.title}`,
+    payload: {
+      slot_id: v.slotId,
+      title: v.title,
+      description: v.description ?? "",
+      level: v.level,
+      capacity: v.capacity,
+      minimum_to_guarantee: v.minimumToGuarantee,
+      price_per_player_kobo: v.pricePerPlayerNaira * 100,
+      bibs_provided: Boolean(v.bibsProvided),
+      pitch_name: slot.pitch.name,
+      venue_name: slot.pitch.venue.name,
+    },
+  });
 }
 
 /* ------------------------------------------------------------------ auth -- */

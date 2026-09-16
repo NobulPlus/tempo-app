@@ -17,12 +17,19 @@ function secretKey(): string | null {
   return process.env.FLUTTERWAVE_SECRET_KEY || null;
 }
 
+export function isFlutterwaveConfigured(): boolean {
+  return Boolean(secretKey());
+}
+
 export async function initializeFlutterwavePayment(opts: {
   reference: string;
   amountKobo: number;
   email: string;
   name: string;
   redirectUrl: string;
+  title?: string;
+  description?: string;
+  metadata?: Record<string, string>;
 }): Promise<{ ok: true; link: string } | { ok: false; error: string }> {
   const secret = secretKey();
   if (!secret) return { ok: false, error: "Payments are not configured yet." };
@@ -40,9 +47,15 @@ export async function initializeFlutterwavePayment(opts: {
       currency: "NGN",
       redirect_url: opts.redirectUrl,
       customer: { email: opts.email, name: opts.name },
+      meta: {
+        product: "tempo",
+        type: "action_payment",
+        reference: opts.reference,
+        ...opts.metadata,
+      },
       customizations: {
-        title: "Tempo Wallet Top-up",
-        description: "Add funds to your Tempo wallet",
+        title: opts.title ?? "Tempo Payment",
+        description: opts.description ?? "Pay securely on Tempo",
       },
     }),
   });

@@ -98,27 +98,31 @@ export function MinimumDecisionBanner({
 }
 
 /**
- * As players pay in, that money is Tempo's, not the host's, until it's
- * settled here — capped at what the host originally paid to reserve the
- * pitch. Only shows once the game has ended and the host has actually
- * committed to it (reached minimum, or explicitly chose to go ahead).
+ * Player money is settled after the game ends: the host first recovers the
+ * pitch cost, then receives any surplus. Tempo's booking fee is excluded.
  */
 export function HostReimbursementCard({
   gameId,
   slug,
   hostPaidKobo,
   hostReimbursedKobo,
+  hostPitchCostKobo,
+  hostEarningsKobo,
 }: {
   gameId: string;
   slug: string;
   hostPaidKobo: number;
   hostReimbursedKobo: number;
+  hostPitchCostKobo?: number;
+  hostEarningsKobo?: number;
 }) {
   const [state, action, pending] = useActionState(settleGameHostReimbursementAction, initial);
   useActionToast(state);
 
-  const remaining = Math.max(0, hostPaidKobo - hostReimbursedKobo);
-  const percent = hostPaidKobo > 0 ? Math.min(100, Math.round((hostReimbursedKobo / hostPaidKobo) * 100)) : 100;
+  const pitchCost = hostPitchCostKobo || Math.max(0, hostPaidKobo - Math.round(hostPaidKobo * 0.05));
+  const earnings = hostEarningsKobo ?? 0;
+  const remaining = Math.max(0, pitchCost - hostReimbursedKobo);
+  const percent = pitchCost > 0 ? Math.min(100, Math.round((hostReimbursedKobo / pitchCost) * 100)) : 100;
 
   return (
     <div className="card-t p-6">
@@ -129,7 +133,7 @@ export function HostReimbursementCard({
       <div className="mt-3 flex items-end justify-between text-[13px]">
         <span className="text-ink-soft">Recovered</span>
         <span className="font-semibold">
-          {formatNaira(hostReimbursedKobo)} <span className="text-ink-muted">of {formatNaira(hostPaidKobo)}</span>
+          {formatNaira(hostReimbursedKobo)} <span className="text-ink-muted">of {formatNaira(pitchCost)}</span>
         </span>
       </div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/8">
@@ -139,7 +143,7 @@ export function HostReimbursementCard({
       {remaining <= 0 ? (
         <p className="mt-3 flex items-center gap-1.5 text-[12.5px] text-green">
           <CheckIcon size={13} />
-          Fully recovered.
+          Pitch cost recovered{earnings > 0 ? ` · ${formatNaira(earnings)} earned` : ""}.
         </p>
       ) : (
         <form action={action} className="mt-3">
@@ -149,8 +153,8 @@ export function HostReimbursementCard({
             {pending ? "Checking…" : "Check for reimbursement"}
           </button>
           <p className="mt-2 text-[11.5px] text-ink-muted">
-            Settles after the match ends — you&apos;ll never get back more than
-            you paid.
+            The booking fee is not part of the recovery. Any player money above
+            the pitch cost is paid to you as hosting earnings.
           </p>
         </form>
       )}

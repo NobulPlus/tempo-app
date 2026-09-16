@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { verifyFlutterwaveTransaction } from "@/lib/payments/flutterwave";
+import { verifyKorapayTransaction } from "@/lib/payments/korapay";
 import { completeVerifiedWalletTopup } from "@/lib/payments/wallet";
+import { completeVerifiedActionPayment } from "@/lib/payments/action-payments";
 
 /**
  * Where Flutterwave sends the browser back after checkout. A Route Handler,
@@ -27,6 +29,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?next=/wallet", request.url));
   }
 
+  const provider = request.nextUrl.searchParams.get("provider");
+  if (provider === "korapay") {
+    return handleKorapayCallback(request);
+  }
+
   const transactionId = request.nextUrl.searchParams.get("transaction_id");
   const txRef = request.nextUrl.searchParams.get("tx_ref");
 
@@ -42,18 +49,66 @@ export async function GET(request: NextRequest) {
     return errorRedirect(request, "That payment wasn't successful, so nothing was added to your wallet.");
   }
 
-  const completed = await completeVerifiedWalletTopup({
-    reference: verified.txRef,
-    amountKobo: verified.amountKobo,
-    providerRef: transactionId,
-    raw: verified.raw,
-  });
+  const completed = verified.txRef.startsWith("TOPUP-")
+    ? await completeVerifiedWalletTopup({
+        reference: verified.txRef,
+        amountKobo: verified.amountKobo,
+        providerRef: transactionId,
+        raw: verified.raw,
+      })
+    : await completeVerifiedActionPayment({
+        reference: verified.txRef,
+        amountKobo: verified.amountKobo,
+        providerRef: transactionId,
+        raw: verified.raw,
+      });
 
   if (!completed.ok) {
     return errorRedirect(request, completed.error);
   }
 
-  return NextResponse.redirect(new URL("/wallet?topup=success", request.url));
+  return NextResponse.redirect(new URL(paymentSuccessPath(completed), request.url));
+}
+
+async function handleKorapayCallback(request: NextRequest) {
+  const tempoReference = request.nextUrl.searchParams.get("tempo_reference");
+  const callbackReference = request.nextUrl.searchParams.get("reference") ?? tempoReference;
+  if (!callbackReference) {
+    return errorRedirect(request, "We didn't get a Korapay reference back from the payment page.");
+  }
+
+  const verified = await verifyKorapayTransaction(callbackReference);
+  if (!verified.ok) {
+    return errorRedirect(request, `Couldn't verify that payment — ${verified.error}`);
+  }
+  if (verified.status !== "success" || verified.currency !== "NGN") {
+    return errorRedirect(request, "That payment wasn't successful, so nothing was added to your wallet.");
+  }
+
+  const tempoPaymentReference = tempoReference ?? verified.merchantReference;
+  const completed = tempoPaymentReference.startsWith("TOPUP-")
+    ? await completeVerifiedWalletTopup({
+        reference: tempoPaymentReference,
+        amountKobo: verified.amountKobo,
+        providerRef: verified.providerRef,
+        raw: verified.raw,
+      })
+    : await completeVerifiedActionPayment({
+        reference: tempoPaymentReference,
+        amountKobo: verified.amountKobo,
+        providerRef: verified.providerRef,
+        raw: verified.raw,
+      });
+
+  if (!completed.ok) {
+    return errorRedirect(request, completed.error);
+  }
+
+  return NextResponse.redirect(new URL(paymentSuccessPath(completed), request.url));
+}
+
+function paymentSuccessPath(completed: { ok: true } | { ok: true; redirectPath: string }) {
+  return "redirectPath" in completed ? completed.redirectPath : "/wallet?topup=success";
 }
 
 function errorRedirect(request: NextRequest, reason: string) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useContext, useState, useTransition } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   joinGameAction,
@@ -33,6 +34,7 @@ export function JoinButton({
   spotsLeft,
   signedIn,
   hasEnded,
+  walletBalanceKobo,
 }: {
   gameId: string;
   slug: string;
@@ -49,11 +51,13 @@ export function JoinButton({
   spotsLeft: number;
   signedIn: boolean;
   hasEnded: boolean;
+  walletBalanceKobo: number;
 }) {
   const router = useRouter();
   const toast = useContext(ToastContext);
   const [pending, start] = useTransition();
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [provider, setProvider] = useState<"korapay" | "flutterwave" | "wallet">("korapay");
   const [cancelState, cancelAction, cancelPending] = useActionState(cancelGameAction, initial);
   useActionToast(cancelState);
 
@@ -141,11 +145,15 @@ export function JoinButton({
   return (
     <div>
       {isPendingPayment ? (
+        (() => {
+          const dueKobo = Math.max(0, priceKobo - paidKobo);
+          const canUseCredit = walletBalanceKobo >= dueKobo;
+          return (
         <>
           <div className="rounded-xl border border-gold/35 bg-gold/12 px-4 py-3.5 text-center">
             <p className="flex items-center justify-center gap-1.5 text-[14px] font-semibold text-gold">
               <ClockIcon size={15} />
-              {formatNaira(priceKobo - paidKobo)} still due
+              {formatNaira(dueKobo)} still due
             </p>
             <p className="mt-1 text-[12.5px] text-ink-soft">
               {paidKobo > 0 ? `You've paid ${formatNaira(paidKobo)} of ${formatNaira(priceKobo)}. ` : ""}
@@ -155,12 +163,18 @@ export function JoinButton({
             </p>
           </div>
           <button
-            onClick={() => run(() => payGameBalanceAction(gameId, slug))}
+            onClick={() => run(() => payGameBalanceAction(gameId, slug, provider))}
             disabled={pending}
             className="btn-t btn-green-t mt-2.5 w-full"
           >
-            {pending ? "Charging wallet…" : `Complete payment — ${formatNaira(priceKobo - paidKobo)}`}
+            {pending ? "Opening checkout..." : `Complete payment — ${formatNaira(dueKobo)}`}
           </button>
+          <PaymentChannelPicker
+            value={provider}
+            onChange={setProvider}
+            canUseCredit={canUseCredit}
+            walletBalanceKobo={walletBalanceKobo}
+          />
           <button
             onClick={() => run(() => leaveGameAction(gameId, slug))}
             disabled={pending}
@@ -169,6 +183,8 @@ export function JoinButton({
             {pending ? "Updating…" : "Can't make it? Drop out"}
           </button>
         </>
+          );
+        })()
       ) : isMember ? (
         <>
           <div className="flex items-center justify-center gap-2 rounded-full border border-green/35 bg-green/12 px-5 py-3.5 text-[15px] font-semibold text-green">
@@ -193,18 +209,98 @@ export function JoinButton({
           )}
         </>
       ) : (
-        <button
-          onClick={() => run(() => joinGameAction(gameId, slug, priceKobo))}
-          disabled={pending}
-          className={`btn-t w-full ${spotsLeft === 0 ? "btn-ghost-t" : "btn-green-t"}`}
-        >
-          {pending
-            ? "Joining…"
-            : spotsLeft === 0
-              ? "Join the waitlist"
-              : `Join game — ${formatNaira(priceKobo)}`}
-        </button>
+        <>
+          {(() => {
+            const canUseCredit = walletBalanceKobo >= priceKobo;
+            return (
+              <>
+          <button
+            onClick={() => run(() => joinGameAction(gameId, slug, priceKobo, provider))}
+            disabled={pending}
+            className={`btn-t w-full ${spotsLeft === 0 ? "btn-ghost-t" : "btn-green-t"}`}
+          >
+            {pending
+              ? "Joining…"
+              : spotsLeft === 0
+                ? "Join the waitlist"
+                : `Join game — ${formatNaira(priceKobo)}`}
+          </button>
+          {spotsLeft > 0 && (
+            <PaymentChannelPicker
+              value={provider}
+              onChange={setProvider}
+              canUseCredit={canUseCredit}
+              walletBalanceKobo={walletBalanceKobo}
+            />
+          )}
+              </>
+            );
+          })()}
+        </>
       )}
+    </div>
+  );
+}
+
+function PaymentChannelPicker({
+  value,
+  onChange,
+  canUseCredit,
+  walletBalanceKobo,
+}: {
+  value: "korapay" | "flutterwave" | "wallet";
+  onChange: (value: "korapay" | "flutterwave" | "wallet") => void;
+  canUseCredit: boolean;
+  walletBalanceKobo: number;
+}) {
+  const options: Array<{
+    value: "korapay" | "flutterwave" | "wallet";
+    label: string;
+    logo?: string;
+    hint?: string;
+  }> = [
+    { value: "korapay", label: "KoraPay", logo: "/payments/korapay.png" },
+    { value: "flutterwave", label: "Flutterwave", logo: "/payments/flutterwave.png" },
+  ];
+  if (canUseCredit) {
+    options.push({
+      value: "wallet",
+      label: "Tempo credit",
+      hint: `${formatNaira(walletBalanceKobo)} available`,
+    });
+  }
+
+  return (
+    <div className="mt-2 grid grid-cols-2 gap-2">
+      {options.map((provider) => (
+        <button
+          key={provider.value}
+          type="button"
+          onClick={() => onChange(provider.value)}
+          className={`min-h-[74px] rounded-xl border p-2.5 text-left text-[12px] font-semibold transition ${
+            value === provider.value
+              ? "border-green/45 bg-green/12 text-green"
+              : "border-white/10 bg-white/4 text-ink-soft hover:text-ink"
+          }`}
+        >
+          {provider.logo ? (
+            <span className="flex h-12 w-full items-center justify-center rounded-lg bg-white px-3 shadow-[inset_0_0_0_1px_rgba(10,20,35,0.06)]">
+              <Image
+                src={provider.logo}
+                alt={provider.label}
+                width={190}
+                height={44}
+                className={`w-full object-contain ${
+                  provider.value === "flutterwave" ? "max-h-6" : "max-h-9"
+                }`}
+              />
+            </span>
+          ) : (
+            <span>{provider.label}</span>
+          )}
+          {provider.hint && <span className="mt-0.5 block text-[10.5px] font-normal text-ink-muted">{provider.hint}</span>}
+        </button>
+      ))}
     </div>
   );
 }

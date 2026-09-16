@@ -31,6 +31,7 @@ export default async function HostManagePage() {
   const committed = upcoming.filter((game) => getMatchState(game).guaranteed).length;
   const totalHeldKobo = upcoming.reduce((sum, game) => sum + (game.hostPaidKobo ?? 0), 0);
   const totalReimbursedKobo = hosted.reduce((sum, game) => sum + (game.hostReimbursedKobo ?? 0), 0);
+  const totalEarningsKobo = hosted.reduce((sum, game) => sum + (game.hostEarningsKobo ?? 0), 0);
 
   return (
     <div className="py-12">
@@ -55,10 +56,11 @@ export default async function HostManagePage() {
           </Link>
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat icon={<BallIcon size={16} />} label="Upcoming hosted" value={String(upcoming.length)} />
           <Stat icon={<CalendarIcon size={16} />} label="Going ahead" value={String(committed)} />
           <Stat icon={<WalletIcon size={16} />} label="Reimbursed so far" value={formatNaira(totalReimbursedKobo)} />
+          <Stat icon={<WalletIcon size={16} />} label="Hosting earnings" value={formatNaira(totalEarningsKobo)} />
         </div>
 
         {totalHeldKobo > 0 && (

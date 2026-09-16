@@ -26,6 +26,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
       { label: "Terms of Service", href: "/legal/terms" },
       { label: "Privacy Policy", href: "/legal/privacy" },
       { label: "Cancellations & Refunds", href: "/legal/refunds" },
+      { label: "Venue Owner Terms", href: "/legal/venue-owners" },
       { label: "Community Rules", href: "/legal/community" },
     ],
   },

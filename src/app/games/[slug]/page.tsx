@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getGameBySlug, getGameCheckInCode } from "@/lib/data/repo";
+import { getGameBySlug, getGameCheckInCode, getWalletBalance } from "@/lib/data/repo";
 import { getCurrentUser } from "@/lib/session";
 import { getMatchState, estimateTravelMinutes, leaveByTime } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime, splitKobo } from "@/lib/format";
@@ -81,6 +81,7 @@ export default async function GamePage({
   const committed = game.minimumDecisionStatus === "go_ahead" || game.minimumDecisionStatus === "not_needed";
   const showReimbursement = isHost && committed && !isCancelled;
   const mineCode = user && mine && !isCancelled ? await getGameCheckInCode(game.id, user.id) : null;
+  const walletBalanceKobo = user ? await getWalletBalance(user.id) : 0;
 
   const totalPitchKobo = game.pricePerPlayerKobo * game.capacity;
   const { each } = splitKobo(totalPitchKobo, Math.max(1, confirmed.length));
@@ -245,6 +246,8 @@ export default async function GamePage({
                 slug={game.slug}
                 hostPaidKobo={game.hostPaidKobo ?? 0}
                 hostReimbursedKobo={game.hostReimbursedKobo ?? 0}
+                hostPitchCostKobo={game.hostPitchCostKobo}
+                hostEarningsKobo={game.hostEarningsKobo}
               />
             )}
 
@@ -282,6 +285,7 @@ export default async function GamePage({
                   spotsLeft={state.spotsLeft}
                   signedIn={Boolean(user)}
                   hasEnded={state.hasEnded}
+                  walletBalanceKobo={walletBalanceKobo}
                 />
               </div>
 
