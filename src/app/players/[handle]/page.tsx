@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getProfile, getGamesForUser } from "@/lib/data/repo";
+import { getProfile, getGamesForUser, canMessagePlayer } from "@/lib/data/repo";
+import { getCurrentUser } from "@/lib/session";
 import { PlayerCard } from "@/components/player/player-card";
+import { MessagePlayerButton } from "@/components/dm/message-player-button";
 import { GameCard } from "@/components/match/game-card";
 import { Reveal } from "@/components/ui/reveal";
 import { UsersIcon, ClockIcon, FlameIcon } from "@/components/icons";
@@ -55,6 +57,9 @@ export default async function PlayerPage({
   const player = await getProfile(handle);
   if (!player) notFound();
 
+  const viewer = await getCurrentUser();
+  const canMessage = viewer && viewer.id !== player.id ? await canMessagePlayer(viewer.id, player.id) : false;
+
   const games = await getGamesForUser(player.id);
   const now = new Date().getTime();
   const upcoming = games.filter((g) => new Date(g.endsAt).getTime() > now);
@@ -63,8 +68,9 @@ export default async function PlayerPage({
     <div className="py-12">
       <div className="container-t max-w-5xl">
         <div className="grid gap-6 lg:grid-cols-[.85fr_1.15fr]">
-          <div className="lg:sticky lg:top-24 lg:self-start">
+          <div className="space-y-3 lg:sticky lg:top-24 lg:self-start">
             <PlayerCard player={player} />
+            {canMessage && <MessagePlayerButton otherUserId={player.id} />}
           </div>
 
           <div>

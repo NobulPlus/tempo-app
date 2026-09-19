@@ -15,6 +15,7 @@ import {
   ShieldIcon,
   WalletIcon,
   BuildingIcon,
+  ChatIcon,
 } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
@@ -32,10 +33,12 @@ export function Nav({
   user,
   isDemo,
   walletBalanceKobo,
+  unreadDmCount,
 }: {
   user: PlayerProfile | null;
   isDemo: boolean;
   walletBalanceKobo: number;
+  unreadDmCount: number;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -109,6 +112,17 @@ export function Nav({
                 <span className="hidden sm:block">
                   <NotificationBell isDemo={isDemo} />
                 </span>
+                <Link
+                  href="/messages"
+                  className="relative grid h-9 w-9 place-items-center rounded-full text-ink-soft transition hover:bg-glass hover:text-ink"
+                  aria-label={`Messages${unreadDmCount > 0 ? `, ${unreadDmCount} unread` : ""}`}
+                  title="Messages"
+                >
+                  <ChatIcon size={17} />
+                  {unreadDmCount > 0 && (
+                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-orange" />
+                  )}
+                </Link>
                 {user.role === "venue_owner" && (
                   <Link
                     href="/venue"
@@ -210,6 +224,17 @@ export function Nav({
                     Wallet
                   </span>
                   <span className="text-green">{formatNaira(walletBalanceKobo, { compact: true })}</span>
+                </Link>
+                <Link
+                  href="/messages"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center justify-between rounded-xl px-4 py-3.5 text-[15px] text-ink-soft transition hover:bg-glass"
+                >
+                  <span className="flex items-center gap-3">
+                    <ChatIcon size={19} />
+                    Messages
+                  </span>
+                  {unreadDmCount > 0 && <span className="h-2 w-2 rounded-full bg-orange" />}
                 </Link>
                 {user.role === "venue_owner" && (
                   <Link

@@ -6,6 +6,7 @@ import {
   listVenueOwnerApplicationsAdmin,
   listWaitlist,
   getFinanceSummary,
+  listMessageReports,
 } from "@/lib/data/repo";
 import { getMatchState } from "@/lib/match";
 import { formatRelativeDay, formatTime, formatNaira } from "@/lib/format";
@@ -21,14 +22,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 export default async function AdminOverviewPage() {
-  const [venues, profiles, applications, leads, games, finance] = await Promise.all([
+  const [venues, profiles, applications, leads, games, finance, messageReports] = await Promise.all([
     listVenues(),
     listProfiles(),
     listVenueOwnerApplicationsAdmin(),
     listWaitlist(),
     listGames(),
     getFinanceSummary(),
+    listMessageReports(),
   ]);
+  const pendingReports = messageReports.filter((r) => r.status === "pending");
 
   const unverified = venues.filter((v) => !v.verified);
   const suspended = profiles.filter((p) => p.suspended);
@@ -82,7 +85,7 @@ export default async function AdminOverviewPage() {
         </Link>
       </div>
 
-      <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Metric
           label="Pending venues"
           value={unverified.length}
@@ -95,6 +98,14 @@ export default async function AdminOverviewPage() {
           value={suspended.length}
           tone={suspended.length ? "text-orange" : "text-green"}
         />
+        <Link href="/admin/reports" className="block">
+          <Metric
+            label="Message reports"
+            value={pendingReports.length}
+            tone={pendingReports.length ? "text-orange" : "text-green"}
+            sub="Review →"
+          />
+        </Link>
         <Link href="/admin/finance" className="block">
           <Metric
             label="Wallet liability"

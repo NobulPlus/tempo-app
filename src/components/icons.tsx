@@ -146,6 +146,12 @@ export const BellIcon = (p: P) => (
   </svg>
 );
 
+export const ChatIcon = (p: P) => (
+  <svg {...base(p)} fill="currentColor">
+    <path d="M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-4.4 3.3A1 1 0 0 1 3 19.5V5a1 1 0 0 1 1-1zm3 5.5h10v-2H7v2zm0 4h7v-2H7v2z" />
+  </svg>
+);
+
 export const StarIcon = (p: P) => (
   <svg {...base(p)} fill="currentColor">
     <path d="m12 17.3-6.2 3.7 1.7-7L2 9.2l7.1-.6L12 2l2.9 6.6 7.1.6-5.5 4.8 1.7 7z" />

@@ -23,6 +23,11 @@ import type {
   IdentityVerification,
   KycStatus,
   VenueOwnerApplication,
+  GameChatMessage,
+  DmThread,
+  DmMessage,
+  MessageReport,
+  MessageReportSource,
 } from "@/lib/types";
 
 /** The shape a `profiles` row has right after `camelize` — flat trait_*
@@ -2463,6 +2468,273 @@ export async function updateEmailNotificationPreference(
 
   const sb = await createClient();
   const { error } = await sb.from("profiles").update({ email_notifications_enabled: enabled }).eq("id", userId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/* -------------------------------------------------------- match chat ---- */
+
+const CHAT_PLAYER_SELECT = "id, full_name, handle, avatar_url";
+
+async function isGameChatMember(sb: Awaited<ReturnType<typeof createClient>>, gameId: string, userId: string): Promise<boolean> {
+  const { data: game } = await sb.from("games").select("host_id").eq("id", gameId).maybeSingle();
+  if (game?.host_id === userId) return true;
+  const { data: participant } = await sb
+    .from("game_participants")
+    .select("status")
+    .eq("game_id", gameId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  return !!participant && ["confirmed", "pending_payment", "played", "no_show"].includes(participant.status);
+}
+
+export async function getGameChatMessages(gameId: string): Promise<GameChatMessage[]> {
+  if (demoMode()) return [];
+
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("game_chat_messages")
+    .select(`*, player:profiles!user_id(${CHAT_PLAYER_SELECT})`)
+    .eq("game_id", gameId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error || !data) return [];
+  return camelize<GameChatMessage[]>(data).reverse();
+}
+
+export async function sendGameChatMessage(
+  gameId: string,
+  userId: string,
+  body: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Match chat needs the live database." };
+
+  const sb = await createClient();
+  if (!(await isGameChatMember(sb, gameId, userId))) {
+    return { ok: false, error: "You can only chat in a match you're part of." };
+  }
+
+  const { error } = await sb.from("game_chat_messages").insert({ game_id: gameId, user_id: userId, body });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/* -------------------------------------------------- direct messaging ---- */
+
+const DM_THREAD_SELECT = `*, userAProfile:profiles!user_a(${CHAT_PLAYER_SELECT}), userBProfile:profiles!user_b(${CHAT_PLAYER_SELECT})`;
+
+interface RawDmThreadRow {
+  id: string;
+  userA: string;
+  userB: string;
+  createdAt: string;
+  lastMessageAt: string;
+  userALastReadAt: string | null;
+  userBLastReadAt: string | null;
+  userAProfile: { id: string; fullName: string; handle: string; avatarUrl: string | null } | null;
+  userBProfile: { id: string; fullName: string; handle: string; avatarUrl: string | null } | null;
+}
+
+function hydrateDmThread(row: RawDmThreadRow, viewerId: string): DmThread {
+  const viewerIsA = row.userA === viewerId;
+  const otherProfile = viewerIsA ? row.userBProfile : row.userAProfile;
+  const myLastRead = viewerIsA ? row.userALastReadAt : row.userBLastReadAt;
+  return {
+    id: row.id,
+    userA: row.userA,
+    userB: row.userB,
+    createdAt: row.createdAt,
+    lastMessageAt: row.lastMessageAt,
+    userALastReadAt: row.userALastReadAt,
+    userBLastReadAt: row.userBLastReadAt,
+    otherPlayer: {
+      id: otherProfile?.id ?? "",
+      fullName: otherProfile?.fullName ?? "Unknown player",
+      handle: otherProfile?.handle ?? "",
+      avatarUrl: otherProfile?.avatarUrl ?? null,
+      initials: initialsOf(otherProfile?.fullName ?? "?"),
+    },
+    unread: !myLastRead || new Date(row.lastMessageAt).getTime() > new Date(myLastRead).getTime(),
+  };
+}
+
+export async function listDmThreadsForUser(userId: string): Promise<DmThread[]> {
+  if (demoMode()) return [];
+
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("dm_threads")
+    .select(DM_THREAD_SELECT)
+    .or(`user_a.eq.${userId},user_b.eq.${userId}`)
+    .order("last_message_at", { ascending: false });
+  if (error || !data) return [];
+  return camelize<RawDmThreadRow[]>(data).map((row) => hydrateDmThread(row, userId));
+}
+
+export async function getOrCreateDmThread(
+  otherUserId: string,
+): Promise<{ ok: true; threadId: string } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Direct messages need the live database." };
+
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("get_or_create_dm_thread", { p_other_user_id: otherUserId });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, threadId: (data as { id: string }).id };
+}
+
+export async function getDmThread(threadId: string, viewerId: string): Promise<DmThread | null> {
+  if (demoMode()) return null;
+
+  const sb = await createClient();
+  const { data, error } = await sb.from("dm_threads").select(DM_THREAD_SELECT).eq("id", threadId).maybeSingle();
+  if (error || !data) return null;
+  return hydrateDmThread(camelize<RawDmThreadRow>(data), viewerId);
+}
+
+export async function getDmMessages(threadId: string): Promise<DmMessage[]> {
+  if (demoMode()) return [];
+
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("dm_messages")
+    .select("*")
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: true })
+    .limit(500);
+  if (error || !data) return [];
+  return camelize<DmMessage[]>(data);
+}
+
+export async function sendDmMessage(
+  threadId: string,
+  senderId: string,
+  body: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Direct messages need the live database." };
+
+  const sb = await createClient();
+  const { error } = await sb.from("dm_messages").insert({ thread_id: threadId, sender_id: senderId, body });
+  if (error) return { ok: false, error: "That message couldn't be sent — you may have been blocked." };
+  return { ok: true };
+}
+
+export async function markDmThreadRead(threadId: string): Promise<void> {
+  if (demoMode()) return;
+  const sb = await createClient();
+  await sb.rpc("mark_dm_thread_read", { p_thread_id: threadId });
+}
+
+export async function getUnreadDmThreadCount(userId: string): Promise<number> {
+  if (demoMode() || !userId) return 0;
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("get_unread_dm_thread_count");
+  if (error || typeof data !== "number") return 0;
+  return data;
+}
+
+/** Mirrors get_or_create_dm_thread()'s eligibility check, read-only — used
+ * to decide whether to SHOW a "Message" button, without creating a thread
+ * just because someone viewed a profile. */
+export async function canMessagePlayer(viewerId: string, targetId: string): Promise<boolean> {
+  if (demoMode() || viewerId === targetId) return false;
+
+  const sb = await createClient();
+  const { data: blocked } = await sb.rpc("is_blocked_between", { a: viewerId, b: targetId });
+  if (blocked) return false;
+
+  const [viewerParticipant, viewerHosted, targetParticipant, targetHosted] = await Promise.all([
+    sb.from("game_participants").select("game_id").eq("user_id", viewerId).in("status", ["confirmed", "played"]),
+    sb.from("games").select("id").eq("host_id", viewerId),
+    sb.from("game_participants").select("game_id").eq("user_id", targetId).in("status", ["confirmed", "played"]),
+    sb.from("games").select("id").eq("host_id", targetId),
+  ]);
+
+  const viewerGameIds = new Set([
+    ...(viewerParticipant.data ?? []).map((r) => r.game_id),
+    ...(viewerHosted.data ?? []).map((r) => r.id),
+  ]);
+  const targetGameIds = new Set([
+    ...(targetParticipant.data ?? []).map((r) => r.game_id),
+    ...(targetHosted.data ?? []).map((r) => r.id),
+  ]);
+
+  for (const id of viewerGameIds) {
+    if (targetGameIds.has(id)) return true;
+  }
+  return false;
+}
+
+/* -------------------------------------------------------- moderation ---- */
+
+export async function hasBlockedUser(blockerId: string, blockedId: string): Promise<boolean> {
+  if (demoMode()) return false;
+  const sb = await createClient();
+  const { data } = await sb
+    .from("blocked_users")
+    .select("blocker_id")
+    .eq("blocker_id", blockerId)
+    .eq("blocked_id", blockedId)
+    .maybeSingle();
+  return !!data;
+}
+
+export async function blockUser(blockerId: string, blockedId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Not available in demo mode." };
+  const sb = await createClient();
+  const { error } = await sb.from("blocked_users").insert({ blocker_id: blockerId, blocked_id: blockedId });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function unblockUser(blockerId: string, blockedId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Not available in demo mode." };
+  const sb = await createClient();
+  const { error } = await sb.from("blocked_users").delete().eq("blocker_id", blockerId).eq("blocked_id", blockedId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function reportMessage(input: {
+  reporterId: string;
+  reportedUserId: string;
+  source: MessageReportSource;
+  contextId: string;
+  messageSnapshot: string;
+  reason: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Not available in demo mode." };
+  const sb = await createClient();
+  const { error } = await sb.from("message_reports").insert({
+    reporter_id: input.reporterId,
+    reported_user_id: input.reportedUserId,
+    source: input.source,
+    context_id: input.contextId,
+    message_snapshot: input.messageSnapshot,
+    reason: input.reason,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function listMessageReports(): Promise<MessageReport[]> {
+  if (demoMode()) return [];
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("message_reports")
+    .select("*, reporter:profiles!reporter_id(full_name, handle), reportedUser:profiles!reported_user_id(full_name, handle)")
+    .order("created_at", { ascending: false });
+  if (error || !data) return [];
+  return camelize<MessageReport[]>(data);
+}
+
+export async function reviewMessageReport(
+  reportId: string,
+  action: "dismiss" | "suspend_user",
+  note: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Not available in demo mode." };
+  const sb = await createClient();
+  const { error } = await sb.rpc("admin_review_message_report", { p_report_id: reportId, p_action: action, p_note: note });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }

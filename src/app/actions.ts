@@ -43,8 +43,17 @@ import {
   uploadProfilePhoto,
   updateAvatarUrl,
   updateEmailNotificationPreference,
+  sendGameChatMessage,
+  getOrCreateDmThread,
+  sendDmMessage,
+  markDmThreadRead,
+  blockUser,
+  unblockUser,
+  hasBlockedUser,
+  reportMessage,
+  reviewMessageReport,
 } from "@/lib/data/repo";
-import type { UserRole, PitchSize, PitchSurface } from "@/lib/types";
+import type { UserRole, PitchSize, PitchSurface, MessageReportSource } from "@/lib/types";
 import { normalisePhone, formatNaira, generateReference, formatDayShort, formatTime } from "@/lib/format";
 import { isSupabaseConfigured, createClient } from "@/lib/supabase/server";
 import { store } from "@/lib/data/store";
@@ -2360,6 +2369,115 @@ export async function updateNotificationPreferencesAction(
 
   revalidatePath("/dashboard");
   return { ok: true, message: "Notification preferences saved." };
+}
+
+/* -------------------------------------------------------- match chat ---- */
+
+export async function sendGameChatMessageAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const gameId = String(formData.get("gameId") ?? "");
+  const gameSlug = String(formData.get("gameSlug") ?? "");
+  const body = String(formData.get("body") ?? "").trim();
+  if (!gameId || !body) return { ok: false, error: "Write something first." };
+
+  const result = await sendGameChatMessage(gameId, user.id, body);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  if (gameSlug) revalidatePath(`/games/${gameSlug}`);
+  return { ok: true };
+}
+
+/* -------------------------------------------------- direct messaging ---- */
+
+export async function openDmThreadAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const otherUserId = String(formData.get("otherUserId") ?? "");
+  if (!otherUserId) return { ok: false, error: "Missing player." };
+
+  const result = await getOrCreateDmThread(otherUserId);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  redirect(`/messages/${result.threadId}`);
+}
+
+export async function sendDmMessageAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const threadId = String(formData.get("threadId") ?? "");
+  const body = String(formData.get("body") ?? "").trim();
+  if (!threadId || !body) return { ok: false, error: "Write something first." };
+
+  const result = await sendDmMessage(threadId, user.id, body);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/messages/${threadId}`);
+  return { ok: true };
+}
+
+export async function markDmThreadReadAction(threadId: string): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) return;
+  await markDmThreadRead(threadId);
+}
+
+/* -------------------------------------------------------- moderation ---- */
+
+export async function toggleBlockUserAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const blockedId = String(formData.get("blockedId") ?? "");
+  const threadId = String(formData.get("threadId") ?? "");
+  if (!blockedId) return { ok: false, error: "Missing player." };
+
+  const alreadyBlocked = await hasBlockedUser(user.id, blockedId);
+  const result = alreadyBlocked ? await unblockUser(user.id, blockedId) : await blockUser(user.id, blockedId);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/messages");
+  if (threadId) revalidatePath(`/messages/${threadId}`);
+  return { ok: true, message: alreadyBlocked ? "Unblocked." : "Blocked." };
+}
+
+export async function reportMessageAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const reportedUserId = String(formData.get("reportedUserId") ?? "");
+  const source = String(formData.get("source") ?? "") as MessageReportSource;
+  const contextId = String(formData.get("contextId") ?? "");
+  const messageSnapshot = String(formData.get("messageSnapshot") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!reportedUserId || !contextId || !reason) return { ok: false, error: "Tell us what happened." };
+  if (source !== "game_chat" && source !== "direct_message") return { ok: false, error: "Invalid report." };
+
+  const result = await reportMessage({ reporterId: user.id, reportedUserId, source, contextId, messageSnapshot, reason });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  return { ok: true, message: "Reported — an admin will review it." };
+}
+
+export async function reviewMessageReportAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, error: "Not authorized." };
+
+  const reportId = String(formData.get("reportId") ?? "");
+  const action = String(formData.get("action") ?? "");
+  const note = String(formData.get("note") ?? "");
+  if (!reportId || (action !== "dismiss" && action !== "suspend_user")) {
+    return { ok: false, error: "Invalid review." };
+  }
+
+  const result = await reviewMessageReport(reportId, action, note);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/admin/reports");
+  return { ok: true, message: action === "suspend_user" ? "Report reviewed — user suspended." : "Report dismissed." };
 }
 
 export async function signOut() {

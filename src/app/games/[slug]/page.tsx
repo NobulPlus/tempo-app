@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getGameBySlug, getGameCheckInCode, getWalletBalance, listGames } from "@/lib/data/repo";
+import { getGameBySlug, getGameChatMessages, getGameCheckInCode, getWalletBalance, listGames } from "@/lib/data/repo";
 import { getCurrentUser } from "@/lib/session";
 import { getMatchState, estimateTravelMinutes, leaveByTime } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime, splitKobo } from "@/lib/format";
@@ -9,6 +9,7 @@ import { Countdown, FillBar, SpotPips, HeatPill, GuaranteePill } from "@/compone
 import { JoinButton } from "@/components/match/join-button";
 import { MinimumDecisionBanner, HostReimbursementCard } from "@/components/match/host-controls";
 import { AttendancePanel } from "@/components/match/attendance-panel";
+import { GameChatPanel } from "@/components/match/game-chat-panel";
 import { PlayerChip } from "@/components/player/player-card";
 import {
   PinIcon,
@@ -91,6 +92,12 @@ export default async function GamePage({
   const committed = game.minimumDecisionStatus === "go_ahead" || game.minimumDecisionStatus === "not_needed";
   const showReimbursement = isHost && committed && !isCancelled;
   const mineCode = user && mine && !isCancelled ? await getGameCheckInCode(game.id, user.id) : null;
+  const canChat = Boolean(
+    user &&
+      !isCancelled &&
+      (isHost || (mine && ["confirmed", "pending_payment", "played", "no_show"].includes(mine.status))),
+  );
+  const chatMessages = canChat ? await getGameChatMessages(game.id) : [];
   const walletBalanceKobo = user ? await getWalletBalance(user.id) : 0;
 
   const totalPitchKobo = game.pricePerPlayerKobo * game.capacity;
@@ -244,6 +251,15 @@ export default async function GamePage({
                 </div>
               )}
             </section>
+
+            {canChat && user && (
+              <GameChatPanel
+                gameId={game.id}
+                gameSlug={game.slug}
+                currentUserId={user.id}
+                initialMessages={chatMessages}
+              />
+            )}
 
             {!isCancelled && (
               <AttendancePanel

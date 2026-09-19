@@ -347,3 +347,53 @@ export interface VenueOwnerApplication {
   createdAt: string;
   applicant?: PlayerProfile;
 }
+
+export interface GameChatMessage {
+  id: string;
+  gameId: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+  player?: Pick<PlayerProfile, "id" | "fullName" | "handle" | "avatarUrl" | "initials">;
+}
+
+export interface DmThread {
+  id: string;
+  userA: string;
+  userB: string;
+  createdAt: string;
+  lastMessageAt: string;
+  userALastReadAt: string | null;
+  userBLastReadAt: string | null;
+  /** The OTHER participant's profile — resolved relative to the viewer, not userA/userB. */
+  otherPlayer: Pick<PlayerProfile, "id" | "fullName" | "handle" | "avatarUrl" | "initials">;
+  unread: boolean;
+}
+
+export interface DmMessage {
+  id: string;
+  threadId: string;
+  senderId: string;
+  body: string;
+  createdAt: string;
+}
+
+export type MessageReportStatus = "pending" | "reviewed" | "dismissed";
+export type MessageReportSource = "game_chat" | "direct_message";
+
+export interface MessageReport {
+  id: string;
+  reporterId: string;
+  reportedUserId: string;
+  source: MessageReportSource;
+  contextId: string;
+  messageSnapshot: string;
+  reason: string;
+  status: MessageReportStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+  reporter?: Pick<PlayerProfile, "fullName" | "handle">;
+  reportedUser?: Pick<PlayerProfile, "fullName" | "handle">;
+}
