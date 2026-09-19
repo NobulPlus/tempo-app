@@ -236,6 +236,9 @@ export interface PlayerProfile {
   suspended: boolean;
   /** Set only by admin_review_identity_verification() — never client-writable. */
   identityVerified: boolean;
+  /** Self-service, defaults true. Gates reminder-style emails only — receipts
+   * and security mail (OTP, refunds, cancellations) always send. */
+  emailNotificationsEnabled: boolean;
   joinedAt: string;
 
   /* --- Identity & reputation --- */

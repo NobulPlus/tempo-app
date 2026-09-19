@@ -72,6 +72,9 @@ export default async function DashboardPage() {
           <Link href={`/players/${user.handle}`} className="btn-t btn-ghost-t !py-3 !text-[14px]">
             My player card
           </Link>
+          <Link href="/account" className="btn-t btn-ghost-t !py-3 !text-[14px]">
+            Edit profile photo
+          </Link>
           {hosting.length > 0 && (
             <Link href="/host/manage" className="btn-t btn-green-t !py-3 !text-[14px]">
               Host dashboard
@@ -305,7 +308,7 @@ export default async function DashboardPage() {
             </Link>
           </div>
 
-          <NotificationPreferences />
+          <NotificationPreferences emailNotificationsEnabled={user.emailNotificationsEnabled} />
         </div>
       </div>
     </div>

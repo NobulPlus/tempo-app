@@ -198,9 +198,17 @@ export function PlayerCard({ player }: { player: PlayerProfile }) {
 
       <div className="relative flex flex-col items-center text-center">
         <div className="relative">
-          <span className="grid h-20 w-20 place-items-center rounded-full border-2 border-green bg-green/10 text-[26px] font-extrabold">
-            {player.initials}
-          </span>
+          {player.avatarUrl ? (
+            <img
+              src={player.avatarUrl}
+              alt={player.fullName}
+              className="h-20 w-20 rounded-full border-2 border-green object-cover"
+            />
+          ) : (
+            <span className="grid h-20 w-20 place-items-center rounded-full border-2 border-green bg-green/10 text-[26px] font-extrabold">
+              {player.initials}
+            </span>
+          )}
           <span className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full border-2 border-bg-primary bg-green text-[12px] font-extrabold text-[#051530]">
             {overall}
           </span>
@@ -288,9 +296,17 @@ export function PlayerChip({ player, note }: { player: PlayerProfile; note?: str
       href={`/players/${player.handle}`}
       className="group flex items-center gap-2.5 rounded-xl border border-glass-border bg-glass p-2.5 transition hover:border-green/30 hover:bg-green/6"
     >
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-green/35 bg-green/10 text-[12px] font-bold">
-        {player.initials}
-      </span>
+      {player.avatarUrl ? (
+        <img
+          src={player.avatarUrl}
+          alt={player.fullName}
+          className="h-9 w-9 shrink-0 rounded-full border border-green/35 object-cover"
+        />
+      ) : (
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-green/35 bg-green/10 text-[12px] font-bold">
+          {player.initials}
+        </span>
+      )}
       <span className="min-w-0 leading-tight">
         <span className="block truncate text-[13.5px] font-semibold group-hover:text-green">
           {player.fullName}

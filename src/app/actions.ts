@@ -40,6 +40,9 @@ import {
   reviewIdentityVerification,
   submitVenueOwnerApplication,
   reviewVenueOwnerApplication,
+  uploadProfilePhoto,
+  updateAvatarUrl,
+  updateEmailNotificationPreference,
 } from "@/lib/data/repo";
 import type { UserRole, PitchSize, PitchSurface } from "@/lib/types";
 import { normalisePhone, formatNaira, generateReference, formatDayShort, formatTime } from "@/lib/format";
@@ -2311,6 +2314,52 @@ export async function submitIdentityVerificationAction(
   revalidatePath("/verify-identity");
   revalidatePath("/dashboard");
   return { ok: true, message: "Submitted — an admin will review it shortly." };
+}
+
+export async function updateProfilePhotoAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Choose a photo to upload." };
+  }
+  if (!file.type.startsWith("image/")) {
+    return { ok: false, error: "Profile photo must be an image." };
+  }
+  if (file.size > 6 * 1024 * 1024) {
+    return { ok: false, error: "Photo is too large — keep it under 6MB." };
+  }
+
+  const uploaded = await uploadProfilePhoto(user.id, file);
+  if (!uploaded.ok) return { ok: false, error: uploaded.error };
+
+  const updated = await updateAvatarUrl(user.id, uploaded.url);
+  if (!updated.ok) return { ok: false, error: updated.error };
+
+  revalidatePath("/account");
+  revalidatePath(`/players/${user.handle}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Profile photo updated." };
+}
+
+export async function updateNotificationPreferencesAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const enabled = formData.get("emailNotifications") === "on";
+  const updated = await updateEmailNotificationPreference(user.id, enabled);
+  if (!updated.ok) return { ok: false, error: updated.error };
+
+  revalidatePath("/dashboard");
+  return { ok: true, message: "Notification preferences saved." };
 }
 
 export async function signOut() {

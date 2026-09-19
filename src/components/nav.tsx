@@ -131,10 +131,14 @@ export function Nav({
                 )}
                 <Link
                   href={`/players/${user.handle}`}
-                  className="grid h-9 w-9 place-items-center rounded-full border-[1.5px] border-green bg-green/8 text-[13px] font-bold"
+                  className="grid h-9 w-9 place-items-center overflow-hidden rounded-full border-[1.5px] border-green bg-green/8 text-[13px] font-bold"
                   aria-label={`Your profile, ${user.fullName}`}
                 >
-                  {user.initials}
+                  {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    user.initials
+                  )}
                 </Link>
                 <form action={signOut}>
                   <button

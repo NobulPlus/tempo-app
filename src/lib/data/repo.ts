@@ -2407,6 +2407,66 @@ export async function uploadVenuePhoto(
   return { ok: true, url: data.publicUrl, path };
 }
 
+const PROFILE_PHOTOS_BUCKET = "profile-photos";
+
+export async function uploadProfilePhoto(
+  userId: string,
+  file: File,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Photo upload needs the live database." };
+
+  const sb = await createClient();
+  const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+  const ext = safeName.includes(".") ? safeName.split(".").pop() : "jpg";
+  const path = `${userId}/${Date.now()}.${ext}`;
+
+  const { error } = await sb.storage.from(PROFILE_PHOTOS_BUCKET).upload(path, file, {
+    cacheControl: "3600",
+    contentType: file.type || undefined,
+    upsert: false,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  const { data } = sb.storage.from(PROFILE_PHOTOS_BUCKET).getPublicUrl(path);
+  return { ok: true, url: data.publicUrl };
+}
+
+/** avatar_url is in the self-editable column grant (0002) — a plain
+ * session-scoped UPDATE, RLS already restricts it to the caller's own row. */
+export async function updateAvatarUrl(
+  userId: string,
+  avatarUrl: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) {
+    const s = store();
+    const profile = s.profiles.find((p) => p.id === userId);
+    if (profile) profile.avatarUrl = avatarUrl;
+    return { ok: true };
+  }
+
+  const sb = await createClient();
+  const { error } = await sb.from("profiles").update({ avatar_url: avatarUrl }).eq("id", userId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function updateEmailNotificationPreference(
+  userId: string,
+  enabled: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) {
+    const s = store();
+    const profile = s.profiles.find((p) => p.id === userId);
+    if (profile) profile.emailNotificationsEnabled = enabled;
+    return { ok: true };
+  }
+
+  const sb = await createClient();
+  const { error } = await sb.from("profiles").update({ email_notifications_enabled: enabled }).eq("id", userId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 export async function submitIdentityVerification(
   userId: string,
   documentPath: string,

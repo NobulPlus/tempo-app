@@ -115,10 +115,11 @@ async function sendReminderIfPossible(
   try {
     const [{ data: authUser }, { data: profile }] = await Promise.all([
       admin.auth.admin.getUserById(userId),
-      admin.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
+      admin.from("profiles").select("full_name, email_notifications_enabled").eq("id", userId).maybeSingle(),
     ]);
     const email = authUser?.user?.email;
     if (!email) return false;
+    if (profile?.email_notifications_enabled === false) return false;
 
     const { subject, html, text } = eventReminderEmail({
       fullName: profile?.full_name ?? "there",
