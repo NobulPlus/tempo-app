@@ -48,6 +48,7 @@ export async function POST(request: Request) {
         amountKobo: verified.amountKobo,
         providerRef: String(transactionId),
         raw: verified.raw,
+        sendReceipt: false,
       })
     : await completeVerifiedActionPayment({
         reference: verified.txRef,

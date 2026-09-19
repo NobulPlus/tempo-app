@@ -144,6 +144,7 @@ export interface Game {
   slug: string;
   pitchId: string;
   hostId: string;
+  bookingId?: string | null;
   title: string;
   description: string;
   level: SkillLevel;
@@ -155,6 +156,10 @@ export interface Game {
   pricePerPlayerKobo: number;
   status: GameStatus;
   bibsProvided: boolean;
+  /** Players the host has already confirmed outside Tempo before publishing. */
+  preconfirmedPlayerCount?: number;
+  /** A game published from an already-confirmed Tempo pitch booking. */
+  isExistingSession?: boolean;
   hostPaidKobo?: number;
   hostReimbursedKobo?: number;
   hostPitchCostKobo?: number;

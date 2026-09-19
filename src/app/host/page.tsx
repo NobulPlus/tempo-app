@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { listPitches, getSlotsForPitch, getWalletBalance } from "@/lib/data/repo";
+import { listPitches, getSlotsForPitch, getWalletBalance, getBookingsForUser } from "@/lib/data/repo";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { HostForm, type HostSlotOption } from "@/components/host/host-form";
 
@@ -21,11 +21,13 @@ export default async function HostPage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/host");
+  const currentIso = new Date().toISOString();
   const { slot: initialSlotId } = await searchParams;
 
-  const [pitches, walletBalanceKobo] = await Promise.all([
+  const [pitches, walletBalanceKobo, bookings] = await Promise.all([
     listPitches({ sort: "rated" }),
     getWalletBalance(user.id),
+    getBookingsForUser(user.id),
   ]);
 
   const slotLists = await Promise.all(
@@ -98,8 +100,30 @@ export default async function HostPage({
           />
         </div>
 
+        <div className="mt-6 grid gap-3 md:grid-cols-3">
+          <HostInsight label="Recover your cost" value="Player payments" sub="Collected against your session and tracked in your Tempo credit ledger." />
+          <HostInsight label="Build a regular game" value="Fill final spaces" sub="Already have a booking and players? Publish only the places you still need." />
+          <HostInsight label="Keep the upside" value="Hosting earnings" sub="Any collection above the pitch cost is recorded separately as your earnings." />
+        </div>
+
         <div className="mt-10">
-          <HostForm slots={slots} initialSlotId={initialSlotId} walletBalanceKobo={walletBalanceKobo} />
+          <HostForm
+            slots={slots}
+            initialSlotId={initialSlotId}
+            walletBalanceKobo={walletBalanceKobo}
+            existingBookings={bookings
+              .filter((booking) => booking.status === "confirmed" && booking.slot && booking.slot.startsAt > currentIso)
+              .map((booking) => ({
+                id: booking.id,
+                reference: booking.reference,
+                totalKobo: booking.totalKobo,
+                startsAt: booking.slot!.startsAt,
+                endsAt: booking.slot!.endsAt,
+                venueName: booking.slot!.pitch.venue.name,
+                area: booking.slot!.pitch.venue.area,
+                pitchName: booking.slot!.pitch.name,
+              }))}
+          />
         </div>
       </div>
     </div>

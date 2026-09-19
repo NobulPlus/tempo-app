@@ -54,10 +54,11 @@ export default function TermsPage() {
         <li>You must give accurate information and keep it up to date.</li>
         <li>You are responsible for anything done through your account.</li>
         <li>One person, one account. Do not share logins.</li>
-        <li>Tempo is intended for users aged 18 and above.</li>
+        <li>Tempo is intended for users aged 16 and above.</li>
         <li>
-          If a minor participates, a parent or legal guardian is responsible for the
-          account, booking, payment and attendance.
+          Users under 18 must use Tempo under the supervision of a parent or legal
+          guardian, who is responsible for the account, booking, payment, attendance
+          and the minor&apos;s participation.
         </li>
       </ul>
 
@@ -99,9 +100,19 @@ export default function TermsPage() {
         process is agreed.
       </p>
       <p>
+        If you already have a confirmed Tempo pitch booking and some players of your
+        own, you may publish only the remaining spaces. You must state the number of
+        players already committed accurately.
+      </p>
+      <p>
         If the game does not reach its minimum number, the host may choose to continue
         with fewer players or cancel. If the host or Tempo cancels, eligible player
         payments are credited back through the platform.
+      </p>
+      <p>
+        A host may cancel only while the session is below 80% of its advertised
+        capacity. At 80% full or above, the session proceeds, subject to Tempo&apos;s
+        intervention for safety, venue failure, fraud or another exceptional issue.
       </p>
 
       <h2>7. Joining a game</h2>
@@ -129,9 +140,13 @@ export default function TermsPage() {
       <p>
         Tempo credit is reusable platform credit from refunds, host reimbursements and
         hosting earnings. It is not a bank account, deposit account or stored-value
-        product for general cash storage. Tempo credit can be used only where the
-        product flow allows it and, unless we expressly agree otherwise, only when it
-        covers the full amount due.
+        product for general cash storage. Credit may be used in full or alongside a
+        card or bank payment where checkout supports a split payment.
+      </p>
+      <p>
+        Only an organiser may request a bank withdrawal, and only for verified hosting
+        earnings from that organiser&apos;s own completed sessions. Refunds and other
+        reusable credit remain Tempo credit unless Tempo agrees otherwise.
       </p>
       <p>
         Cancellations, credits and disputed payments follow the{" "}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getGameBySlug, getGameCheckInCode, getWalletBalance } from "@/lib/data/repo";
+import { getGameBySlug, getGameCheckInCode, getWalletBalance, listGames } from "@/lib/data/repo";
 import { getCurrentUser } from "@/lib/session";
 import { getMatchState, estimateTravelMinutes, leaveByTime } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime, splitKobo } from "@/lib/format";
@@ -54,6 +54,14 @@ export default async function GamePage({
 
   const user = await getCurrentUser();
   const state = getMatchState(game);
+  const nearbyAlternatives = state.spotsLeft === 0
+    ? (await listGames()).filter((candidate) => {
+        const candidateState = getMatchState(candidate);
+        return candidate.id !== game.id && candidateState.spotsLeft > 0 &&
+          candidate.pitch.venue.area === game.pitch.venue.area &&
+          Math.abs(new Date(candidate.startsAt).getTime() - new Date(game.startsAt).getTime()) <= 3 * 60 * 60 * 1000;
+      }).slice(0, 3)
+    : [];
 
   const confirmed = game.participants.filter(
     (p) => p.status === "confirmed" || p.status === "pending_payment",
@@ -64,11 +72,13 @@ export default async function GamePage({
   const canManageAttendance = Boolean(
     user && (isHost || user.role === "admin" || user.id === game.pitch.venue.ownerId),
   );
+  const preconfirmed = game.preconfirmedPlayerCount ?? 0;
   const isCancelled = game.status === "cancelled";
   const refundable = game.participants.filter(
     (p) => (p.status === "confirmed" || p.status === "pending_payment") && p.paidKobo > 0,
   );
   const refundKobo = refundable.reduce((sum, p) => sum + p.paidKobo, 0);
+  const canHostCancel = state.filled * 100 < game.capacity * 80;
 
   const kickoff = new Date(game.startsAt);
   const travel = estimateTravelMinutes(
@@ -183,10 +193,16 @@ export default async function GamePage({
                   <UsersIcon size={19} className="text-green" />
                   Who&apos;s playing
                 </h2>
-                <span className="text-[13px] text-ink-muted">{confirmed.length} confirmed</span>
+                <span className="text-[13px] text-ink-muted">{state.filled} confirmed</span>
               </div>
 
               <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+                {preconfirmed > 0 && (
+                  <div className="flex items-center gap-2.5 rounded-xl border border-green/25 bg-green/8 p-3 text-[13px] text-green">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-green/35 font-bold">{preconfirmed}</span>
+                    {preconfirmed} regular{preconfirmed === 1 ? " is" : "s are"} already confirmed
+                  </div>
+                )}
                 {confirmed.map((p) => (
                   <PlayerChip
                     key={p.id}
@@ -286,6 +302,7 @@ export default async function GamePage({
                   signedIn={Boolean(user)}
                   hasEnded={state.hasEnded}
                   walletBalanceKobo={walletBalanceKobo}
+                  canHostCancel={canHostCancel}
                 />
               </div>
 
@@ -299,6 +316,20 @@ export default async function GamePage({
                 Share to WhatsApp
               </a>
             </div>
+
+            {nearbyAlternatives.length > 0 && (
+              <div className="card-t p-6">
+                <h3 className="text-[15px] font-bold">Other games nearby</h3>
+                <div className="mt-3 space-y-2">
+                  {nearbyAlternatives.map((alternative) => (
+                    <Link key={alternative.id} href={`/games/${alternative.slug}`} className="block rounded-lg border border-white/10 bg-white/4 p-3 transition hover:border-green/35">
+                      <div className="text-[13.5px] font-semibold">{alternative.title}</div>
+                      <div className="mt-1 text-[12px] text-ink-muted">{formatTime(alternative.startsAt)} · {getMatchState(alternative).spotsLeft} spaces left</div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="card-t p-6">
               <h3 className="flex items-center gap-2 text-[15px] font-bold">

@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "crypto";
 
 /**
  * Thin Flutterwave v3 client — just the two calls the wallet top-up flow
@@ -43,7 +44,7 @@ export async function initializeFlutterwavePayment(opts: {
     body: JSON.stringify({
       tx_ref: opts.reference,
       // Flutterwave takes major currency units (naira), never kobo.
-      amount: (opts.amountKobo / 100).toFixed(2),
+      amount: amountInNaira(opts.amountKobo),
       currency: "NGN",
       redirect_url: opts.redirectUrl,
       customer: { email: opts.email, name: opts.name },
@@ -57,6 +58,14 @@ export async function initializeFlutterwavePayment(opts: {
         title: opts.title ?? "Tempo Payment",
         description: opts.description ?? "Pay securely on Tempo",
       },
+      // Protect the amount, currency, customer email and Tempo reference from
+      // alteration between payment-link creation and Flutterwave checkout.
+      payload_hash: paymentPayloadHash({
+        amount: amountInNaira(opts.amountKobo),
+        email: opts.email,
+        reference: opts.reference,
+        secret,
+      }),
     }),
   });
 
@@ -65,6 +74,17 @@ export async function initializeFlutterwavePayment(opts: {
     return { ok: false, error: json?.message ?? "Could not start payment." };
   }
   return { ok: true, link: json.data.link as string };
+}
+
+function amountInNaira(amountKobo: number) {
+  return (amountKobo / 100).toFixed(2);
+}
+
+function paymentPayloadHash(input: { amount: string; email: string; reference: string; secret: string }) {
+  const secretHash = createHash("sha256").update(input.secret, "utf8").digest("hex");
+  return createHash("sha256")
+    .update(`${input.amount}NGN${input.email}${input.reference}${secretHash}`, "utf8")
+    .digest("hex");
 }
 
 export async function verifyFlutterwaveTransaction(transactionId: string): Promise<

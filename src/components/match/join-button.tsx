@@ -35,6 +35,7 @@ export function JoinButton({
   signedIn,
   hasEnded,
   walletBalanceKobo,
+  canHostCancel,
 }: {
   gameId: string;
   slug: string;
@@ -52,6 +53,7 @@ export function JoinButton({
   signedIn: boolean;
   hasEnded: boolean;
   walletBalanceKobo: number;
+  canHostCancel: boolean;
 }) {
   const router = useRouter();
   const toast = useContext(ToastContext);
@@ -106,7 +108,11 @@ export function JoinButton({
           You&apos;re hosting this game
         </div>
 
-        {!confirmingCancel ? (
+        {!canHostCancel ? (
+          <p className="mt-3 text-center text-[12.5px] text-ink-muted">
+            This session is 80% full or above and will proceed as planned.
+          </p>
+        ) : !confirmingCancel ? (
           <button
             type="button"
             onClick={() => setConfirmingCancel(true)}
@@ -271,7 +277,8 @@ function PaymentChannelPicker({
   }
 
   return (
-    <div className="mt-2 grid grid-cols-2 gap-2">
+    <div className="mt-2">
+      <div className="grid grid-cols-2 gap-2">
       {options.map((provider) => (
         <button
           key={provider.value}
@@ -301,6 +308,12 @@ function PaymentChannelPicker({
           {provider.hint && <span className="mt-0.5 block text-[10.5px] font-normal text-ink-muted">{provider.hint}</span>}
         </button>
       ))}
+      </div>
+      {walletBalanceKobo > 0 && !canUseCredit && value !== "wallet" && (
+        <p className="mt-2 text-[11.5px] leading-relaxed text-ink-muted">
+          {formatNaira(walletBalanceKobo)} Tempo credit will be applied first; checkout will request the remaining balance.
+        </p>
+      )}
     </div>
   );
 }

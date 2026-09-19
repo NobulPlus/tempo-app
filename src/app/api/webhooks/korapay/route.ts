@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 
-  if (!String(body.event ?? "").includes("charge.")) {
+  if (!eventType(body.event).includes("charge.")) {
     return NextResponse.json({ ok: true, skipped: true });
   }
 
@@ -49,6 +49,7 @@ export async function POST(request: Request) {
         amountKobo: verified.amountKobo,
         providerRef: verified.providerRef,
         raw: verified.raw,
+        sendReceipt: false,
       })
     : await completeVerifiedActionPayment({
         reference,
@@ -76,9 +77,13 @@ function safeEqual(a: string, b: string) {
 }
 
 type KorapayWebhookBody = {
-  event?: string;
+  event?: string | { type?: string };
   data?: Record<string, unknown>;
 };
+
+function eventType(event: KorapayWebhookBody["event"]) {
+  return typeof event === "string" ? event : event?.type ?? "";
+}
 
 function extractTempoReference(data: Record<string, unknown>) {
   const metadata = data.metadata;

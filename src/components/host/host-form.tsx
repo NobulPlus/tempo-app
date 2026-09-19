@@ -32,6 +32,17 @@ export interface HostSlotOption extends Slot {
   size: string;
 }
 
+export interface ExistingBookingOption {
+  id: string;
+  reference: string;
+  totalKobo: number;
+  startsAt: string;
+  endsAt: string;
+  venueName: string;
+  area: string;
+  pitchName: string;
+}
+
 const LEVELS = [
   { key: "casual", label: "Casual", hint: "All levels. Nobody's counting." },
   { key: "intermediate", label: "Intermediate", hint: "Comfortable on the ball." },
@@ -49,18 +60,23 @@ export function HostForm({
   slots,
   initialSlotId,
   walletBalanceKobo,
+  existingBookings,
 }: {
   slots: HostSlotOption[];
   initialSlotId?: string;
   walletBalanceKobo: number;
+  existingBookings: ExistingBookingOption[];
 }) {
   const [state, action, pending] = useActionState(createGameAction, initial);
   useActionToast(state);
   const initialSlot = initialSlotId ? slots.find((s) => s.id === initialSlotId) : null;
 
   const [slotId, setSlotId] = useState(initialSlot?.id ?? "");
+  const [mode, setMode] = useState<"new" | "existing">("new");
+  const [bookingId, setBookingId] = useState("");
   const [level, setLevel] = useState<string>("casual");
   const [capacity, setCapacity] = useState(10);
+  const [preconfirmed, setPreconfirmed] = useState(7);
   const [minimum, setMinimum] = useState(8);
   const [dateKey, setDateKey] = useState(initialSlot ? slotDateKey(initialSlot.startsAt) : "all");
   const [area, setArea] = useState("all");
@@ -69,6 +85,7 @@ export function HostForm({
   const [priceNaira, setPriceNaira] = useState<number | "">("");
 
   const slot = useMemo(() => slots.find((s) => s.id === slotId), [slots, slotId]);
+  const booking = useMemo(() => existingBookings.find((item) => item.id === bookingId), [existingBookings, bookingId]);
 
   const areaOptions = useMemo(() => {
     return [...new Set(slots.map((s) => s.area).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -95,16 +112,17 @@ export function HostForm({
     }, {});
   }, [filteredSlots]);
 
+  const selectedCostKobo = mode === "existing" ? booking?.totalKobo ?? 0 : slot?.priceKobo ?? 0;
   const suggested = useMemo(() => {
-    if (!slot) return 0;
-    const { each } = splitKobo(slot.priceKobo, Math.max(1, minimum));
+    if (!selectedCostKobo) return 0;
+    const { each } = splitKobo(selectedCostKobo, Math.max(1, minimum));
     return Math.ceil(each / 50_000) * 50_000;
-  }, [slot, minimum]);
+  }, [selectedCostKobo, minimum]);
 
   const effectivePrice = priceNaira === "" ? suggested / 100 : priceNaira;
   const projected = effectivePrice * 100 * capacity;
   const minimumCollection = effectivePrice * 100 * minimum;
-  const covers = slot ? projected >= slot.priceKobo : false;
+  const covers = selectedCostKobo > 0 ? projected >= selectedCostKobo : false;
   const hostTotalKobo = slot ? slot.priceKobo + Math.round(slot.priceKobo * 0.05) : 0;
   const reimbursementTarget = slot ? Math.max(0, slot.priceKobo - minimumCollection) : 0;
   const canUseCredit = Boolean(slot && walletBalanceKobo >= hostTotalKobo);
@@ -112,6 +130,48 @@ export function HostForm({
   return (
     <form action={action} className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(330px,.75fr)]">
       <div className="space-y-6">
+        <section className="card-t p-5">
+          <p className="text-[12px] font-bold uppercase tracking-[.12em] text-green">How are you hosting?</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <OptionRow
+              selected={mode === "new"}
+              onClick={() => setMode("new")}
+              label="Book a new pitch"
+              hint="Reserve a Tempo slot, then publish your game."
+            />
+            <OptionRow
+              selected={mode === "existing"}
+              onClick={() => setMode("existing")}
+              label="Fill an existing session"
+              hint="Publish the remaining spaces from a booking you already made."
+            />
+          </div>
+        </section>
+
+        {mode === "existing" ? (
+          <section className="card-t p-6">
+            <h2 className="text-[18px] font-bold">Choose your booked session</h2>
+            <p className="mt-1.5 text-[13.5px] text-ink-soft">Only confirmed Tempo bookings are available here. This keeps the listed time and pitch verified.</p>
+            <div className="mt-4 grid gap-2">
+              {existingBookings.length === 0 ? (
+                <EmptySlotState message="No upcoming Tempo bookings yet. Book the pitch first, then return here to fill remaining spaces." />
+              ) : existingBookings.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setBookingId(item.id)}
+                  className={`rounded-xl border p-4 text-left transition ${bookingId === item.id ? "border-green/50 bg-green/10" : "border-white/10 bg-white/4 hover:border-green/35"}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div><div className="font-bold">{item.venueName}</div><div className="mt-1 text-[12.5px] text-ink-soft">{item.area} · {item.pitchName} · {formatRelativeDay(item.startsAt)} · {formatTime(item.startsAt)}</div></div>
+                    <span className="text-[12px] font-semibold text-ink-muted">{item.reference}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <input type="hidden" name="existingBookingId" value={bookingId} />
+          </section>
+        ) : (
         <section className="card-t overflow-hidden p-0">
           <div className="border-b border-white/10 p-6">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -254,6 +314,7 @@ export function HostForm({
 
           <input type="hidden" name="slotId" value={slotId} />
         </section>
+        )}
 
         <section className="card-t p-6">
           <h2 className="text-[18px] font-bold">Game details</h2>
@@ -323,8 +384,24 @@ export function HostForm({
               onChange={(value) => {
                 setCapacity(value);
                 if (minimum > value) setMinimum(value);
+                if (preconfirmed >= value) setPreconfirmed(Math.max(1, value - 1));
               }}
             />
+
+            {mode === "existing" && (
+              <div>
+                <NumberField
+                  id="preconfirmedPlayerCount"
+                  name="preconfirmedPlayerCount"
+                  label="Players already confirmed"
+                  min={1}
+                  max={Math.max(1, capacity - 1)}
+                  value={preconfirmed}
+                  onChange={(value) => setPreconfirmed(Math.min(Math.max(1, value), capacity - 1))}
+                />
+                <p className="mt-1.5 text-[12px] text-ink-muted">Include yourself and everyone already committed. Tempo will publish only the remaining spaces.</p>
+              </div>
+            )}
 
             <div>
               <NumberField
@@ -356,11 +433,11 @@ export function HostForm({
                   className="min-w-0 flex-1 bg-transparent py-3.5 pl-1 text-[15px] outline-none"
                 />
               </div>
-              {slot && (
+              {(slot || booking) && (
                 <p className={`mt-2 text-[12.5px] ${covers ? "text-ink-muted" : "text-orange"}`}>
                   {covers
-                    ? `At ${capacity} players you'd collect ${formatNaira(projected)} against ${formatNaira(slot.priceKobo)} pitch hire.`
-                    : `Careful: ${capacity} players at this price collects ${formatNaira(projected)}, but the pitch costs ${formatNaira(slot.priceKobo)}.`}
+                    ? `At ${capacity} players you'd collect ${formatNaira(projected)} against ${formatNaira(selectedCostKobo)} already paid for the pitch.`
+                    : `Careful: ${capacity} players at this price collects ${formatNaira(projected)}, but the session cost is ${formatNaira(selectedCostKobo)}.`}
                 </p>
               )}
             </div>
@@ -376,7 +453,12 @@ export function HostForm({
           </div>
 
           <div className="p-6">
-            {slot ? (
+            {mode === "existing" && booking ? (
+              <div className="rounded-2xl border border-green/25 bg-green/8 p-4">
+                <div className="text-[15px] font-bold">{booking.venueName}</div>
+                <div className="mt-2 text-[12.5px] text-ink-soft">{booking.area} · {booking.pitchName} · {formatRelativeDay(booking.startsAt)} · {formatTime(booking.startsAt)}–{formatTime(booking.endsAt)}</div>
+              </div>
+            ) : slot ? (
               <div className="rounded-2xl border border-green/25 bg-green/8 p-4">
                 <div className="text-[15px] font-bold">{slot.venueName}</div>
                 <div className="mt-2 grid gap-2 text-[12.5px] text-ink-soft">
@@ -396,7 +478,7 @@ export function HostForm({
               </p>
             )}
 
-            {slot && (
+            {slot && mode === "new" && (
               <div className="mt-4 rounded-2xl border border-gold/30 bg-gold/8 p-4 text-center">
                   <div className="text-[12px] text-ink-muted">You pay now to reserve the pitch</div>
                 <div className="mt-0.5 text-[24px] font-extrabold text-gold">{formatNaira(hostTotalKobo)}</div>
@@ -412,7 +494,7 @@ export function HostForm({
               <Row label={`If all ${capacity} join`} value={effectivePrice ? formatNaira(projected) : "-"} strong />
             </dl>
 
-            {slot && (
+            {(slot || booking) && (
               <div className="mt-5 rounded-2xl border border-white/10 bg-white/4 p-4">
                 <div className="mb-3 flex items-center gap-2 text-[13px] font-bold">
                   <WalletIcon size={15} className="text-green" />
@@ -421,7 +503,7 @@ export function HostForm({
                 <div className="space-y-2 text-[12.5px] leading-relaxed text-ink-soft">
                   <p className="flex items-start gap-2">
                     <UsersIcon size={14} className="mt-0.5 shrink-0 text-green" />
-                    You&apos;re counted as the first player automatically.
+                    {mode === "existing" ? "Your confirmed regulars are counted before Tempo opens the remaining spaces." : "You&apos;re counted as the first player automatically."}
                   </p>
                   <p className="flex items-start gap-2">
                     <ShieldIcon size={14} className="mt-0.5 shrink-0 text-green" />
@@ -436,7 +518,7 @@ export function HostForm({
               </div>
             )}
 
-            <fieldset className="mt-5">
+            {mode === "new" && <fieldset className="mt-5">
               <legend className="mb-2 text-[13px] font-semibold text-ink-soft">Payment channel</legend>
               <div className="grid gap-2">
                 <PaymentOption value="korapay" label="KoraPay" logo="/payments/korapay.png" defaultChecked />
@@ -454,10 +536,10 @@ export function HostForm({
                   Tempo credit available: {formatNaira(walletBalanceKobo)}. This can only be used when it covers the full amount.
                 </p>
               )}
-            </fieldset>
+            </fieldset>}
 
-            <button type="submit" disabled={pending || !slotId} className="btn-t btn-green-t mt-5 w-full">
-              {pending ? "Opening checkout..." : slot ? `Pay ${formatNaira(hostTotalKobo)} & publish` : "Publish game"}
+            <button type="submit" disabled={pending || (mode === "new" ? !slotId : !bookingId)} className="btn-t btn-green-t mt-5 w-full">
+              {pending ? "Opening checkout..." : mode === "existing" ? "Publish remaining spaces" : slot ? `Pay ${formatNaira(hostTotalKobo)} & publish` : "Publish game"}
             </button>
           </div>
         </div>

@@ -21,7 +21,8 @@ export default function CommunityPage() {
         If you join a game, play it. When you don&apos;t show, nine other people are
         standing on a pitch short of a player. Every no-show costs you{" "}
         <strong>12 points of punctuality</strong>, and that number is public on your
-        player card. Two no-shows and hosts start declining you.
+        player card. After three no-shows, a host may choose not to accept you into
+        future sessions and offer the place to a reliable player on standby.
       </p>
       <p>
         Things come up — that&apos;s fine. Drop out in the app and the waitlist fills

@@ -43,9 +43,20 @@ export function SignupForm() {
           <UserIcon size={19} />
         </span>
         <label htmlFor="fullName" className="floating">
-          Full name
+          First and last name
         </label>
       </div>
+
+      <div>
+        <label htmlFor="dateOfBirth" className="mb-1.5 block text-[13px] font-semibold text-ink-soft">Date of birth</label>
+        <input id="dateOfBirth" name="dateOfBirth" type="date" required className="w-full rounded-xl border border-white/12 bg-white/4 px-4 py-3.5 text-[15px] outline-none transition focus:border-green/50" />
+        <p className="mt-1.5 text-[12px] text-ink-muted">Tempo is for players aged 16 and above.</p>
+      </div>
+
+      <label className="flex items-start gap-3 text-[13.5px] leading-relaxed text-ink-soft">
+        <input type="checkbox" name="guardianSupervision" className="mt-0.5 h-4 w-4 shrink-0 accent-green" />
+        <span>I confirm that a parent or guardian supervises this account if the player is under 18.</span>
+      </label>
 
       <div className="field-t">
         <input id="email" name="email" type="email" required autoComplete="email" placeholder=" " suppressHydrationWarning />

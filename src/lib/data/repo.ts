@@ -582,8 +582,9 @@ function mapGameRow(row: Record<string, unknown>): GameFull {
     host: mapProfileRow(c.host),
     participants,
     // A payment hold occupies a real spot, same as a fully-paid one.
-    filled: participants.filter((p) => p.status === "confirmed" || p.status === "pending_payment")
-      .length,
+    filled:
+      (c.preconfirmedPlayerCount ?? 0) +
+      participants.filter((p) => p.status === "confirmed" || p.status === "pending_payment").length,
   };
 }
 
@@ -603,8 +604,9 @@ function hydrateGame(g: Omit<Game, "participants" | "filled">): GameFull {
     pitch,
     host,
     participants,
-    filled: participants.filter((p) => p.status === "confirmed" || p.status === "pending_payment")
-      .length,
+    filled:
+      (g.preconfirmedPlayerCount ?? 0) +
+      participants.filter((p) => p.status === "confirmed" || p.status === "pending_payment").length,
   };
 }
 
@@ -757,7 +759,7 @@ function demoRefreshGameMinimumStatus(gameId: string) {
   const s = store();
   const game = s.games.find((g) => g.id === gameId);
   if (!game || (game.status !== "open" && game.status !== "locked")) return;
-  const count = s.participants.filter(
+  const count = (game.preconfirmedPlayerCount ?? 0) + s.participants.filter(
     (p) => p.gameId === gameId && (p.status === "confirmed" || p.status === "pending_payment"),
   ).length;
   if (count >= game.minimumToGuarantee && game.minimumDecisionStatus === "pending") {
@@ -795,6 +797,15 @@ function demoPromoteNextWaitlisted(gameId: string) {
   const game = s.games.find((g) => g.id === gameId);
   if (!game) return;
 
+  const occupied = (game.preconfirmedPlayerCount ?? 0) + s.participants.filter(
+    (p) => p.gameId === gameId && (p.status === "confirmed" || p.status === "pending_payment"),
+  ).length;
+  if (occupied >= game.capacity) {
+    game.status = "locked";
+    demoRefreshGameMinimumStatus(gameId);
+    return;
+  }
+
   const next = s.participants
     .filter((p) => p.gameId === gameId && p.status === "waitlist")
     .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))[0];
@@ -808,6 +819,7 @@ function demoPromoteNextWaitlisted(gameId: string) {
   next.status = status;
   next.paidKobo = paidKobo;
   next.paymentDeadline = status === "pending_payment" ? computePaymentDeadline(game.startsAt) : null;
+  if (occupied + 1 >= game.capacity) game.status = "locked";
   demoRefreshGameMinimumStatus(gameId);
 }
 
@@ -842,7 +854,7 @@ export async function joinGame(gameId: string, userId: string): Promise<JoinResu
   if (existing && existing.status !== "withdrawn")
     return { ok: false, error: "You're already in this game." };
 
-  const held = s.participants.filter(
+  const held = (game.preconfirmedPlayerCount ?? 0) + s.participants.filter(
     (p) => p.gameId === gameId && (p.status === "confirmed" || p.status === "pending_payment"),
   ).length;
   const wouldHoldSpot = held < game.capacity;
@@ -1013,12 +1025,19 @@ export async function cancelGame(
     return { ok: false, error: "Game has already started." };
   }
 
+  const occupied = (game.preconfirmedPlayerCount ?? 0) + s.participants.filter(
+    (p) => p.gameId === gameId && (p.status === "confirmed" || p.status === "pending_payment"),
+  ).length;
+  if (!isAdmin && occupied * 100 >= game.capacity * 80) {
+    return { ok: false, error: "Sessions at 80% full or above must proceed." };
+  }
+
   game.status = "cancelled";
   game.minimumDecisionStatus = "cancelled";
   const slot = s.slots.find(
     (x) => x.pitchId === game.pitchId && x.startsAt === game.startsAt && x.status === "booked",
   );
-  if (slot) slot.status = "open";
+  if (slot && !game.isExistingSession) slot.status = "open";
 
   const toRefund = s.participants.filter(
     (p) => p.gameId === gameId && (p.status === "confirmed" || p.status === "pending_payment") && p.paidKobo > 0,
@@ -1035,7 +1054,7 @@ export async function cancelGame(
     p.paymentDeadline = null;
   }
 
-  const hostRefund = Math.max(0, (game.hostPaidKobo ?? 0) - (game.hostReimbursedKobo ?? 0));
+  const hostRefund = game.isExistingSession ? 0 : Math.max(0, (game.hostPaidKobo ?? 0) - (game.hostReimbursedKobo ?? 0));
   const sixHoursMs = 6 * 60 * 60 * 1000;
   if (hostRefund > 0 && new Date(game.startsAt).getTime() - Date.now() >= sixHoursMs) {
     demoRefundGameParticipant(game.hostId, hostRefund, "game_refund");
@@ -1077,7 +1096,7 @@ export async function decideGameMinimum(
     return { ok: false, error: "Game has already started." };
   }
 
-  const count = s.participants.filter(
+  const count = (game.preconfirmedPlayerCount ?? 0) + s.participants.filter(
     (p) => p.gameId === gameId && (p.status === "confirmed" || p.status === "pending_payment"),
   ).length;
   if (count >= game.minimumToGuarantee) {

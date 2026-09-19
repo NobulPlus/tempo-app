@@ -26,8 +26,9 @@ export default function RefundsPage() {
       </p>
       <p>
         Tempo credit does not expire while your account is active. It can be used on
-        bookings and games where the checkout flow supports it. In most flows, credit
-        can be used only when it covers the full amount due.
+        bookings and games where the checkout flow supports it. Where available,
+        Tempo applies credit first and the customer pays any remaining balance by card
+        or bank transfer.
       </p>
 
       <h2>2. Private pitch bookings</h2>
@@ -101,6 +102,10 @@ export default function RefundsPage() {
             </td>
           </tr>
           <tr>
+            <td>The session is 80% full or above</td>
+            <td>The host cannot cancel through the normal flow; it proceeds unless Tempo intervenes for an exceptional reason.</td>
+          </tr>
+          <tr>
             <td>The venue cancels or the pitch is unavailable</td>
             <td>
               Players receive full Tempo credit or reschedule support. Tempo also
@@ -109,6 +114,11 @@ export default function RefundsPage() {
           </tr>
         </tbody>
       </table>
+      <p>
+        Hosting earnings can be reused on Tempo. A bank withdrawal is limited to
+        verified earnings from the host&apos;s own completed sessions; cancellation credits
+        and player refunds remain reusable Tempo credit.
+      </p>
 
       <h2>4. Joining a public game</h2>
       <table>

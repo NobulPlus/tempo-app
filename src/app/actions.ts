@@ -20,6 +20,7 @@ import {
   createBooking,
   cancelBooking,
   getBookingByReference,
+  getBookingsForUser,
   getSlot,
   getGameById,
   getProfileById,
@@ -1021,7 +1022,8 @@ export async function adminVerifyPendingKorapayTopupAction(
 /* ------------------------------------------------------------------ host -- */
 
 const hostSchema = z.object({
-  slotId: z.string().min(1, "Pick a time slot"),
+  slotId: z.string().optional(),
+  existingBookingId: z.string().optional(),
   title: z.string().min(4, "Give your game a name"),
   description: z.string().max(600).optional(),
   level: z.enum(["casual", "intermediate", "competitive"]),
@@ -1029,6 +1031,7 @@ const hostSchema = z.object({
   minimumToGuarantee: z.coerce.number().int().min(2),
   pricePerPlayerNaira: z.coerce.number().int().min(0).max(200000),
   bibsProvided: z.coerce.boolean().optional(),
+  preconfirmedPlayerCount: z.coerce.number().int().min(1).optional(),
 });
 
 export async function createGameAction(
@@ -1040,6 +1043,7 @@ export async function createGameAction(
 
   const parsed = hostSchema.safeParse({
     slotId: formData.get("slotId"),
+    existingBookingId: formData.get("existingBookingId"),
     title: formData.get("title"),
     description: formData.get("description"),
     level: formData.get("level"),
@@ -1047,17 +1051,65 @@ export async function createGameAction(
     minimumToGuarantee: formData.get("minimumToGuarantee"),
     pricePerPlayerNaira: formData.get("pricePerPlayerNaira"),
     bibsProvided: formData.get("bibsProvided") === "on",
+    preconfirmedPlayerCount: formData.get("preconfirmedPlayerCount") || undefined,
   });
 
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
   }
   const v = parsed.data;
+  const isExistingSession = Boolean(v.existingBookingId);
+  const preconfirmedPlayerCount = v.preconfirmedPlayerCount ?? 0;
+  if (!isExistingSession && !v.slotId) return { ok: false, error: "Pick a time slot." };
+  if (isExistingSession && !v.preconfirmedPlayerCount) return { ok: false, error: "Enter the players already confirmed." };
+  if (isExistingSession && preconfirmedPlayerCount >= v.capacity) {
+    return { ok: false, error: "Leave at least one space for Tempo players." };
+  }
   if (v.minimumToGuarantee > v.capacity) {
     return { ok: false, error: "The guarantee number can't be higher than capacity." };
   }
 
+  if (isExistingSession && isSupabaseConfigured()) {
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("publish_existing_session", {
+      p_booking_id: v.existingBookingId,
+      p_title: v.title,
+      p_description: v.description ?? "",
+      p_level: v.level,
+      p_capacity: v.capacity,
+      p_minimum_to_guarantee: v.minimumToGuarantee,
+      p_price_per_player_kobo: v.pricePerPlayerNaira * 100,
+      p_preconfirmed_player_count: preconfirmedPlayerCount,
+      p_bibs_provided: Boolean(v.bibsProvided),
+    });
+    if (error) return { ok: false, error: error.message };
+    revalidatePath("/games");
+    revalidatePath("/dashboard");
+    redirect(`/games/${(data as { slug: string }).slug}`);
+  }
+
   if (!isSupabaseConfigured()) {
+    if (isExistingSession) {
+      const booking = (await getBookingsForUser(user.id)).find((item) => item.id === v.existingBookingId);
+      if (!booking?.slot || booking.status !== "confirmed") return { ok: false, error: "That booking is not available to publish." };
+      const s = store();
+      if (s.games.some((game) => game.bookingId === booking.id)) return { ok: false, error: "You have already published this booking." };
+      const gameId = `g-${Date.now()}`;
+      const slug = `${v.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${Date.now().toString(36).slice(-4)}`;
+      s.games.push({
+        id: gameId, slug, pitchId: booking.slot.pitchId, hostId: user.id, bookingId: booking.id,
+        title: v.title, description: v.description ?? "", level: v.level,
+        startsAt: booking.slot.startsAt, endsAt: booking.slot.endsAt, capacity: v.capacity,
+        minimumToGuarantee: v.minimumToGuarantee, pricePerPlayerKobo: v.pricePerPlayerNaira * 100,
+        status: "open", bibsProvided: Boolean(v.bibsProvided), preconfirmedPlayerCount,
+        isExistingSession: true, hostPaidKobo: booking.totalKobo, hostReimbursedKobo: 0,
+        minimumDecisionDeadline: new Date(Math.max(Date.now(), new Date(booking.slot.startsAt).getTime() - 6 * 60 * 60 * 1000)).toISOString(),
+        minimumDecisionStatus: preconfirmedPlayerCount >= v.minimumToGuarantee ? "not_needed" : "pending",
+        createdAt: new Date().toISOString(),
+      });
+      revalidatePath("/games");
+      redirect(`/games/${slug}`);
+    }
     const s = store();
     const slot = s.slots.find((x) => x.id === v.slotId);
     if (!slot) return { ok: false, error: "That slot no longer exists." };
@@ -1141,7 +1193,9 @@ export async function createGameAction(
   const parsedProvider = parsePaymentProvider(formData.get("provider"));
   if (!parsedProvider.ok) return { ok: false, error: parsedProvider.error };
   const provider = parsedProvider.provider;
-  const slot = await getSlot(v.slotId);
+  const slotId = v.slotId;
+  if (!slotId) return { ok: false, error: "Pick a time slot." };
+  const slot = await getSlot(slotId);
   if (!slot) return { ok: false, error: "That slot no longer exists." };
   if (slot.status !== "open") return { ok: false, error: "Someone just booked that slot." };
   if (new Date(slot.startsAt).getTime() <= Date.now()) return { ok: false, error: "That time has already passed." };
@@ -1150,7 +1204,7 @@ export async function createGameAction(
   if (provider === "wallet") {
     const sb = await createClient();
     const { data, error } = await sb.rpc("host_game", {
-      p_slot_id: v.slotId,
+      p_slot_id: slotId,
       p_title: v.title,
       p_description: v.description ?? "",
       p_level: v.level,
@@ -1180,12 +1234,12 @@ export async function createGameAction(
     kind: "host_game",
     provider,
     amountKobo: hostTotalKobo,
-    slotId: v.slotId,
+    slotId,
     referencePrefix: "HST",
     title: "Tempo hosted game",
     description: `Reserve ${slot.pitch.venue.name} and publish ${v.title}`,
     payload: {
-      slot_id: v.slotId,
+      slot_id: slotId,
       title: v.title,
       description: v.description ?? "",
       level: v.level,
@@ -1208,11 +1262,17 @@ const signUpSchema = z
     phone: z.string().optional(),
     password: z.string().min(8, "Password must be at least 8 characters"),
     password2: z.string(),
+    dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter your date of birth"),
+    guardianSupervision: z.string().optional(),
     terms: z.literal("on", { message: "You have to accept the terms to continue" }),
   })
   .refine((v) => v.password === v.password2, {
     message: "Passwords don't match",
     path: ["password2"],
+  })
+  .refine((v) => v.fullName.trim().split(/\s+/).filter(Boolean).length >= 2, {
+    message: "Enter your first and last name",
+    path: ["fullName"],
   });
 
 /**
@@ -1238,6 +1298,8 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
     phone: formData.get("phone") || undefined,
     password: formData.get("password"),
     password2: formData.get("password2"),
+    dateOfBirth: formData.get("dateOfBirth"),
+    guardianSupervision: formData.get("guardianSupervision") || undefined,
     terms: formData.get("terms"),
   });
   if (!parsed.success) {
@@ -1245,6 +1307,15 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
   }
 
   const { fullName, password } = parsed.data;
+  const birthDate = new Date(`${parsed.data.dateOfBirth}T00:00:00.000Z`);
+  if (Number.isNaN(birthDate.getTime())) return { ok: false, error: "Enter a valid date of birth." };
+  const today = new Date();
+  const age = today.getUTCFullYear() - birthDate.getUTCFullYear() -
+    (Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()) < Date.UTC(today.getUTCFullYear(), birthDate.getUTCMonth(), birthDate.getUTCDate()) ? 1 : 0);
+  if (age < 16) return { ok: false, error: "Tempo is available from age 16." };
+  if (age < 18 && parsed.data.guardianSupervision !== "on") {
+    return { ok: false, error: "A parent or guardian must supervise users under 18." };
+  }
   const email = parsed.data.email.toLowerCase();
   const phone = parsed.data.phone ? normalisePhone(parsed.data.phone) : null;
   if (parsed.data.phone && !phone) {
@@ -1255,7 +1326,7 @@ export async function signUpAction(_prev: ActionState, formData: FormData): Prom
   const { data, error } = await sb.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName, phone } },
+    options: { data: { full_name: fullName, phone, date_of_birth: parsed.data.dateOfBirth, guardian_supervision: age < 18 } },
   });
 
   if (error) {

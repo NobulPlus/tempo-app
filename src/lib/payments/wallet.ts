@@ -9,6 +9,7 @@ interface CompleteTopupInput {
   amountKobo: number;
   providerRef: string;
   raw: unknown;
+  sendReceipt?: boolean;
 }
 
 type CompleteTopupResult = { ok: true } | { ok: false; error: string };
@@ -42,7 +43,9 @@ export async function completeVerifiedWalletTopup(
   if (!isMissingNewSignature(error)) {
     if (error) return { ok: false, error: error.message };
     revalidateWalletViews();
-    await sendTopupReceipt(admin, expected.userId, input.reference, input.amountKobo);
+    if (input.sendReceipt !== false) {
+      await sendTopupReceipt(admin, expected.userId, input.reference, input.amountKobo);
+    }
     return { ok: true };
   }
 
@@ -54,7 +57,9 @@ export async function completeVerifiedWalletTopup(
 
   if (fallback.error) return { ok: false, error: fallback.error.message };
   revalidateWalletViews();
-  await sendTopupReceipt(admin, expected.userId, input.reference, input.amountKobo);
+  if (input.sendReceipt !== false) {
+    await sendTopupReceipt(admin, expected.userId, input.reference, input.amountKobo);
+  }
   return { ok: true };
 }
 
