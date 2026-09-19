@@ -17,6 +17,8 @@ import type {
   PitchSize,
   PitchSurface,
   WalletTransaction,
+  HostBankAccount,
+  HostPayoutRequest,
   VenueVerificationEvent,
   IdentityVerification,
   KycStatus,
@@ -1504,6 +1506,69 @@ export async function getWalletTransactions(userId: string, limit = 20): Promise
     .walletTransactions.filter((t) => t.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit);
+}
+
+export interface HostPayoutOverview {
+  bankAccount: HostBankAccount | null;
+  requests: HostPayoutRequest[];
+  withdrawableKobo: number;
+}
+
+/** Host earnings remain reusable wallet credit. This view identifies the
+ * portion that came from completed host sessions and has not been reserved
+ * for a bank payout, capped by the user's actual wallet balance. */
+export async function getHostPayoutOverview(userId: string): Promise<HostPayoutOverview> {
+  if (demoMode()) return { bankAccount: null, requests: [], withdrawableKobo: 0 };
+
+  const sb = await createClient();
+  const [{ data: account }, { data: requests }, { data: wallet }, { data: transactions }] = await Promise.all([
+    sb.from("host_bank_accounts").select("*").eq("user_id", userId).maybeSingle(),
+    sb.from("host_payout_requests").select("*").eq("user_id", userId).order("requested_at", { ascending: false }),
+    sb.from("wallets").select("balance_kobo").eq("user_id", userId).maybeSingle(),
+    sb
+      .from("wallet_transactions")
+      .select("type, amount_kobo")
+      .eq("user_id", userId)
+      .eq("status", "completed")
+      .in("type", ["host_reimbursement", "host_game_earnings", "host_withdrawal", "host_withdrawal_reversal"]),
+  ]);
+
+  const earned = (transactions ?? [])
+    .filter((row) => row.type === "host_reimbursement" || row.type === "host_game_earnings")
+    .reduce((sum, row) => sum + Number(row.amount_kobo), 0);
+  const reserved = (transactions ?? []).reduce((sum, row) => {
+    if (row.type === "host_withdrawal") return sum + Math.max(0, -Number(row.amount_kobo));
+    if (row.type === "host_withdrawal_reversal") return sum - Math.max(0, Number(row.amount_kobo));
+    return sum;
+  }, 0);
+
+  return {
+    bankAccount: account ? camelize<HostBankAccount>(account) : null,
+    requests: camelize<HostPayoutRequest[]>(requests ?? []),
+    withdrawableKobo: Math.max(0, Math.min(Number(wallet?.balance_kobo ?? 0), earned - reserved)),
+  };
+}
+
+export interface HostPayoutAdminRow extends HostPayoutRequest {
+  fullName: string;
+  handle: string;
+}
+
+export async function listHostPayoutRequestsAdmin(limit = 100): Promise<HostPayoutAdminRow[]> {
+  if (demoMode()) return [];
+  const sb = await createClient();
+  const { data } = await sb
+    .from("host_payout_requests")
+    .select("*, profile:profiles!user_id(full_name, handle)")
+    .order("scheduled_for", { ascending: true })
+    .order("requested_at", { ascending: true })
+    .limit(limit);
+
+  return (data ?? []).map((row) => {
+    const value = camelize<HostPayoutRequest & { profile: { fullName: string; handle: string } | null }>(row);
+    const { profile, ...request } = value;
+    return { ...request, fullName: profile?.fullName ?? "Unknown", handle: profile?.handle ?? "unknown" };
+  });
 }
 
 /* --------------------------------------------------------- admin finance --

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { getWalletBalance, getWalletTransactions } from "@/lib/data/repo";
+import { getHostPayoutOverview, getWalletBalance, getWalletTransactions } from "@/lib/data/repo";
+import { HostPayoutPanel } from "@/components/wallet/host-payout-panel";
 import { formatNaira, formatDayShort, formatTime } from "@/lib/format";
 import { WalletIcon, CheckIcon, ClockIcon, CloseIcon } from "@/components/icons";
 import type { WalletTransaction } from "@/lib/types";
@@ -22,9 +23,10 @@ export default async function WalletPage({
   if (!user) redirect("/login?next=/wallet");
 
   const { topup, reason } = await searchParams;
-  const [balanceKobo, transactions] = await Promise.all([
+  const [balanceKobo, transactions, payoutOverview] = await Promise.all([
     getWalletBalance(user.id),
     getWalletTransactions(user.id),
+    getHostPayoutOverview(user.id),
   ]);
 
   return (
@@ -65,6 +67,12 @@ export default async function WalletPage({
           reimbursements and hosting earnings.
         </div>
 
+        <HostPayoutPanel
+          bankAccount={payoutOverview.bankAccount}
+          requests={payoutOverview.requests}
+          withdrawableKobo={payoutOverview.withdrawableKobo}
+        />
+
         <section className="mt-10">
           <h2 className="text-[18px] font-bold">Transaction history</h2>
           {transactions.length === 0 ? (
@@ -93,6 +101,8 @@ const TXN_LABELS: Record<WalletTransaction["type"], string> = {
   host_game_deposit: "Pitch deposit (hosting)",
   host_reimbursement: "Hosting reimbursement",
   host_game_earnings: "Hosting earnings",
+  host_withdrawal: "Host payout request",
+  host_withdrawal_reversal: "Host payout restored",
 };
 
 function TransactionRow({ txn }: { txn: WalletTransaction }) {

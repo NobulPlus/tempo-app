@@ -1,11 +1,13 @@
-import { getFinanceSummary, listWalletsAdmin, listWalletTransactionsAdmin } from "@/lib/data/repo";
+import { getFinanceSummary, listHostPayoutRequestsAdmin, listWalletsAdmin, listWalletTransactionsAdmin } from "@/lib/data/repo";
 import { FinanceBoard } from "@/components/admin/finance-board";
+import { HostPayoutBoard } from "@/components/admin/host-payout-board";
 
 export default async function AdminFinancePage() {
-  const [summary, wallets, transactions] = await Promise.all([
+  const [summary, wallets, transactions, hostPayoutRequests] = await Promise.all([
     getFinanceSummary(),
     listWalletsAdmin(),
     listWalletTransactionsAdmin(200),
+    listHostPayoutRequestsAdmin(100),
   ]);
 
   return (
@@ -18,6 +20,7 @@ export default async function AdminFinancePage() {
 
       <div className="mt-6">
         <FinanceBoard summary={summary} wallets={wallets} transactions={transactions} />
+        <HostPayoutBoard requests={hostPayoutRequests} />
       </div>
     </div>
   );

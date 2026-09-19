@@ -897,12 +897,9 @@ export async function initiateWalletTopupAction(
   const { error: initError } = await sb.rpc("initiate_wallet_topup", {
     p_reference: reference,
     p_amount_kobo: amountKobo,
+    p_provider: parsed.data.provider,
   });
   if (initError) return { ok: false, error: initError.message };
-  await createAdminClient()
-    .from("wallet_transactions")
-    .update({ provider: parsed.data.provider })
-    .eq("reference", reference);
 
   const {
     data: { user: authUser },
@@ -1017,6 +1014,92 @@ export async function adminVerifyPendingKorapayTopupAction(
   revalidatePath("/admin/finance");
   revalidatePath("/", "layout");
   return { ok: true, message: "Payment verified and wallet credited." };
+}
+
+/* ------------------------------------------------------ host payouts -- */
+
+const hostBankAccountSchema = z.object({
+  bankName: z.string().trim().min(2, "Enter your bank name").max(100),
+  accountName: z.string().trim().min(2, "Enter the account name").max(120),
+  accountNumber: z.string().trim().regex(/^\d{10}$/, "Enter a 10-digit Nigerian account number"),
+});
+
+export async function saveHostBankAccountAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  if (!isSupabaseConfigured()) return { ok: false, error: "Bank payouts need the live database." };
+
+  const parsed = hostBankAccountSchema.safeParse({
+    bankName: formData.get("bankName"),
+    accountName: formData.get("accountName"),
+    accountNumber: String(formData.get("accountNumber") ?? "").replace(/\s+/g, ""),
+  });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check your bank details." };
+
+  const sb = await createClient();
+  const { error } = await sb.rpc("set_host_bank_account", {
+    p_bank_name: parsed.data.bankName,
+    p_account_name: parsed.data.accountName,
+    p_account_number: parsed.data.accountNumber,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/wallet");
+  return { ok: true, message: "Bank account saved." };
+}
+
+const hostPayoutSchema = z.object({
+  amountNaira: z.coerce.number().int().min(1000, "Minimum payout is ₦1,000").max(5_000_000),
+});
+
+export async function requestHostPayoutAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  if (!isSupabaseConfigured()) return { ok: false, error: "Bank payouts need the live database." };
+  const parsed = hostPayoutSchema.safeParse({ amountNaira: formData.get("amountNaira") });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Enter a valid amount." };
+
+  const sb = await createClient();
+  const { error } = await sb.rpc("request_host_payout", { p_amount_kobo: parsed.data.amountNaira * 100 });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/wallet");
+  revalidatePath("/admin/finance");
+  return { ok: true, message: "Payout requested. It will be included in the next eligible Friday batch." };
+}
+
+const adminPayoutSchema = z.object({
+  payoutId: z.string().uuid(),
+  decision: z.enum(["paid", "rejected"]),
+  transferReference: z.string().trim().max(160).optional(),
+  note: z.string().trim().max(500).optional(),
+});
+
+export async function reviewHostPayoutAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, error: "Not authorized." };
+  const parsed = adminPayoutSchema.safeParse({
+    payoutId: formData.get("payoutId"),
+    decision: formData.get("decision"),
+    transferReference: formData.get("transferReference") || undefined,
+    note: formData.get("note") || undefined,
+  });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the payout details." };
+
+  const sb = await createClient();
+  const { error } =
+    parsed.data.decision === "paid"
+      ? await sb.rpc("admin_complete_host_payout", {
+          p_payout_id: parsed.data.payoutId,
+          p_transfer_reference: parsed.data.transferReference ?? null,
+          p_note: parsed.data.note ?? null,
+        })
+      : await sb.rpc("admin_reject_host_payout", {
+          p_payout_id: parsed.data.payoutId,
+          p_note: parsed.data.note ?? null,
+        });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/admin/finance");
+  revalidatePath("/wallet");
+  return { ok: true, message: parsed.data.decision === "paid" ? "Payout marked as paid." : "Payout rejected and credit restored." };
 }
 
 /* ------------------------------------------------------------------ host -- */

@@ -26,7 +26,9 @@ export type WalletTxnType =
   | "game_refund"
   | "host_game_deposit"
   | "host_reimbursement"
-  | "host_game_earnings";
+  | "host_game_earnings"
+  | "host_withdrawal"
+  | "host_withdrawal_reversal";
 export type WalletTxnStatus = "pending" | "completed" | "failed";
 
 export interface WalletTransaction {
@@ -43,6 +45,32 @@ export interface WalletTransaction {
   bookingId: string | null;
   gameId: string | null;
   createdAt: string;
+}
+
+export interface HostBankAccount {
+  id: string;
+  userId: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  updatedAt: string;
+}
+
+export interface HostPayoutRequest {
+  id: string;
+  userId: string;
+  bankAccountId: string;
+  amountKobo: number;
+  status: "requested" | "paid" | "rejected";
+  scheduledFor: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  reference: string;
+  transferReference: string | null;
+  adminNote: string | null;
+  requestedAt: string;
+  reviewedAt: string | null;
 }
 
 export interface Venue {

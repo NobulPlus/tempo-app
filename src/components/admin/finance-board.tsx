@@ -128,6 +128,8 @@ const TXN_LABELS: Record<WalletTransactionAdminRow["type"], string> = {
   host_game_deposit: "Pitch deposit (hosting)",
   host_reimbursement: "Hosting reimbursement",
   host_game_earnings: "Hosting earnings",
+  host_withdrawal: "Host payout request",
+  host_withdrawal_reversal: "Host payout restored",
 };
 
 function TransactionRow({ txn }: { txn: WalletTransactionAdminRow }) {
