@@ -20,6 +20,23 @@ const localMigrations = readdirSync("supabase/migrations")
   .filter((file) => file.endsWith(".sql"))
   .sort();
 
+const duplicateVersions = Object.entries(
+  localMigrations.reduce((versions, file) => {
+    const version = file.match(/^(\d+)_/)?.[1];
+    if (version) (versions[version] ??= []).push(file);
+    return versions;
+  }, {}),
+).filter(([, files]) => files.length > 1);
+
+if (duplicateVersions.length) {
+  console.error("Duplicate local migration versions found:");
+  for (const [version, files] of duplicateVersions) {
+    console.error(`  ${version}: ${files.join(", ")}`);
+  }
+  console.error("Rename the newer migration to the next unused version before pushing.");
+  process.exit(1);
+}
+
 const projectRef = getProjectRef();
 const npx = "npx";
 const baseArgs = ["--yes", "supabase@latest"];

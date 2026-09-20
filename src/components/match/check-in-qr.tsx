@@ -9,7 +9,7 @@ export function CheckInQr({ code, label }: { code: string; label: string }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    QRCode.toCanvas(canvas, code, {
+    QRCode.toCanvas(canvas, `TEMPO-CHECKIN:${code}`, {
       width: 148,
       margin: 1,
       color: {
@@ -36,6 +36,8 @@ type BarcodeDetectorLike = {
 
 type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => BarcodeDetectorLike;
 
+type ScannerControls = { stop: () => void };
+
 declare global {
   interface Window {
     BarcodeDetector?: BarcodeDetectorCtor;
@@ -51,18 +53,18 @@ export function CheckInScanner({
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fallbackControlsRef = useRef<ScannerControls | null>(null);
   const [active, setActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supported = typeof window !== "undefined" && "BarcodeDetector" in window;
 
   useEffect(() => {
-    if (!active || !supported || !videoRef.current) return;
+    if (!active || !videoRef.current) return;
 
     let cancelled = false;
     let raf = 0;
     const Detector = window.BarcodeDetector;
-    if (!Detector) return;
-    const detector = new Detector({ formats: ["qr_code"] });
+    const detector = Detector ? new Detector({ formats: ["qr_code"] }) : null;
 
     async function start() {
       try {
@@ -71,6 +73,25 @@ export function CheckInScanner({
           setActive(false);
           return;
         }
+        if (!supported) {
+          const { BrowserQRCodeReader } = await import("@zxing/browser");
+          if (cancelled || !videoRef.current) return;
+          const reader = new BrowserQRCodeReader();
+          fallbackControlsRef.current = await reader.decodeFromConstraints(
+            { video: { facingMode: { ideal: "environment" } }, audio: false },
+            videoRef.current,
+            (result) => {
+              if (result) {
+                onCode(result.getText());
+                fallbackControlsRef.current?.stop();
+                fallbackControlsRef.current = null;
+                setActive(false);
+              }
+            },
+          );
+          return;
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         if (cancelled || !videoRef.current) {
           stream.getTracks().forEach((track) => track.stop());
@@ -109,16 +130,10 @@ export function CheckInScanner({
       if (raf) window.cancelAnimationFrame(raf);
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+      fallbackControlsRef.current?.stop();
+      fallbackControlsRef.current = null;
     };
   }, [active, onCode, supported]);
-
-  if (!supported) {
-    return (
-      <p className="text-[12px] text-ink-muted">
-        Camera QR scanning is not available in this browser. Enter the code manually.
-      </p>
-    );
-  }
 
   return (
     <div>

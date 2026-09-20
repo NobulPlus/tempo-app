@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser, isVenueOwner } from "@/lib/session";
-import { listVenues, getVenueStats, listPitches, getBookingsForVenue } from "@/lib/data/repo";
+import { listVenues, getVenueStats, listPitches, getBookingsForVenue, listVenueStaff } from "@/lib/data/repo";
+import { VenueStaffPanel } from "@/components/venue/venue-staff-panel";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { ACTIVITY_OPTIONS, AMENITY_OPTIONS, venueOptionLabel } from "@/lib/venue-options";
 import { BuildingIcon, TrendIcon, ShieldIcon, ClockIcon, PinIcon, WalletIcon, PitchIcon, BallIcon } from "@/components/icons";
@@ -106,6 +107,7 @@ export default async function VenuePage() {
             const pitches = allPitches.filter((p) => p.venueId === venue.id);
 
             const bookings = await getBookingsForVenue(venue.id);
+            const staff = await listVenueStaff(venue.id);
             const upcomingBookings = bookings
               .filter((b) => b.status === "confirmed" && new Date(b.slot.startsAt).getTime() > Date.now())
               .sort((a, b) => a.slot.startsAt.localeCompare(b.slot.startsAt))
@@ -260,6 +262,7 @@ export default async function VenuePage() {
                     </ul>
                   )}
                 </div>
+                <VenueStaffPanel venueId={venue.id} staff={staff} />
               </section>
             );
           }),

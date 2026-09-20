@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getGameBySlug, getGameChatMessages, getGameCheckInCode, getWalletBalance, listGames } from "@/lib/data/repo";
+import { canManageGameAttendance, getGameBySlug, getGameChatMessages, getGameCheckInCode, getGameCheckInCodes, getWalletBalance, listGames } from "@/lib/data/repo";
 import { getCurrentUser } from "@/lib/session";
 import { getMatchState, estimateTravelMinutes, leaveByTime } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime, splitKobo } from "@/lib/format";
@@ -70,9 +70,7 @@ export default async function GamePage({
   const waitlist = game.participants.filter((p) => p.status === "waitlist");
   const mine = user ? game.participants.find((p) => p.userId === user.id) : undefined;
   const isHost = Boolean(user && user.id === game.hostId);
-  const canManageAttendance = Boolean(
-    user && (isHost || user.role === "admin" || user.id === game.pitch.venue.ownerId),
-  );
+  const canManageAttendance = user ? await canManageGameAttendance(game.id, user.id) : false;
   const preconfirmed = game.preconfirmedPlayerCount ?? 0;
   const isCancelled = game.status === "cancelled";
   const refundable = game.participants.filter(
@@ -92,6 +90,10 @@ export default async function GamePage({
   const committed = game.minimumDecisionStatus === "go_ahead" || game.minimumDecisionStatus === "not_needed";
   const showReimbursement = isHost && committed && !isCancelled;
   const mineCode = user && mine && !isCancelled ? await getGameCheckInCode(game.id, user.id) : null;
+  const confirmedParticipantIds = new Set(confirmed.map((participant) => participant.id));
+  const checkInCodes = canManageAttendance
+    ? (await getGameCheckInCodes(game.id)).filter((item) => confirmedParticipantIds.has(item.participantId))
+    : [];
   const canChat = Boolean(
     user &&
       !isCancelled &&
@@ -267,6 +269,7 @@ export default async function GamePage({
                 canManage={canManageAttendance}
                 mineCode={mineCode}
                 participants={confirmed}
+                checkInCodes={checkInCodes}
               />
             )}
           </div>

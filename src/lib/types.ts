@@ -410,3 +410,10 @@ export interface UserNotification {
   readAt: string | null;
   createdAt: string;
 }
+
+export interface VenueStaffMember {
+  venueId: string;
+  userId: string;
+  createdAt: string;
+  player?: Pick<PlayerProfile, "fullName" | "handle" | "avatarUrl">;
+}

@@ -29,6 +29,7 @@ import type {
   MessageReport,
   MessageReportSource,
   UserNotification,
+  VenueStaffMember,
 } from "@/lib/types";
 
 /** The shape a `profiles` row has right after `camelize` — flat trait_*
@@ -706,6 +707,31 @@ export async function getGameCheckInCode(gameId: string, userId: string): Promis
 
   const participant = store().participants.find((p) => p.gameId === gameId && p.userId === userId);
   return participant?.checkInCode ?? null;
+}
+
+export async function getGameCheckInCodes(gameId: string): Promise<Array<{ participantId: string; code: string }>> {
+  if (demoMode()) {
+    return store().participants.filter((participant) => participant.gameId === gameId).map((participant) => ({ participantId: participant.id, code: participant.checkInCode ?? "" })).filter((item) => item.code);
+  }
+  const sb = await createClient();
+  const { data, error } = await sb.from("game_participant_check_in_codes").select("participant_id, code").eq("game_id", gameId);
+  if (error) return [];
+  return (data ?? []).map((row) => ({ participantId: row.participant_id, code: row.code }));
+}
+
+export async function canManageGameAttendance(gameId: string, userId: string): Promise<boolean> {
+  if (demoMode()) return false;
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("can_manage_game_attendance", { p_game_id: gameId, p_user: userId });
+  return !error && Boolean(data);
+}
+
+export async function listVenueStaff(venueId: string): Promise<VenueStaffMember[]> {
+  if (demoMode()) return [];
+  const sb = await createClient();
+  const { data, error } = await sb.from("venue_staff").select("*, player:profiles!user_id(full_name, handle, avatar_url)").eq("venue_id", venueId).order("created_at", { ascending: true });
+  if (error) return [];
+  return camelize<VenueStaffMember[]>(data ?? []);
 }
 
 /* --------------------------------------------------------------- mutations */

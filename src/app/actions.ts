@@ -550,6 +550,29 @@ export async function declinePlayerForFutureGamesAction(
   return { ok: true, message: "This player will not be able to join your future games." };
 }
 
+export async function scanGameCheckInAction(participantId: string, slug: string, code: string): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  const result = await markGameAttendance(participantId, user.id, "checked_in", 0, "", code);
+  if (!result.ok) return { ok: false, error: result.error };
+  revalidatePath(`/games/${slug}`);
+  return { ok: true, message: "Player checked in." };
+}
+
+export async function setVenueStaffAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  const venueId = String(formData.get("venueId") ?? "");
+  const handle = String(formData.get("handle") ?? "");
+  const active = String(formData.get("active") ?? "true") === "true";
+  if (!venueId || !handle) return { ok: false, error: "Enter a Tempo handle." };
+  const sb = await createClient();
+  const { error } = await sb.rpc("set_venue_staff", { p_venue_id: venueId, p_handle: handle, p_active: active });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/venue");
+  return { ok: true, message: active ? "Staff access added." : "Staff access removed." };
+}
+
 export async function markBookingAttendanceAction(
   _prev: ActionState,
   formData: FormData,

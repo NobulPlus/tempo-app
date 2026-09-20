@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useCallback, useState } from "react";
-import { markGameAttendanceAction, acceptGameSlotTransferAction, declinePlayerForFutureGamesAction, type ActionState } from "@/app/actions";
+import { useActionState, useCallback, useContext, useState, useTransition } from "react";
+import { markGameAttendanceAction, acceptGameSlotTransferAction, declinePlayerForFutureGamesAction, scanGameCheckInAction, type ActionState } from "@/app/actions";
 import { CheckInQr, CheckInScanner } from "@/components/match/check-in-qr";
 import { CheckIcon, ClockIcon, ShieldIcon, AlertIcon } from "@/components/icons";
 import { useActionToast } from "@/components/toast/use-action-toast";
+import { ToastContext } from "@/components/toast/toast-provider";
 import type { GameParticipant, PlayerProfile } from "@/lib/types";
 
 const initial: ActionState = {};
@@ -16,19 +17,34 @@ export function AttendancePanel({
   canManage,
   mineCode,
   participants,
+  checkInCodes,
 }: {
   slug: string;
   canManage: boolean;
   mineCode: string | null;
   participants: Participant[];
+  checkInCodes: Array<{ participantId: string; code: string }>;
 }) {
   const [state, action, pending] = useActionState(markGameAttendanceAction, initial);
   const [transferState, transferAction, transferPending] = useActionState(acceptGameSlotTransferAction, initial);
   const [declineState, declineAction, declinePending] = useActionState(declinePlayerForFutureGamesAction, initial);
   const [scanCode, setScanCode] = useState("");
+  const [scanning, startScan] = useTransition();
+  const toast = useContext(ToastContext);
   const handleScannedCode = useCallback((code: string) => {
-    setScanCode(code.trim().toUpperCase());
-  }, []);
+    const normalized = code.trim().toUpperCase().replace(/^TEMPO-CHECKIN:/, "");
+    setScanCode(normalized);
+    const match = checkInCodes.find((item) => item.code.toUpperCase() === normalized);
+    if (!match) {
+      toast?.push("error", "That QR pass does not belong to this game.");
+      return;
+    }
+    startScan(async () => {
+      const result = await scanGameCheckInAction(match.participantId, slug, normalized);
+      if (result.error) toast?.push("error", result.error);
+      else toast?.push("success", result.message ?? "Player checked in.");
+    });
+  }, [checkInCodes, slug, toast]);
   useActionToast(state);
   useActionToast(transferState);
   useActionToast(declineState);
@@ -79,7 +95,7 @@ export function AttendancePanel({
                   Select a player below after scanning. Empty code still allows a manual manager mark.
                 </p>
               </div>
-              <CheckInScanner onCode={handleScannedCode} disabled={pending} />
+              <CheckInScanner onCode={handleScannedCode} disabled={pending || scanning} />
             </div>
           </div>
 
