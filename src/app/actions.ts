@@ -76,8 +76,17 @@ import { isCoordinateInLagos } from "@/lib/lagos";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
 
+// Matches the grandfather cutoff in supabase/migrations/0049 exactly —
+// 0048 shipped this requirement with no grace period, locking out every
+// pre-existing account. Accounts created before the cutoff are exempt here
+// too, or the app layer would keep blocking them even after the DB-level
+// fix. New signups from the cutoff onward still require a photo.
+const PROFILE_PHOTO_REQUIREMENT_CUTOFF = new Date("2026-09-20T16:02:06Z").getTime();
+
 function requireMarketplaceProfilePhoto(user: Awaited<ReturnType<typeof getCurrentUser>>): ActionState | null {
-  if (!user?.avatarUrl) {
+  if (!user) return null;
+  const isGrandfathered = new Date(user.joinedAt).getTime() < PROFILE_PHOTO_REQUIREMENT_CUTOFF;
+  if (!isGrandfathered && !user.avatarUrl) {
     return { ok: false, error: "Add a clear profile photo before booking, hosting, or joining a game." };
   }
   return null;
