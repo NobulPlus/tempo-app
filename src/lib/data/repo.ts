@@ -28,6 +28,7 @@ import type {
   DmMessage,
   MessageReport,
   MessageReportSource,
+  UserNotification,
 } from "@/lib/types";
 
 /** The shape a `profiles` row has right after `camelize` — flat trait_*
@@ -2630,6 +2631,31 @@ export async function getUnreadDmThreadCount(userId: string): Promise<number> {
   const { data, error } = await sb.rpc("get_unread_dm_thread_count");
   if (error || typeof data !== "number") return 0;
   return data;
+}
+
+export async function getUserNotifications(userId: string): Promise<UserNotification[]> {
+  if (demoMode()) return [];
+  const sb = await createClient();
+  const { data, error } = await sb
+    .from("user_notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (error) {
+    console.error("[notifications] read failed:", error.message);
+    return [];
+  }
+  return camelize<UserNotification[]>(data ?? []);
+}
+
+export async function markUserNotificationsRead(userId: string, ids?: string[]) {
+  if (demoMode()) return { ok: true };
+  const sb = await createClient();
+  let query = sb.from("user_notifications").update({ read_at: new Date().toISOString() }).eq("user_id", userId).is("read_at", null);
+  if (ids?.length) query = query.in("id", ids);
+  const { error } = await query;
+  return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 /** Mirrors get_or_create_dm_thread()'s eligibility check, read-only — used

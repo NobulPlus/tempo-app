@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useCallback, useState } from "react";
-import { markGameAttendanceAction, acceptGameSlotTransferAction, type ActionState } from "@/app/actions";
+import { markGameAttendanceAction, acceptGameSlotTransferAction, declinePlayerForFutureGamesAction, type ActionState } from "@/app/actions";
 import { CheckInQr, CheckInScanner } from "@/components/match/check-in-qr";
 import { CheckIcon, ClockIcon, ShieldIcon, AlertIcon } from "@/components/icons";
 import { useActionToast } from "@/components/toast/use-action-toast";
@@ -24,12 +24,14 @@ export function AttendancePanel({
 }) {
   const [state, action, pending] = useActionState(markGameAttendanceAction, initial);
   const [transferState, transferAction, transferPending] = useActionState(acceptGameSlotTransferAction, initial);
+  const [declineState, declineAction, declinePending] = useActionState(declinePlayerForFutureGamesAction, initial);
   const [scanCode, setScanCode] = useState("");
   const handleScannedCode = useCallback((code: string) => {
     setScanCode(code.trim().toUpperCase());
   }, []);
   useActionToast(state);
   useActionToast(transferState);
+  useActionToast(declineState);
 
   return (
     <section className="card-t mt-6 p-6 md:p-7">
@@ -141,6 +143,18 @@ export function AttendancePanel({
                     Flag
                   </button>
                 </form>
+                {p.status === "no_show" && (
+                  <form action={declineAction}>
+                    <input type="hidden" name="playerId" value={p.player.id} />
+                    <button
+                      type="submit"
+                      disabled={declinePending}
+                      className="mt-2 text-[12px] font-semibold text-orange transition hover:text-ink"
+                    >
+                      {declinePending ? "Updating..." : "Decline future games after 3 no-shows"}
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
           ))}

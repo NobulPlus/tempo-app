@@ -120,3 +120,26 @@ export async function verifyFlutterwaveTransaction(transactionId: string): Promi
     raw: data,
   };
 }
+
+/** Recovery lookup for a callback/webhook that never reached Tempo. Flutterwave
+ * lets merchants filter their transaction list by the merchant tx_ref; we still
+ * verify the returned id with the canonical verification endpoint before use. */
+export async function findFlutterwaveTransactionByReference(reference: string, createdAt: string): Promise<
+  | { ok: true; transactionId: string }
+  | { ok: false; error: string }
+> {
+  const secret = secretKey();
+  if (!secret) return { ok: false, error: "Payments are not configured yet." };
+  const from = new Date(createdAt).toISOString().slice(0, 10);
+  const to = new Date().toISOString().slice(0, 10);
+  const url = new URL(`${FLW_BASE}/transactions`);
+  url.searchParams.set("from", from);
+  url.searchParams.set("to", to);
+  url.searchParams.set("status", "successful");
+  url.searchParams.set("tx_ref", reference);
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${secret}` } });
+  const json = await res.json().catch(() => null);
+  const row = Array.isArray(json?.data) ? json.data.find((item: { tx_ref?: unknown }) => item.tx_ref === reference) : null;
+  if (!res.ok || !row?.id) return { ok: false, error: json?.message ?? "No successful Flutterwave payment found yet." };
+  return { ok: true, transactionId: String(row.id) };
+}

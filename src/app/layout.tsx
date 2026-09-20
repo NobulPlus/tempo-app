@@ -6,7 +6,7 @@ import { Footer } from "@/components/footer";
 import { ConditionalFooter } from "@/components/conditional-footer";
 import { ToastProvider } from "@/components/toast/toast-provider";
 import { getCurrentUser } from "@/lib/session";
-import { demoMode, getWalletBalance, getUnreadDmThreadCount } from "@/lib/data/repo";
+import { demoMode, getWalletBalance, getUnreadDmThreadCount, getUserNotifications } from "@/lib/data/repo";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://playtempo11.com";
 
@@ -79,7 +79,9 @@ export default async function RootLayout({
   const user = await getCurrentUser();
   const isDemo = demoMode();
   const walletBalanceKobo = user ? await getWalletBalance(user.id) : 0;
-  const unreadDmCount = user ? await getUnreadDmThreadCount(user.id) : 0;
+  const [unreadDmCount, notifications] = user
+    ? await Promise.all([getUnreadDmThreadCount(user.id), getUserNotifications(user.id)])
+    : [0, []];
 
   return (
     <html
@@ -105,7 +107,7 @@ export default async function RootLayout({
         </a>
 
         <ToastProvider>
-          <Nav user={user} isDemo={isDemo} walletBalanceKobo={walletBalanceKobo} unreadDmCount={unreadDmCount} />
+          <Nav user={user} isDemo={isDemo} walletBalanceKobo={walletBalanceKobo} unreadDmCount={unreadDmCount} notifications={notifications} />
 
           <main id="main" className="pt-[71px]">
             {children}

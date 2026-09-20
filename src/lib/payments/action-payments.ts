@@ -1,6 +1,7 @@
 import "server-only";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createUserNotification } from "@/lib/notifications";
 
 export type ActionPaymentKind = "booking" | "host_game" | "join_game" | "game_balance";
 
@@ -56,6 +57,13 @@ export async function completeVerifiedActionPayment(
   if (error) return { ok: false, error: friendlyPaymentSetupError(error.message) };
 
   const row = data as ActionIntentRow;
+  await createUserNotification({
+    userId: expected.userId,
+    kind: "payment",
+    title: "Payment confirmed",
+    body: "Your Tempo payment was confirmed successfully.",
+    href: redirectPathFor(row),
+  });
   const kind = row.kind as ActionPaymentKind;
   revalidatePaymentViews(kind);
   return { ok: true, kind, redirectPath: redirectPathFor(row) };
@@ -94,12 +102,13 @@ async function getExpectedIntent(
       completed: boolean;
       kind: ActionPaymentKind;
       payload: Record<string, unknown>;
+      userId: string;
     }
   | { ok: false; error: string }
 > {
   const { data, error } = await admin
     .from("action_payment_intents")
-    .select("amount_kobo, status, kind, payload")
+    .select("amount_kobo, status, kind, payload, user_id")
     .eq("reference", reference)
     .maybeSingle();
 
@@ -112,6 +121,7 @@ async function getExpectedIntent(
     completed: data.status === "completed",
     kind: data.kind as ActionPaymentKind,
     payload: (data.payload ?? {}) as Record<string, unknown>,
+    userId: data.user_id,
   };
 }
 

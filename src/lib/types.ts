@@ -397,3 +397,16 @@ export interface MessageReport {
   reporter?: Pick<PlayerProfile, "fullName" | "handle">;
   reportedUser?: Pick<PlayerProfile, "fullName" | "handle">;
 }
+
+export type UserNotificationKind = "payment" | "waitlist_promoted" | "host_earnings" | "payout" | "game" | "system";
+
+export interface UserNotification {
+  id: string;
+  userId: string;
+  kind: UserNotificationKind;
+  title: string;
+  body: string;
+  href: string | null;
+  readAt: string | null;
+  createdAt: string;
+}

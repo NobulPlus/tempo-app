@@ -4,12 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { BellIcon, FlameIcon, CheckIcon, ClockIcon, UsersIcon } from "./icons";
 import { notifications as initialNotifications, type NotificationType } from "@/lib/mock/notifications";
+import { markNotificationsReadAction } from "@/app/actions";
+import type { UserNotification, UserNotificationKind } from "@/lib/types";
 
-const ICON: Record<NotificationType, typeof BellIcon> = {
+const ICON: Record<NotificationType | UserNotificationKind, typeof BellIcon> = {
   game_created: FlameIcon,
   reminder: ClockIcon,
   waitlist_promoted: CheckIcon,
   joined: UsersIcon,
+  payment: CheckIcon,
+  host_earnings: CheckIcon,
+  payout: ClockIcon,
+  game: UsersIcon,
+  system: BellIcon,
 };
 
 function timeAgo(iso: string): string {
@@ -22,11 +29,30 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-export function NotificationBell({ isDemo }: { isDemo: boolean }) {
-  // Real notifications aren't built yet — no notifications table exists.
-  // Showing the mock set to a real signed-in user would look like genuine
-  // activity that never happened, so it's demo-mode only.
-  const [items, setItems] = useState(isDemo ? initialNotifications : []);
+type BellItem = {
+  id: string;
+  type: NotificationType | UserNotificationKind;
+  title: string;
+  body: string;
+  href: string;
+  createdAt: string;
+  read: boolean;
+};
+
+export function NotificationBell({ isDemo, notifications }: { isDemo: boolean; notifications: UserNotification[] }) {
+  const [items, setItems] = useState<BellItem[]>(() =>
+    isDemo
+      ? initialNotifications
+      : notifications.map((item) => ({
+          id: item.id,
+          type: item.kind,
+          title: item.title,
+          body: item.body,
+          href: item.href || "/dashboard",
+          createdAt: item.createdAt,
+          read: Boolean(item.readAt),
+        })),
+  );
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const unread = items.filter((n) => !n.read).length;
@@ -65,7 +91,11 @@ export function NotificationBell({ isDemo }: { isDemo: boolean }) {
             <span className="text-[14px] font-bold">Notifications</span>
             {unread > 0 && (
               <button
-                onClick={() => setItems((prev) => prev.map((n) => ({ ...n, read: true })))}
+                onClick={() => {
+                  const unreadIds = items.filter((item) => !item.read).map((item) => item.id);
+                  setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+                  if (!isDemo) void markNotificationsReadAction(unreadIds);
+                }}
                 className="text-[12.5px] font-semibold text-green transition hover:opacity-80"
               >
                 Mark all read
@@ -87,6 +117,7 @@ export function NotificationBell({ isDemo }: { isDemo: boolean }) {
                     href={n.href}
                     onClick={() => {
                       setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+                      if (!isDemo && !n.read) void markNotificationsReadAction([n.id]);
                       setOpen(false);
                     }}
                     className={`flex gap-3 border-b border-glass-border px-4 py-3.5 transition last:border-b-0 hover:bg-glass ${

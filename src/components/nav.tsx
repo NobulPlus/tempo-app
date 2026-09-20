@@ -22,6 +22,7 @@ import { NotificationBell } from "./notification-bell";
 import { signOut } from "@/app/actions";
 import { formatNaira } from "@/lib/format";
 import type { PlayerProfile } from "@/lib/types";
+import type { UserNotification } from "@/lib/types";
 
 const LINKS = [
   { href: "/", label: "Home", Icon: HomeIcon },
@@ -34,11 +35,13 @@ export function Nav({
   isDemo,
   walletBalanceKobo,
   unreadDmCount,
+  notifications,
 }: {
   user: PlayerProfile | null;
   isDemo: boolean;
   walletBalanceKobo: number;
   unreadDmCount: number;
+  notifications: UserNotification[];
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -110,7 +113,7 @@ export function Nav({
                   {formatNaira(walletBalanceKobo, { compact: true })}
                 </Link>
                 <span className="hidden sm:block">
-                  <NotificationBell isDemo={isDemo} />
+                  <NotificationBell isDemo={isDemo} notifications={notifications} />
                 </span>
                 <Link
                   href="/messages"

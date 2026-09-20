@@ -22,10 +22,17 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
-  const { data: expired, error } = await admin.rpc("expire_unpaid_game_holds");
+  const [{ data: expired, error }, { data: settledGames, error: settlementError }] = await Promise.all([
+    admin.rpc("expire_unpaid_game_holds"),
+    admin.rpc("settle_ended_host_games"),
+  ]);
   if (error) {
     console.error("[cron/game-payment-holds] rpc failed:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (settlementError) {
+    console.error("[cron/game-payment-holds] host settlement rpc failed:", settlementError);
+    return NextResponse.json({ error: settlementError.message }, { status: 500 });
   }
 
   const { data: staleMinimumGames, error: minimumError } = await admin.rpc("expire_stale_minimum_decisions");
@@ -70,6 +77,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     expired: expired?.length ?? 0,
+    hostGamesSettled: settledGames ?? 0,
     staleMinimumGamesCancelled: staleMinimumGames?.length ?? 0,
     notified,
     cancelledMinimumGamesNotified,

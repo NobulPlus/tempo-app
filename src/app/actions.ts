@@ -52,6 +52,7 @@ import {
   hasBlockedUser,
   reportMessage,
   reviewMessageReport,
+  markUserNotificationsRead,
 } from "@/lib/data/repo";
 import type { UserRole, PitchSize, PitchSurface, MessageReportSource } from "@/lib/types";
 import { normalisePhone, formatNaira, generateReference, formatDayShort, formatTime } from "@/lib/format";
@@ -74,6 +75,13 @@ import {
 import { isCoordinateInLagos } from "@/lib/lagos";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
+
+function requireMarketplaceProfilePhoto(user: Awaited<ReturnType<typeof getCurrentUser>>): ActionState | null {
+  if (!user?.avatarUrl) {
+    return { ok: false, error: "Add a clear profile photo before booking, hosting, or joining a game." };
+  }
+  return null;
+}
 
 /* ------------------------------------------------------------- waitlist -- */
 
@@ -233,6 +241,8 @@ export async function joinGameAction(
 ): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  const photoRequired = requireMarketplaceProfilePhoto(user);
+  if (photoRequired) return photoRequired;
 
   if (isSupabaseConfigured()) {
     const parsedProvider = parsePaymentProvider(providerInput);
@@ -517,6 +527,20 @@ export async function markGameAttendanceAction(
   return { ok: true, message: "Attendance updated." };
 }
 
+export async function declinePlayerForFutureGamesAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  const playerId = String(formData.get("playerId") ?? "");
+  if (!playerId) return { ok: false, error: "Missing player." };
+  const sb = await createClient();
+  const { error } = await sb.rpc("set_host_player_exclusion", { p_player_id: playerId, p_excluded: true });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, message: "This player will not be able to join your future games." };
+}
+
 export async function markBookingAttendanceAction(
   _prev: ActionState,
   formData: FormData,
@@ -645,6 +669,8 @@ export async function createBookingAction(
 ): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  const photoRequired = requireMarketplaceProfilePhoto(user);
+  if (photoRequired) return photoRequired;
 
   const slotId = String(formData.get("slotId") ?? "");
 
@@ -1135,6 +1161,8 @@ export async function createGameAction(
 ): Promise<ActionState> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  const photoRequired = requireMarketplaceProfilePhoto(user);
+  if (photoRequired) return photoRequired;
 
   const parsed = hostSchema.safeParse({
     slotId: formData.get("slotId"),
@@ -2369,6 +2397,14 @@ export async function updateNotificationPreferencesAction(
 
   revalidatePath("/dashboard");
   return { ok: true, message: "Notification preferences saved." };
+}
+
+export async function markNotificationsReadAction(ids?: string[]): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false };
+  const result = await markUserNotificationsRead(user.id, ids);
+  revalidatePath("/", "layout");
+  return { ok: result.ok };
 }
 
 /* -------------------------------------------------------- match chat ---- */

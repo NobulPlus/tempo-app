@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMail } from "@/lib/mail/transport";
 import { walletTopupEmail } from "@/lib/mail/templates";
+import { createUserNotification } from "@/lib/notifications";
 
 interface CompleteTopupInput {
   reference: string;
@@ -46,6 +47,7 @@ export async function completeVerifiedWalletTopup(
     if (input.sendReceipt !== false) {
       await sendTopupReceipt(admin, expected.userId, input.reference, input.amountKobo);
     }
+    await createUserNotification({ userId: expected.userId, kind: "payment", title: "Tempo credit added", body: "Your payment was confirmed and credit is available.", href: "/wallet" });
     return { ok: true };
   }
 
@@ -60,6 +62,7 @@ export async function completeVerifiedWalletTopup(
   if (input.sendReceipt !== false) {
     await sendTopupReceipt(admin, expected.userId, input.reference, input.amountKobo);
   }
+  await createUserNotification({ userId: expected.userId, kind: "payment", title: "Tempo credit added", body: "Your payment was confirmed and credit is available.", href: "/wallet" });
   return { ok: true };
 }
 

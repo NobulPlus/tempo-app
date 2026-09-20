@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { completeVerifiedActionPayment } from "@/lib/payments/action-payments";
 import { verifyKorapayTransaction } from "@/lib/payments/korapay";
+import { findFlutterwaveTransactionByReference, verifyFlutterwaveTransaction } from "@/lib/payments/flutterwave";
 import { completeVerifiedWalletTopup } from "@/lib/payments/wallet";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * Recovers a payment if a customer closes the checkout window or Kora cannot
  * reach our webhook. Only Kora references are reconcilable by merchant
- * reference; Flutterwave's verification API requires its transaction id,
- * which Tempo receives through the redirect or signed webhook.
+ * reference. Flutterwave recovery searches its merchant transaction feed by
+ * tx_ref, then verifies the returned provider transaction before crediting.
  */
 const MAX_PER_RUN = 50;
 const LOOKBACK_HOURS = 72;
@@ -52,7 +53,9 @@ export async function GET(request: Request) {
   let pending = 0;
   let failed = 0;
 
-  for (const reference of [...(topups.data ?? []), ...(actions.data ?? [])].map((row) => row.reference)) {
+  const pendingRows = [...(topups.data ?? []), ...(actions.data ?? [])];
+  for (const row of pendingRows) {
+    const reference = row.reference;
     checked++;
     try {
       const verified = await verifyKorapayTransaction(reference);
@@ -88,6 +91,34 @@ export async function GET(request: Request) {
     } catch (error) {
       failed++;
       console.error(`[cron/payment-reconciliation] ${reference}:`, error);
+    }
+  }
+
+  const [flutterwaveTopups, flutterwaveActions] = await Promise.all([
+    admin.from("wallet_transactions").select("reference, created_at").eq("type", "topup").eq("status", "pending").eq("provider", "flutterwave").gte("created_at", since).order("created_at", { ascending: true }).limit(MAX_PER_RUN),
+    admin.from("action_payment_intents").select("reference, created_at").eq("status", "pending").eq("provider", "flutterwave").gte("created_at", since).order("created_at", { ascending: true }).limit(MAX_PER_RUN),
+  ]);
+  if (flutterwaveTopups.error || flutterwaveActions.error) {
+    return NextResponse.json({ error: flutterwaveTopups.error?.message ?? flutterwaveActions.error?.message }, { status: 500 });
+  }
+
+  for (const row of [...(flutterwaveTopups.data ?? []), ...(flutterwaveActions.data ?? [])]) {
+    checked++;
+    try {
+      const found = await findFlutterwaveTransactionByReference(row.reference, row.created_at);
+      if (!found.ok) { pending++; continue; }
+      const verified = await verifyFlutterwaveTransaction(found.transactionId);
+      if (!verified.ok || verified.status !== "successful" || verified.currency !== "NGN" || verified.txRef !== row.reference) {
+        pending++;
+        continue;
+      }
+      const result = row.reference.startsWith("TOPUP-")
+        ? await completeVerifiedWalletTopup({ reference: row.reference, amountKobo: verified.amountKobo, providerRef: found.transactionId, raw: verified.raw })
+        : await completeVerifiedActionPayment({ reference: row.reference, amountKobo: verified.amountKobo, providerRef: found.transactionId, raw: verified.raw });
+      if (result.ok) completed++; else failed++;
+    } catch (error) {
+      failed++;
+      console.error(`[cron/payment-reconciliation] ${row.reference}:`, error);
     }
   }
 
