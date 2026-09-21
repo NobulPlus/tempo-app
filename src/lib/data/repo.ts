@@ -30,6 +30,8 @@ import type {
   MessageReportSource,
   UserNotification,
   VenueStaffMember,
+  Position,
+  Foot,
 } from "@/lib/types";
 
 /** The shape a `profiles` row has right after `camelize` — flat trait_*
@@ -2496,6 +2498,57 @@ export async function updateEmailNotificationPreference(
   const sb = await createClient();
   const { error } = await sb.from("profiles").update({ email_notifications_enabled: enabled }).eq("id", userId);
   if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export interface ProfileDetailsInput {
+  fullName: string;
+  area: string | null;
+  position: Position | null;
+  foot: Foot | null;
+  bio: string | null;
+}
+
+export async function updateProfileDetails(
+  userId: string,
+  input: ProfileDetailsInput,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) {
+    const s = store();
+    const profile = s.profiles.find((p) => p.id === userId);
+    if (profile) Object.assign(profile, input);
+    return { ok: true };
+  }
+
+  const sb = await createClient();
+  const { error } = await sb
+    .from("profiles")
+    .update({ full_name: input.fullName, area: input.area, position: input.position, foot: input.foot, bio: input.bio })
+    .eq("id", userId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Strictly the caller's own — profiles_private has no read policy beyond
+ * self (0009), so this can only ever return the signed-in user's own phone. */
+export async function getMyPhone(userId: string): Promise<string | null> {
+  if (demoMode()) return null;
+  const sb = await createClient();
+  const { data } = await sb.from("profiles_private").select("phone").eq("id", userId).maybeSingle();
+  return data?.phone ?? null;
+}
+
+export async function updatePhone(
+  userId: string,
+  phone: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Not available in demo mode." };
+  const sb = await createClient();
+  const { error } = await sb.from("profiles_private").upsert({ id: userId, phone });
+  if (error) {
+    if (error.code === "23505") return { ok: false, error: "That phone number is already linked to another account." };
+    return { ok: false, error: error.message };
+  }
   return { ok: true };
 }
 

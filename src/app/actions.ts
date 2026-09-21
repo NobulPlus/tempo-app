@@ -43,6 +43,8 @@ import {
   uploadProfilePhoto,
   updateAvatarUrl,
   updateEmailNotificationPreference,
+  updateProfileDetails,
+  updatePhone,
   sendGameChatMessage,
   getOrCreateDmThread,
   sendDmMessage,
@@ -54,7 +56,7 @@ import {
   reviewMessageReport,
   markUserNotificationsRead,
 } from "@/lib/data/repo";
-import type { UserRole, PitchSize, PitchSurface, MessageReportSource } from "@/lib/types";
+import type { UserRole, PitchSize, PitchSurface, MessageReportSource, PlayerProfile } from "@/lib/types";
 import { normalisePhone, formatNaira, generateReference, formatDayShort, formatTime } from "@/lib/format";
 import { isSupabaseConfigured, createClient } from "@/lib/supabase/server";
 import { store } from "@/lib/data/store";
@@ -2414,6 +2416,70 @@ export async function updateProfilePhotoAction(
   revalidatePath("/dashboard");
   revalidatePath("/", "layout");
   return { ok: true, message: "Profile photo updated." };
+}
+
+const POSITIONS = ["GK", "DEF", "MID", "FWD"] as const;
+const FEET = ["left", "right", "both"] as const;
+
+export async function updateProfileDetailsAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  if (!fullName) return { ok: false, error: "Enter your name." };
+  if (fullName.length > 80) return { ok: false, error: "Name is too long." };
+
+  const areaRaw = String(formData.get("area") ?? "").trim();
+  const positionRaw = String(formData.get("position") ?? "");
+  const footRaw = String(formData.get("foot") ?? "");
+  const bioRaw = String(formData.get("bio") ?? "").trim();
+
+  if (positionRaw && !POSITIONS.includes(positionRaw as (typeof POSITIONS)[number])) {
+    return { ok: false, error: "Invalid position." };
+  }
+  if (footRaw && !FEET.includes(footRaw as (typeof FEET)[number])) {
+    return { ok: false, error: "Invalid preferred foot." };
+  }
+  if (bioRaw.length > 280) return { ok: false, error: "Bio is too long — keep it under 280 characters." };
+
+  const result = await updateProfileDetails(user.id, {
+    fullName,
+    area: areaRaw || null,
+    position: (positionRaw || null) as PlayerProfile["position"],
+    foot: (footRaw || null) as PlayerProfile["foot"],
+    bio: bioRaw || null,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/account");
+  revalidatePath(`/players/${user.handle}`);
+  revalidatePath("/dashboard");
+  return { ok: true, message: "Profile updated." };
+}
+
+export async function updatePhoneAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const raw = String(formData.get("phone") ?? "").trim();
+  if (!raw) {
+    const cleared = await updatePhone(user.id, null);
+    if (!cleared.ok) return { ok: false, error: cleared.error };
+    revalidatePath("/account");
+    return { ok: true, message: "Phone number removed." };
+  }
+
+  const normalised = normalisePhone(raw);
+  if (!normalised) return { ok: false, error: "Enter a valid Nigerian phone number." };
+
+  const result = await updatePhone(user.id, normalised);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/account");
+  return { ok: true, message: "Phone number updated." };
 }
 
 export async function updateNotificationPreferencesAction(
