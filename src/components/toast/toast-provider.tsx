@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useRef, useState } from "react";
+import { createContext, useCallback, useMemo, useRef, useState } from "react";
 import { AlertIcon, CheckIcon, CloseIcon } from "@/components/icons";
 
 export type ToastKind = "success" | "error";
@@ -27,8 +27,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     [dismiss],
   );
 
+  // A fresh {push} object literal on every render would give every consumer
+  // a "changed" context value even though push itself is stable — any
+  // effect depending on this context (e.g. LoginFlashMessage) would then
+  // re-fire every time ToastProvider re-renders, which includes every time
+  // a toast is pushed. That's exactly how this caused an infinite loop:
+  // push -> re-render -> new context object -> effect re-fires -> push again.
+  const value = useMemo(() => ({ push }), [push]);
+
   return (
-    <ToastContext.Provider value={{ push }}>
+    <ToastContext.Provider value={value}>
       {children}
       <div
         aria-live="polite"
