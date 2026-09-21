@@ -73,7 +73,7 @@ export default async function DashboardPage() {
             My player card
           </Link>
           <Link href="/account" className="btn-t btn-ghost-t !py-3 !text-[14px]">
-            Edit profile photo
+            Manage profile
           </Link>
           {hosting.length > 0 && (
             <Link href="/host/manage" className="btn-t btn-green-t !py-3 !text-[14px]">

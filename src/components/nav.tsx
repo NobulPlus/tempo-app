@@ -147,9 +147,10 @@ export function Nav({
                   </Link>
                 )}
                 <Link
-                  href={`/players/${user.handle}`}
+                  href="/account"
                   className="grid h-9 w-9 place-items-center overflow-hidden rounded-full border-[1.5px] border-green bg-green/8 text-[13px] font-bold"
-                  aria-label={`Your profile, ${user.fullName}`}
+                  aria-label={`Manage your profile, ${user.fullName}`}
+                  title="Manage profile"
                 >
                   {user.avatarUrl ? (
                     <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
@@ -227,6 +228,17 @@ export function Nav({
                     Wallet
                   </span>
                   <span className="text-green">{formatNaira(walletBalanceKobo, { compact: true })}</span>
+                </Link>
+                <Link
+                  href="/account"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center justify-between rounded-xl px-4 py-3.5 text-[15px] text-ink-soft transition hover:bg-glass"
+                >
+                  <span className="flex items-center gap-3">
+                    <UserIcon size={19} />
+                    Manage profile
+                  </span>
+                  <span className="text-[12px] text-ink-muted">@{user.handle}</span>
                 </Link>
                 <Link
                   href="/messages"

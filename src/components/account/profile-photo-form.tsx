@@ -24,40 +24,39 @@ export function ProfilePhotoForm({
 
   return (
     <form action={formAction} className="card-t p-6">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col items-center text-center">
         {shown ? (
           <img
             src={shown}
             alt={fullName}
-            className="h-20 w-20 shrink-0 rounded-full border-2 border-green object-cover"
+            className="h-24 w-24 shrink-0 rounded-full border-2 border-green object-cover"
           />
         ) : (
-          <span className="grid h-20 w-20 shrink-0 place-items-center rounded-full border-2 border-green bg-green/10 text-[26px] font-extrabold">
+          <span className="grid h-24 w-24 shrink-0 place-items-center rounded-full border-2 border-green bg-green/10 text-[28px] font-extrabold">
             {initials}
           </span>
         )}
-        <div className="min-w-0">
-          <div className="text-[15px] font-semibold">{fullName}</div>
-          <label
-            htmlFor="photo"
-            className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-full border border-glass-border bg-glass px-4 py-2 text-[13px] font-semibold transition hover:border-green/40"
-          >
-            <UserIcon size={14} className="text-ink-muted" />
-            Choose a photo
-            <input
-              id="photo"
-              name="photo"
-              type="file"
-              accept="image/*"
-              required
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                setPreview(file ? URL.createObjectURL(file) : null);
-              }}
-            />
-          </label>
-        </div>
+        <div className="mt-3 text-[16px] font-bold">{fullName}</div>
+
+        <label
+          htmlFor="photo"
+          className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-full border border-glass-border bg-glass px-4 py-2 text-[13px] font-semibold transition hover:border-green/40"
+        >
+          <UserIcon size={14} className="text-ink-muted" />
+          Choose a photo
+          <input
+            id="photo"
+            name="photo"
+            type="file"
+            accept="image/*"
+            required
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              setPreview(file ? URL.createObjectURL(file) : null);
+            }}
+          />
+        </label>
       </div>
 
       {state.ok && (
