@@ -146,6 +146,8 @@ export interface Slot {
   endsAt: string;
   priceKobo: number;
   status: "open" | "held" | "booked" | "blocked";
+  heldForUserId?: string | null;
+  heldUntil?: string | null;
   pitch?: Pitch;
 }
 
@@ -398,7 +400,7 @@ export interface MessageReport {
   reportedUser?: Pick<PlayerProfile, "fullName" | "handle">;
 }
 
-export type UserNotificationKind = "payment" | "waitlist_promoted" | "host_earnings" | "payout" | "game" | "system";
+export type UserNotificationKind = "payment" | "waitlist_promoted" | "host_earnings" | "payout" | "game" | "system" | "booking";
 
 export interface UserNotification {
   id: string;
@@ -416,4 +418,19 @@ export interface VenueStaffMember {
   userId: string;
   createdAt: string;
   player?: Pick<PlayerProfile, "fullName" | "handle" | "avatarUrl">;
+}
+
+export type BookingTransferStatus = "open" | "accepted" | "cancelled" | "expired";
+
+export interface BookingTransferOffer {
+  id: string;
+  bookingId: string;
+  fromUserId: string;
+  toUserId: string;
+  status: BookingTransferStatus;
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+  fromPlayer?: Pick<PlayerProfile, "fullName" | "handle" | "avatarUrl">;
+  booking?: Booking;
 }

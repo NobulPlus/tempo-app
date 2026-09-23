@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { getSlot, computeBookingTotal, getWalletBalance } from "@/lib/data/repo";
+import { getSlot, computeBookingTotal, getWalletBalance, isOnBookingWaitlist } from "@/lib/data/repo";
 import { getCurrentUser } from "@/lib/session";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { CheckoutForm } from "@/components/booking/checkout-form";
+import { WaitlistButton } from "@/components/booking/waitlist-button";
 import { PinIcon, ClockIcon, ShieldIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,15 @@ export default async function BookPage({
     redirect(`/login?next=${encodeURIComponent(`/pitches/${slug}/book?slot=${slotId}`)}`);
   }
 
-  if (slot.status !== "open") {
+  const now = new Date().getTime();
+  const reservedForViewer =
+    slot.status === "held" &&
+    slot.heldForUserId === user.id &&
+    slot.heldUntil &&
+    new Date(slot.heldUntil).getTime() > now;
+
+  if (slot.status !== "open" && !reservedForViewer) {
+    const alreadyWaiting = await isOnBookingWaitlist(slot.id, user.id);
     return (
       <div className="container-t py-20">
         <div className="card-t mx-auto max-w-lg p-10 text-center">
@@ -45,6 +54,7 @@ export default async function BookPage({
           <Link href={`/pitches/${slug}`} className="btn-t btn-green-t mt-6">
             Back to availability
           </Link>
+          <WaitlistButton slotId={slot.id} initiallyOn={alreadyWaiting} />
         </div>
       </div>
     );
@@ -63,6 +73,13 @@ export default async function BookPage({
         <p className="mt-2 text-[16px] text-ink-soft">
           This reserves the pitch for your own group. To let public players join, host a game instead.
         </p>
+
+        {reservedForViewer && slot.heldUntil && (
+          <p className="mt-4 flex items-center gap-2 rounded-lg border border-green/30 bg-green/10 px-4 py-3 text-[13.5px] text-green">
+            <ClockIcon size={15} />
+            Reserved for you until {formatTime(slot.heldUntil)} — book now before it opens up again.
+          </p>
+        )}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_.85fr]">
           <CheckoutForm slotId={slot.id} totalKobo={totalKobo} walletBalanceKobo={walletBalanceKobo} />

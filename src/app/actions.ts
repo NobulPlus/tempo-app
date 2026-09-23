@@ -20,6 +20,12 @@ import {
   createBooking,
   cancelBooking,
   getBookingByReference,
+  joinBookingWaitlist,
+  leaveBookingWaitlist,
+  isOnBookingWaitlist,
+  offerBookingTransfer,
+  acceptBookingTransfer,
+  cancelBookingTransferOffer,
   getBookingsForUser,
   getSlot,
   getGameById,
@@ -820,6 +826,68 @@ export async function cancelBookingAction(
         ? `Cancelled. ${formatNaira(result.creditedKobo)} credited to your wallet.`
         : "Cancelled. This was inside 6 hours of kickoff, so no credit was issued.",
   };
+}
+
+/* -------------------------------------------------- booking waitlist ---- */
+
+export async function toggleBookingWaitlistAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const slotId = String(formData.get("slotId") ?? "");
+  if (!slotId) return { ok: false, error: "Missing slot." };
+
+  const alreadyOn = await isOnBookingWaitlist(slotId, user.id);
+  const result = alreadyOn ? await leaveBookingWaitlist(slotId) : await joinBookingWaitlist(slotId);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/pitches`, "layout");
+  return { ok: true, message: alreadyOn ? "Left the waitlist." : "You'll be notified if this slot opens up." };
+}
+
+/* -------------------------------------------------- booking transfer ---- */
+
+export async function offerBookingTransferAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const bookingId = String(formData.get("bookingId") ?? "");
+  const toUserId = String(formData.get("toUserId") ?? "");
+  const reference = String(formData.get("reference") ?? "");
+  if (!bookingId || !toUserId) return { ok: false, error: "Choose a player to transfer to." };
+
+  const result = await offerBookingTransfer(bookingId, toUserId);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  if (reference) revalidatePath(`/bookings/${reference}`);
+  return { ok: true, message: "Transfer offer sent — they'll need to accept it." };
+}
+
+export async function acceptBookingTransferAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const offerId = String(formData.get("offerId") ?? "");
+  if (!offerId) return { ok: false, error: "Missing offer." };
+
+  const result = await acceptBookingTransfer(offerId);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/", "layout");
+  redirect(`/bookings/${result.booking.reference}`);
+}
+
+export async function cancelBookingTransferOfferAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const offerId = String(formData.get("offerId") ?? "");
+  if (!offerId) return { ok: false, error: "Missing offer." };
+
+  const result = await cancelBookingTransferOffer(offerId);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  return { ok: true, message: "Transfer offer cancelled." };
 }
 
 /* ---------------------------------------------------------------- wallet -- */

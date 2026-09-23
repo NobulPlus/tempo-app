@@ -17,6 +17,7 @@ const ICON: Record<NotificationType | UserNotificationKind, typeof BellIcon> = {
   payout: ClockIcon,
   game: UsersIcon,
   system: BellIcon,
+  booking: ClockIcon,
 };
 
 function timeAgo(iso: string): string {

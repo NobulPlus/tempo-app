@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getBookingByReference } from "@/lib/data/repo";
+import { getBookingByReference, listProfiles } from "@/lib/data/repo";
+import { getCurrentUser } from "@/lib/session";
 import { formatNaira, formatRelativeDay, formatTime, formatDayShort } from "@/lib/format";
 import { estimateTravelMinutes, leaveByTime } from "@/lib/match";
 import { Countdown } from "@/components/match/match-day";
 import { CheckInQr } from "@/components/match/check-in-qr";
 import { CancelBookingButton } from "@/components/booking/cancel-booking-button";
+import { TransferBookingForm } from "@/components/booking/transfer-booking-form";
 import {
   CheckIcon,
   PinIcon,
@@ -31,6 +33,9 @@ export default async function BookingPage({
   const { reference } = await params;
   const booking = await getBookingByReference(reference);
   if (!booking) notFound();
+
+  const user = await getCurrentUser();
+  const players = user && booking.status === "confirmed" ? await listProfiles() : [];
 
   const { slot } = booking;
   const { pitch } = slot;
@@ -152,6 +157,10 @@ export default async function BookingPage({
               status={booking.status}
               creditCutoffISO={new Date(kickoff.getTime() - 6 * 60 * 60 * 1000).toISOString()}
             />
+          )}
+
+          {user && booking.status === "confirmed" && (
+            <TransferBookingForm bookingId={booking.id} reference={booking.reference} currentUserId={user.id} players={players} />
           )}
         </div>
 

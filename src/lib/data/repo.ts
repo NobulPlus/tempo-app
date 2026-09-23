@@ -32,6 +32,7 @@ import type {
   VenueStaffMember,
   Position,
   Foot,
+  BookingTransferOffer,
 } from "@/lib/types";
 
 /** The shape a `profiles` row has right after `camelize` — flat trait_*
@@ -1510,6 +1511,71 @@ export async function cancelBooking(
   }
 
   return { ok: true, booking, creditedKobo };
+}
+
+/* ------------------------------------------------- booking waitlist ---- */
+
+export async function joinBookingWaitlist(slotId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Waitlisting needs the live database." };
+  const sb = await createClient();
+  const { error } = await sb.rpc("join_booking_waitlist", { p_slot_id: slotId });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function leaveBookingWaitlist(slotId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Not available in demo mode." };
+  const sb = await createClient();
+  const { error } = await sb.rpc("leave_booking_waitlist", { p_slot_id: slotId });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function isOnBookingWaitlist(slotId: string, userId: string): Promise<boolean> {
+  if (demoMode()) return false;
+  const sb = await createClient();
+  const { data } = await sb.from("booking_waitlist").select("id").eq("slot_id", slotId).eq("user_id", userId).maybeSingle();
+  return !!data;
+}
+
+/* ------------------------------------------------- booking transfer ---- */
+
+export async function offerBookingTransfer(
+  bookingId: string,
+  toUserId: string,
+): Promise<{ ok: true; offerId: string } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Booking transfer needs the live database." };
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("offer_booking_transfer", { p_booking_id: bookingId, p_to_user_id: toUserId });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, offerId: (data as { id: string }).id };
+}
+
+export async function acceptBookingTransfer(offerId: string): Promise<{ ok: true; booking: Booking } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Not available in demo mode." };
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("accept_booking_transfer", { p_offer_id: offerId });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, booking: camelize<Booking>(data) };
+}
+
+export async function cancelBookingTransferOffer(offerId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Not available in demo mode." };
+  const sb = await createClient();
+  const { error } = await sb.rpc("cancel_booking_transfer_offer", { p_offer_id: offerId });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function getBookingTransferOffer(offerId: string): Promise<BookingTransferOffer | null> {
+  if (demoMode()) return null;
+  const sb = await createClient();
+  const { data } = await sb
+    .from("booking_transfer_offers")
+    .select(`*, fromPlayer:profiles!from_user_id(full_name, handle, avatar_url), booking:bookings(*, slot:slots(*, pitch:pitches(${PITCH_SELECT})))`)
+    .eq("id", offerId)
+    .maybeSingle();
+  return data ? camelize<BookingTransferOffer>(data) : null;
 }
 
 export async function getWalletBalance(userId: string): Promise<number> {
