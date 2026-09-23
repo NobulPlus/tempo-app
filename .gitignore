@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# throwaway verification/debug scripts (live-mode checks against the real
+# DB, never meant to be permanent repo content — several sessions working
+# this repo have accidentally committed these via a broad `git add`)
+scripts/_tmp_*
+scripts/_dbg_*

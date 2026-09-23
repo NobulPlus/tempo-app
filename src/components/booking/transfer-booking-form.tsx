@@ -34,11 +34,6 @@ export function TransferBookingForm({
       .slice(0, 6);
   }, [q, players, currentUserId, picked]);
 
-  if (process.env.NODE_ENV !== "production") {
-    // eslint-disable-next-line no-console
-    console.log("[TransferBookingForm debug] state:", JSON.stringify(state), "pending:", pending);
-  }
-
   if (state.ok) {
     return (
       <p className="mt-4 rounded-lg border border-green/30 bg-green/10 px-4 py-3 text-[13.5px] text-green">
