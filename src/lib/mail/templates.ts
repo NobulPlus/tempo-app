@@ -10,6 +10,16 @@ interface EmailContent {
 
 const site = () => process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>'"]/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;",
+  })[character] ?? character);
+}
+
 function highlightBox(rows: [string, string][]): string {
   const { border } = emailColors;
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border:1px solid ${border};border-radius:12px;">
@@ -163,6 +173,103 @@ New balance: ${formatNaira(input.balanceKobo)}
 View your wallet: ${url}${textFooter()}`;
 
   return { subject: `${formatNaira(input.amountKobo)} added to your Tempo wallet`, html, text };
+}
+
+/** A receipt for a payment made for a specific Tempo action. Wallet top-ups
+ * retain their own template because their balance is the important detail. */
+export function actionPaymentConfirmationEmail(input: {
+  fullName: string;
+  amountKobo: number;
+  reference: string;
+  action: string;
+  viewUrl: string;
+}): EmailContent {
+  const firstName = input.fullName.split(" ")[0];
+
+  const html = emailLayout({
+    previewText: `${formatNaira(input.amountKobo)} payment confirmed`,
+    ctaLabel: "View details",
+    ctaUrl: input.viewUrl,
+    bodyHtml: `
+      <p style="margin:0;">Hey ${firstName},</p>
+      <p style="margin:12px 0 0;">Your payment for <strong>${input.action}</strong> is confirmed.</p>
+      ${highlightBox([
+        ["Reference", input.reference],
+        ["Amount paid", formatNaira(input.amountKobo)],
+      ])}
+    `,
+  });
+
+  const text = `Hey ${firstName},
+
+Your payment for ${input.action} is confirmed.
+
+Reference: ${input.reference}
+Amount paid: ${formatNaira(input.amountKobo)}
+
+View details: ${input.viewUrl}${textFooter()}`;
+
+  return { subject: `Payment confirmed — ${formatNaira(input.amountKobo)}`, html, text };
+}
+
+export function reviewStatusEmail(input: {
+  fullName: string;
+  subject: string;
+  heading: string;
+  message: string;
+  note?: string | null;
+  ctaLabel: string;
+  ctaUrl: string;
+}): EmailContent {
+  const firstName = input.fullName.split(" ")[0];
+  const note = input.note?.trim();
+  const html = emailLayout({
+    previewText: input.subject,
+    ctaLabel: input.ctaLabel,
+    ctaUrl: input.ctaUrl,
+    bodyHtml: `
+      <p style="margin:0;">Hey ${firstName},</p>
+      <p style="margin:12px 0 0;"><strong>${escapeHtml(input.heading)}</strong></p>
+      <p style="margin:10px 0 0;">${escapeHtml(input.message)}</p>
+      ${note ? highlightBox([["Tempo note", escapeHtml(note)]]) : ""}
+    `,
+  });
+  const text = `Hey ${firstName},
+
+${input.heading}
+
+${input.message}${note ? `\n\nTempo note: ${note}` : ""}
+
+${input.ctaLabel}: ${input.ctaUrl}${textFooter()}`;
+  return { subject: input.subject, html, text };
+}
+
+export function accountUpdateEmail(input: {
+  fullName: string;
+  title: string;
+  body: string;
+  ctaLabel: string;
+  ctaUrl: string;
+}): EmailContent {
+  const firstName = input.fullName.split(" ")[0];
+  const html = emailLayout({
+    previewText: input.title,
+    ctaLabel: input.ctaLabel,
+    ctaUrl: input.ctaUrl,
+    bodyHtml: `
+      <p style="margin:0;">Hey ${firstName},</p>
+      <p style="margin:12px 0 0;"><strong>${escapeHtml(input.title)}</strong></p>
+      <p style="margin:10px 0 0;">${escapeHtml(input.body)}</p>
+    `,
+  });
+  const text = `Hey ${firstName},
+
+${input.title}
+
+${input.body}
+
+${input.ctaLabel}: ${input.ctaUrl}${textFooter()}`;
+  return { subject: input.title, html, text };
 }
 
 export function welcomeEmail(input: {

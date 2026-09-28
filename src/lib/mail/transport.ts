@@ -41,9 +41,9 @@ interface SendMailInput {
  * already-succeeded booking/cancellation/top-up/signup. A mail failure must
  * never surface as if the underlying action failed, so this only logs.
  */
-export async function sendMail(input: SendMailInput): Promise<void> {
+export async function sendMail(input: SendMailInput): Promise<boolean> {
   const apiKey = process.env.BREVO_API_KEY;
-  if (!apiKey) return;
+  if (!apiKey) return false;
 
   try {
     const res = await fetch(BREVO_API, {
@@ -64,8 +64,11 @@ export async function sendMail(input: SendMailInput): Promise<void> {
 
     if (!res.ok) {
       console.error("[mail] Brevo API rejected send:", res.status, await res.text().catch(() => ""));
+      return false;
     }
+    return true;
   } catch (err) {
     console.error("[mail] send failed:", err);
+    return false;
   }
 }

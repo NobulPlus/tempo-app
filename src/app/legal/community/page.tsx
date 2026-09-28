@@ -31,9 +31,9 @@ export default function CommunityPage() {
 
       <h2>Be on time</h2>
       <p>
-        Arriving late costs one punctuality point per five minutes. A 90-minute slot
-        with people trickling in for twenty of them is a 70-minute game everyone paid
-        full price for.
+        Arriving late costs one punctuality point per five minutes. All Tempo sessions
+        are 60 minutes — people trickling in for fifteen of them turns it into a
+        45-minute game everyone paid full price for.
       </p>
 
       <h2>Play the level you signed up for</h2>

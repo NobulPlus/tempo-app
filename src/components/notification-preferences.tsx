@@ -68,7 +68,7 @@ export function NotificationPreferences({
       </form>
 
       <p className="mt-4 text-[11.5px] leading-relaxed text-ink-muted">
-        Payment receipts, refunds and account security emails always send regardless of this setting.
+        Payment receipts, refunds, waitlist promotions and account security emails always send regardless of this setting.
       </p>
     </div>
   );

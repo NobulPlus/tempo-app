@@ -522,7 +522,6 @@ export function HostForm({
               <legend className="mb-2 text-[13px] font-semibold text-ink-soft">Payment channel</legend>
               <div className="grid gap-2">
                 <PaymentOption value="korapay" label="KoraPay" logo="/payments/korapay.png" defaultChecked />
-                <PaymentOption value="flutterwave" label="Flutterwave" logo="/payments/flutterwave.png" />
                 {canUseCredit && (
                   <PaymentOption
                     value="wallet"

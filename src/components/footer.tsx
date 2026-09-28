@@ -88,7 +88,7 @@ export async function Footer() {
               Find a pitch, book a pitch, join a game.
             </p>
             <p className="mt-4 text-[13px] text-ink-muted">
-              Registered in Nigeria. Payments processed by Flutterwave.
+              Registered in Nigeria. Payments processed by Korapay.
             </p>
           </div>
 

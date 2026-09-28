@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMail } from "@/lib/mail/transport";
-import { gameCancelledEmail, gameHoldExpiredEmail } from "@/lib/mail/templates";
+import { accountUpdateEmail, gameCancelledEmail, gameHoldExpiredEmail } from "@/lib/mail/templates";
 
 /**
  * Expires payment holds — a player who joined a paid game but couldn't
@@ -84,6 +84,8 @@ export async function GET(request: Request) {
     });
   }
 
+  const queuedNotificationsEmailed = await deliverImportantNotifications(admin);
+
   return NextResponse.json({
     expired: expired?.length ?? 0,
     hostGamesSettled: settledGames ?? 0,
@@ -91,7 +93,51 @@ export async function GET(request: Request) {
     staleMinimumGamesCancelled: staleMinimumGames?.length ?? 0,
     notified,
     cancelledMinimumGamesNotified,
+    queuedNotificationsEmailed,
   });
+}
+
+/** Waitlist promotion and post-game host earnings originate in database
+ * triggers. This small outbox keeps those triggers provider-agnostic while
+ * guaranteeing a successful email is recorded only once. */
+async function deliverImportantNotifications(admin: ReturnType<typeof createAdminClient>): Promise<number> {
+  const { data: rows, error } = await admin
+    .from("user_notifications")
+    .select("id, user_id, kind, title, body, href")
+    .in("kind", ["waitlist_promoted", "host_earnings"])
+    .is("email_sent_at", null)
+    .order("created_at", { ascending: true })
+    .limit(50);
+  if (error) {
+    console.error("[cron/game-payment-holds] notification email queue failed:", error.message);
+    return 0;
+  }
+
+  let delivered = 0;
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  for (const row of rows ?? []) {
+    try {
+      const [{ data: authUser }, { data: profile }] = await Promise.all([
+        admin.auth.admin.getUserById(row.user_id),
+        admin.from("profiles").select("full_name").eq("id", row.user_id).maybeSingle(),
+      ]);
+      const email = authUser?.user?.email;
+      if (!email) continue;
+      const content = accountUpdateEmail({
+        fullName: profile?.full_name ?? "there",
+        title: row.title,
+        body: row.body,
+        ctaLabel: row.kind === "waitlist_promoted" ? "View game" : "View wallet",
+        ctaUrl: `${site}${row.href ?? "/dashboard"}`,
+      });
+      if (!await sendMail({ to: email, ...content })) continue;
+      await admin.from("user_notifications").update({ email_sent_at: new Date().toISOString() }).eq("id", row.id);
+      delivered++;
+    } catch (err) {
+      console.error("[cron/game-payment-holds] notification email failed:", err);
+    }
+  }
+  return delivered;
 }
 
 async function notifyCancelledGameRefunds(

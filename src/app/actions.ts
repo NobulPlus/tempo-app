@@ -72,7 +72,13 @@ import { initializeFlutterwavePayment, isFlutterwaveConfigured } from "@/lib/pay
 import { initializeKorapayPayment, isKorapayConfigured, verifyKorapayTransaction } from "@/lib/payments/korapay";
 import { completeVerifiedWalletTopup } from "@/lib/payments/wallet";
 import { sendMail } from "@/lib/mail/transport";
-import { bookingConfirmationEmail, bookingCancelledEmail, welcomeEmail, gameCancelledEmail } from "@/lib/mail/templates";
+import {
+  bookingConfirmationEmail,
+  bookingCancelledEmail,
+  welcomeEmail,
+  gameCancelledEmail,
+  reviewStatusEmail,
+} from "@/lib/mail/templates";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   ACTIVITY_VALUES,
@@ -241,6 +247,19 @@ export async function submitVenueOwnerApplicationAction(
       ? "You already have a pending venue owner application."
       : result.error;
     return { ok: false, error: message };
+  }
+
+  const email = await currentUserEmail();
+  if (email) {
+    const content = reviewStatusEmail({
+      fullName: user.fullName,
+      subject: "Your Tempo venue owner application was received",
+      heading: "Your venue owner application is with the Tempo team.",
+      message: "We will email you as soon as the review is complete.",
+      ctaLabel: "View application",
+      ctaUrl: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/partner`,
+    });
+    await sendMail({ to: email, ...content });
   }
 
   revalidatePath("/partner");
@@ -701,6 +720,41 @@ async function currentUserEmail(): Promise<string | null> {
     data: { user: authUser },
   } = await sb.auth.getUser();
   return authUser?.email ?? null;
+}
+
+/** Reviews run from an admin session, so recipient lookup must use the
+ * service role. Delivery failures remain non-blocking after the decision. */
+async function sendReviewEmail(input: {
+  userId: string;
+  subject: string;
+  heading: string;
+  message: string;
+  note?: string | null;
+  ctaLabel: string;
+  ctaPath: string;
+}) {
+  try {
+    const admin = createAdminClient();
+    const [{ data: auth }, { data: profile }] = await Promise.all([
+      admin.auth.admin.getUserById(input.userId),
+      admin.from("profiles").select("full_name").eq("id", input.userId).maybeSingle(),
+    ]);
+    const email = auth.user?.email;
+    if (!email || !profile?.full_name) return;
+
+    const content = reviewStatusEmail({
+      fullName: profile.full_name,
+      subject: input.subject,
+      heading: input.heading,
+      message: input.message,
+      note: input.note,
+      ctaLabel: input.ctaLabel,
+      ctaUrl: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}${input.ctaPath}`,
+    });
+    await sendMail({ to: email, ...content });
+  } catch (error) {
+    console.error("[mail] review status email failed:", error);
+  }
 }
 
 export async function createBookingAction(
@@ -1201,6 +1255,18 @@ export async function requestHostPayoutAction(_prev: ActionState, formData: Form
   const sb = await createClient();
   const { error } = await sb.rpc("request_host_payout", { p_amount_kobo: parsed.data.amountNaira * 100 });
   if (error) return { ok: false, error: error.message };
+  const email = await currentUserEmail();
+  if (email) {
+    const content = reviewStatusEmail({
+      fullName: user.fullName,
+      subject: "Your Tempo payout request is queued",
+      heading: "Your payout request is in the next eligible Friday batch.",
+      message: `We have reserved ${formatNaira(parsed.data.amountNaira * 100)} from your eligible host earnings. We will email you when the transfer is marked paid.`,
+      ctaLabel: "View your wallet",
+      ctaUrl: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/wallet`,
+    });
+    await sendMail({ to: email, ...content });
+  }
   revalidatePath("/wallet");
   revalidatePath("/admin/finance");
   return { ok: true, message: "Payout requested. It will be included in the next eligible Friday batch." };
@@ -1225,6 +1291,12 @@ export async function reviewHostPayoutAction(_prev: ActionState, formData: FormD
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the payout details." };
 
   const sb = await createClient();
+  const adminClient = createAdminClient();
+  const { data: payout } = await adminClient
+    .from("host_payout_requests")
+    .select("user_id, amount_kobo, reference")
+    .eq("id", parsed.data.payoutId)
+    .maybeSingle();
   const { error } =
     parsed.data.decision === "paid"
       ? await sb.rpc("admin_complete_host_payout", {
@@ -1237,6 +1309,20 @@ export async function reviewHostPayoutAction(_prev: ActionState, formData: FormD
           p_note: parsed.data.note ?? null,
         });
   if (error) return { ok: false, error: error.message };
+  if (payout) {
+    await sendReviewEmail({
+      userId: payout.user_id,
+      subject: parsed.data.decision === "paid" ? "Your Tempo host payout is complete" : "Your Tempo payout request was not approved",
+      heading: parsed.data.decision === "paid" ? "Your bank payout has been marked paid." : "Your payout credit has been restored to your Tempo wallet.",
+      message:
+        parsed.data.decision === "paid"
+          ? `${formatNaira(Number(payout.amount_kobo))} has been marked paid${parsed.data.transferReference ? ` with transfer reference ${parsed.data.transferReference}` : ""}.`
+          : `${formatNaira(Number(payout.amount_kobo))} is available for you to reuse or request again when ready.`,
+      note: parsed.data.note,
+      ctaLabel: "View your wallet",
+      ctaPath: "/wallet",
+    });
+  }
   revalidatePath("/admin/finance");
   revalidatePath("/wallet");
   return { ok: true, message: parsed.data.decision === "paid" ? "Payout marked as paid." : "Payout rejected and credit restored." };
@@ -2399,6 +2485,17 @@ export async function reviewVenueOwnerApplicationAction(
 
   const result = await reviewVenueOwnerApplication(applicationId, approve, note);
   if (!result.ok) return { ok: false, error: result.error };
+  await sendReviewEmail({
+    userId: result.application.userId,
+    subject: approve ? "Your Tempo venue owner access is active" : "Update on your venue owner application",
+    heading: approve ? "You are now approved to manage venues on Tempo." : "Your venue owner application was not approved this time.",
+    message: approve
+      ? "You can now create your venue, add bookable spaces and manage availability from your venue workspace."
+      : "Review the note below, update the required details, and submit again when they are ready.",
+    note,
+    ctaLabel: approve ? "Open venue workspace" : "View application",
+    ctaPath: approve ? "/venue" : "/partner",
+  });
 
   revalidatePath("/admin");
   revalidatePath("/admin/leads");
@@ -2420,8 +2517,27 @@ export async function reviewIdentityVerificationAction(
   const approve = formData.get("approve") === "true";
   const note = String(formData.get("note") ?? "");
 
+  const adminClient = createAdminClient();
+  const { data: verification } = await adminClient
+    .from("identity_verifications")
+    .select("user_id")
+    .eq("id", verificationId)
+    .maybeSingle();
   const result = await reviewIdentityVerification(verificationId, approve, note);
   if (!result.ok) return { ok: false, error: result.error };
+  if (verification) {
+    await sendReviewEmail({
+      userId: verification.user_id,
+      subject: approve ? "Your Tempo identity is verified" : "Update on your Tempo identity check",
+      heading: approve ? "Your identity verification is complete." : "Your identity submission needs an update.",
+      message: approve
+        ? "Your verified status is now active on Tempo."
+        : "Please review the note below, then submit a clear, valid document when you are ready.",
+      note,
+      ctaLabel: "View identity status",
+      ctaPath: "/verify-identity",
+    });
+  }
 
   revalidatePath("/admin/identity");
   return { ok: true, message: approve ? "Identity verified." : "Submission rejected." };
@@ -2449,6 +2565,19 @@ export async function submitIdentityVerificationAction(
 
   const submitted = await submitIdentityVerification(user.id, uploaded.path);
   if (!submitted.ok) return { ok: false, error: submitted.error };
+
+  const email = await currentUserEmail();
+  if (email) {
+    const content = reviewStatusEmail({
+      fullName: user.fullName,
+      subject: "Tempo identity check received",
+      heading: "Your identity document is with our review team.",
+      message: "We will email you as soon as the review is complete.",
+      ctaLabel: "View identity status",
+      ctaUrl: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/verify-identity`,
+    });
+    await sendMail({ to: email, ...content });
+  }
 
   revalidatePath("/verify-identity");
   revalidatePath("/dashboard");

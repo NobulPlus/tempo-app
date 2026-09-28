@@ -2,6 +2,8 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createUserNotification } from "@/lib/notifications";
+import { sendMail } from "@/lib/mail/transport";
+import { actionPaymentConfirmationEmail } from "@/lib/mail/templates";
 
 export type ActionPaymentKind = "booking" | "host_game" | "join_game" | "game_balance";
 
@@ -64,9 +66,53 @@ export async function completeVerifiedActionPayment(
     body: "Your Tempo payment was confirmed successfully.",
     href: redirectPathFor(row),
   });
+  await sendActionPaymentReceipt({
+    admin,
+    userId: expected.userId,
+    amountKobo: input.amountKobo,
+    reference: input.reference,
+    kind: row.kind as ActionPaymentKind,
+    redirectPath: redirectPathFor(row),
+  });
   const kind = row.kind as ActionPaymentKind;
   revalidatePaymentViews(kind);
   return { ok: true, kind, redirectPath: redirectPathFor(row) };
+}
+
+async function sendActionPaymentReceipt(input: {
+  admin: ReturnType<typeof createAdminClient>;
+  userId: string;
+  amountKobo: number;
+  reference: string;
+  kind: ActionPaymentKind;
+  redirectPath: string;
+}) {
+  try {
+    const [{ data: auth }, { data: profile }] = await Promise.all([
+      input.admin.auth.admin.getUserById(input.userId),
+      input.admin.from("profiles").select("full_name").eq("id", input.userId).maybeSingle(),
+    ]);
+    const email = auth.user?.email;
+    if (!email || !profile?.full_name) return;
+
+    const labels: Record<ActionPaymentKind, string> = {
+      booking: "your pitch booking",
+      host_game: "publishing your game",
+      join_game: "your game spot",
+      game_balance: "your game balance",
+    };
+    const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    const content = actionPaymentConfirmationEmail({
+      fullName: profile.full_name,
+      amountKobo: input.amountKobo,
+      reference: input.reference,
+      action: labels[input.kind],
+      viewUrl: `${site}${input.redirectPath}`,
+    });
+    await sendMail({ to: email, ...content });
+  } catch (error) {
+    console.error("[payments] action receipt email failed:", error);
+  }
 }
 
 function revalidatePaymentViews(kind: ActionPaymentKind) {

@@ -266,7 +266,6 @@ function PaymentChannelPicker({
     hint?: string;
   }> = [
     { value: "korapay", label: "KoraPay", logo: "/payments/korapay.png" },
-    { value: "flutterwave", label: "Flutterwave", logo: "/payments/flutterwave.png" },
   ];
   if (canUseCredit) {
     options.push({
