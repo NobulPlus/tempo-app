@@ -13,7 +13,15 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
  * payment webhooks and cron automation keep running behind the scenes.
  */
 function comingSoonGate(request: NextRequest): NextResponse | null {
-  if (!isLiveProduction()) return null;
+  const localGateEnabled = process.env.TEMPO_LAUNCH_GATE === "true";
+  const isPublicTempoDomain = ["playtempo11.com", "www.playtempo11.com"].includes(
+    request.nextUrl.hostname,
+  );
+
+  // A Vercel system environment variable should distinguish Preview from
+  // Production. The public-domain check is an additional guardrail: a
+  // Preview URL must always remain a usable staging environment.
+  if (!localGateEnabled && (!isLiveProduction() || !isPublicTempoDomain)) return null;
   const { pathname } = request.nextUrl;
   if (pathname === "/coming-soon" || pathname.startsWith("/api/")) return null;
   return NextResponse.redirect(new URL("/coming-soon", request.url));
