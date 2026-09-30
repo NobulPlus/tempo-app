@@ -13,9 +13,14 @@ export default function ComingSoonPage() {
       <span className="spokes-t" />
 
       <div className="relative mx-auto max-w-xl text-center">
-        <span className="mx-auto mb-7 grid h-14 w-14 place-items-center rounded-2xl bg-green shadow-[0_4px_14px_rgba(76,141,255,.35)]">
-          <TempoMark size={28} className="text-[#051530]" />
-        </span>
+        <div className="mb-7 flex items-center justify-center gap-3">
+          <span className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[11px] bg-green shadow-[0_4px_14px_rgba(76,141,255,.35)]">
+            <TempoMark size={20} className="text-[#051530]" />
+          </span>
+          <span className="font-display text-[22px] font-extrabold tracking-[0.3px] text-green">
+            TEMPO
+          </span>
+        </div>
 
         <p className="font-display text-[13px] font-bold tracking-[2px] text-orange">
           COMING SOON
