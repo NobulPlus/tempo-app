@@ -3,6 +3,7 @@
 import { useMemo, useState, useActionState } from "react";
 import { generateSlotsAction, type ActionState } from "@/app/actions";
 import { useActionToast } from "@/components/toast/use-action-toast";
+import type { PitchAvailabilitySchedule } from "@/lib/types";
 
 const initial: ActionState = {};
 
@@ -68,16 +69,22 @@ const DEFAULT_RULES: RuleDraft[] = [
   },
 ];
 
-export function GenerateSlotsForm({ pitchId, basePriceKobo }: { pitchId: string; basePriceKobo: number }) {
+export function GenerateSlotsForm({
+  pitchId,
+  basePriceKobo,
+  schedule,
+}: {
+  pitchId: string;
+  basePriceKobo: number;
+  schedule: PitchAvailabilitySchedule | null;
+}) {
   const [state, formAction, pending] = useActionState(generateSlotsAction, initial);
   useActionToast(state);
 
-  const [rules, setRules] = useState(() =>
-    DEFAULT_RULES.map((rule) => ({ ...rule, basePrice: Math.round(basePriceKobo / 100) || rule.basePrice })),
-  );
-  const [slotDuration, setSlotDuration] = useState(60);
-  const [bufferMinutes, setBufferMinutes] = useState(15);
-  const [daysAhead, setDaysAhead] = useState(30);
+  const [rules, setRules] = useState(() => scheduleToDrafts(schedule, basePriceKobo));
+  const [slotDuration, setSlotDuration] = useState(schedule?.slotDurationMinutes ?? 60);
+  const [bufferMinutes, setBufferMinutes] = useState(schedule?.bufferMinutes ?? 15);
+  const [daysAhead, setDaysAhead] = useState(schedule?.daysAhead ?? 30);
 
   const preview = useMemo(
     () => estimateSlots(rules, slotDuration, bufferMinutes, daysAhead),
@@ -111,7 +118,9 @@ export function GenerateSlotsForm({ pitchId, basePriceKobo }: { pitchId: string;
         <div>
           <h3 className="text-[16px] font-bold">Generate availability</h3>
           <p className="mt-1 max-w-2xl text-[13px] text-ink-soft">
-            Create the next set of bookable slots from weekly operating rules. Existing bookings and blocked times stay untouched.
+            {schedule
+              ? "These saved rules automatically keep this resource bookable ahead. Existing bookings and blocked times stay untouched."
+              : "Create the next set of bookable slots from weekly operating rules. Existing bookings and blocked times stay untouched."}
           </p>
         </div>
         <div className="rounded-2xl border border-green/25 bg-green/8 px-4 py-3 text-[13px] text-green">
@@ -233,6 +242,28 @@ export function GenerateSlotsForm({ pitchId, basePriceKobo }: { pitchId: string;
       </button>
     </form>
   );
+}
+
+function scheduleToDrafts(schedule: PitchAvailabilitySchedule | null, basePriceKobo: number): RuleDraft[] {
+  if (!schedule?.rules?.length) {
+    return DEFAULT_RULES.map((rule) => ({ ...rule, basePrice: Math.round(basePriceKobo / 100) || rule.basePrice }));
+  }
+  return schedule.rules.map((rule, index) => ({
+    id: `saved-${index}`,
+    name: rule.name || `Rule ${index + 1}`,
+    enabled: true,
+    days: rule.daysOfWeek.map(String),
+    openTime: minutesToTime(rule.openMinutes),
+    closeTime: minutesToTime(rule.closeMinutes),
+    basePrice: Math.round(rule.basePriceKobo / 100),
+    peakStart: rule.peakStartMinutes == null ? "" : minutesToTime(rule.peakStartMinutes),
+    peakEnd: rule.peakEndMinutes == null ? "" : minutesToTime(rule.peakEndMinutes),
+    peakPrice: rule.peakPriceKobo == null ? "" : Math.round(rule.peakPriceKobo / 100),
+  }));
+}
+
+function minutesToTime(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
 function CompactNumberField({

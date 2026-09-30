@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser, isVenueOwner } from "@/lib/session";
-import { getPitchById, getSlotsForPitch } from "@/lib/data/repo";
+import { getPitchAvailabilitySchedule, getPitchById, getSlotsForPitch } from "@/lib/data/repo";
 import { GenerateSlotsForm } from "@/components/venue/generate-slots-form";
+import { AvailabilityScheduleToggle } from "@/components/venue/availability-schedule-toggle";
 import { SlotList } from "@/components/venue/slot-list";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,10 @@ export default async function ManageAvailabilityPage({
   if (!pitch || pitch.venueId !== id) notFound();
   if (pitch.venue.ownerId !== user.id) redirect("/venue");
 
-  const slots = await getSlotsForPitch(pitchId, 21);
+  const [slots, schedule] = await Promise.all([
+    getSlotsForPitch(pitchId, 21),
+    getPitchAvailabilitySchedule(pitchId),
+  ]);
 
   return (
     <div className="py-12">
@@ -50,8 +54,14 @@ export default async function ManageAvailabilityPage({
           blocked for maintenance; blocked hours (orange) can be reopened.
         </p>
 
+        {schedule && (
+          <div className="mt-6">
+            <AvailabilityScheduleToggle pitchId={pitchId} initiallyEnabled={schedule.enabled} />
+          </div>
+        )}
+
         <div className="mt-6">
-          <GenerateSlotsForm pitchId={pitchId} basePriceKobo={pitch.pricePerHourKobo} />
+          <GenerateSlotsForm pitchId={pitchId} basePriceKobo={pitch.pricePerHourKobo} schedule={schedule} />
         </div>
 
         <div className="mt-8">

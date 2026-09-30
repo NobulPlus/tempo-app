@@ -151,6 +151,28 @@ export interface Slot {
   pitch?: Pitch;
 }
 
+export interface WeeklyAvailabilityRule {
+  name?: string;
+  daysOfWeek: number[];
+  openMinutes: number;
+  closeMinutes: number;
+  basePriceKobo: number;
+  peakStartMinutes?: number | null;
+  peakEndMinutes?: number | null;
+  peakPriceKobo?: number | null;
+}
+
+export interface PitchAvailabilitySchedule {
+  pitchId: string;
+  rules: WeeklyAvailabilityRule[];
+  slotDurationMinutes: number;
+  bufferMinutes: number;
+  daysAhead: number;
+  enabled: boolean;
+  lastGeneratedAt: string | null;
+  updatedAt: string;
+}
+
 export interface Booking {
   id: string;
   reference: string;

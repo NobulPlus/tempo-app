@@ -39,6 +39,8 @@ import {
   updatePitch,
   getPitchById,
   generateSlots,
+  savePitchAvailabilitySchedule,
+  togglePitchAvailabilityScheduleEnabled,
   setSlotStatus,
   uploadVenuePhoto,
   uploadIdentityDocument,
@@ -2307,31 +2309,58 @@ export async function generateSlotsAction(
     }
   }
 
+  const schedule = {
+    daysAhead: parsed.data.daysAhead,
+    slotDurationMinutes: parsed.data.slotDurationMinutes,
+    bufferMinutes: parsed.data.bufferMinutes,
+    rules: parsed.data.rules.map((rule) => ({
+      name: rule.name,
+      daysOfWeek: rule.daysOfWeek,
+      openMinutes: rule.openMinutes,
+      closeMinutes: rule.closeMinutes,
+      basePriceKobo: rule.basePriceNaira * 100,
+      peakStartMinutes: rule.peakStartMinutes,
+      peakEndMinutes: rule.peakEndMinutes,
+      peakPriceKobo: rule.peakPriceNaira ? rule.peakPriceNaira * 100 : null,
+    })),
+  };
   const result = await generateSlots(
     pitchId,
     pitch.pricePerHourKobo,
     pitch.peakMultiplier,
-    {
-      daysAhead: parsed.data.daysAhead,
-      slotDurationMinutes: parsed.data.slotDurationMinutes,
-      bufferMinutes: parsed.data.bufferMinutes,
-      rules: parsed.data.rules.map((rule) => ({
-        name: rule.name,
-        daysOfWeek: rule.daysOfWeek,
-        openMinutes: rule.openMinutes,
-        closeMinutes: rule.closeMinutes,
-        basePriceKobo: rule.basePriceNaira * 100,
-        peakStartMinutes: rule.peakStartMinutes,
-        peakEndMinutes: rule.peakEndMinutes,
-        peakPriceKobo: rule.peakPriceNaira ? rule.peakPriceNaira * 100 : null,
-      })),
-    },
+    schedule,
   );
   if (!result.ok) return { ok: false, error: result.error };
+  const saved = await savePitchAvailabilitySchedule(pitchId, schedule);
+  if (!saved.ok) return { ok: false, error: saved.error ?? "Slots were added, but the operating rules could not be saved." };
 
   revalidatePath(`/venue/${pitch.venueId}/pitches/${pitchId}`);
   const skipped = result.skipped ? ` ${result.skipped} conflict${result.skipped === 1 ? "" : "s"} skipped.` : "";
-  return { ok: true, message: `${result.created} slot${result.created === 1 ? "" : "s"} added.${skipped}` };
+  return { ok: true, message: `${result.created} slot${result.created === 1 ? "" : "s"} added.${skipped} Operating rules saved.` };
+}
+
+export async function togglePitchAvailabilityScheduleAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+  if (!isVenueOwner(user)) return { ok: false, error: "Venue owner access required." };
+
+  const pitchId = String(formData.get("pitchId") ?? "");
+  const pitch = await getPitchById(pitchId);
+  if (!pitch || pitch.venue.ownerId !== user.id) return { ok: false, error: "Not authorized." };
+
+  const result = await togglePitchAvailabilityScheduleEnabled(pitchId);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/venue/${pitch.venueId}/pitches/${pitchId}`);
+  return {
+    ok: true,
+    message: result.enabled
+      ? "Automatic availability resumed."
+      : "Automatic availability paused. Existing slots stay untouched.",
+  };
 }
 
 function parseSlotRules(formData: FormData):

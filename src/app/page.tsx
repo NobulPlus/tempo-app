@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getPlatformStats, getUrgentGames, listPitches } from "@/lib/data/repo";
 import { formatNaira } from "@/lib/format";
+import { isLiveProduction } from "@/lib/env";
 import { testimonials } from "@/lib/mock/testimonials";
 import { GameCard } from "@/components/match/game-card";
 import { PitchCard } from "@/components/pitch/pitch-card";
@@ -431,27 +432,31 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ================= TESTIMONIALS — Footy Addicts pattern ================= */}
-      <section className="band-t py-20">
-        <div className="container-t">
-          <p className="text-center font-display text-[13px] font-bold tracking-[2px] text-orange">
-            REVIEWS
-          </p>
-          <h2 className="mt-2 text-center font-display text-[clamp(26px,4vw,38px)] font-extrabold tracking-[-.02em]">
-            What the community has to say
-          </h2>
+      {/* ================= TESTIMONIALS — Footy Addicts pattern =================
+          Placeholder quotes; kept off the live production build until real
+          reviews replace them. Still renders on staging/preview for review. */}
+      {!isLiveProduction() && (
+        <section className="band-t py-20">
+          <div className="container-t">
+            <p className="text-center font-display text-[13px] font-bold tracking-[2px] text-orange">
+              REVIEWS
+            </p>
+            <h2 className="mt-2 text-center font-display text-[clamp(26px,4vw,38px)] font-extrabold tracking-[-.02em]">
+              What the community has to say
+            </h2>
 
-          <div className="mt-10 grid gap-5 sm:grid-cols-3">
-            {testimonials.map((t, i) => (
-              <div key={t.name} className={i % 3 === 1 ? "sm:-mt-5" : "sm:mt-5"}>
-                <Reveal delay={i * 90}>
-                  <TestimonialCard {...t} />
-                </Reveal>
-              </div>
-            ))}
+            <div className="mt-10 grid gap-5 sm:grid-cols-3">
+              {testimonials.map((t, i) => (
+                <div key={t.name} className={i % 3 === 1 ? "sm:-mt-5" : "sm:mt-5"}>
+                  <Reveal delay={i * 90}>
+                    <TestimonialCard {...t} />
+                  </Reveal>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ================= WAITLIST / CTA ================= */}
       <section className="py-24">

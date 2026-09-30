@@ -2,6 +2,7 @@ import "server-only";
 import { store } from "./store";
 import { camelize } from "./case";
 import { isSupabaseConfigured, createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getMatchState } from "@/lib/match";
 import { distanceKm, generateReference, initialsOf, slugify } from "@/lib/format";
 import type {
@@ -33,6 +34,7 @@ import type {
   Position,
   Foot,
   BookingTransferOffer,
+  PitchAvailabilitySchedule,
 } from "@/lib/types";
 
 /** The shape a `profiles` row has right after `camelize` — flat trait_*
@@ -495,6 +497,155 @@ export async function generateSlots(
   );
   if (error) return { ok: false, created: 0, skipped, candidates: candidates.length, error: error.message };
   return { ok: true, created: accepted.length, skipped, candidates: candidates.length };
+}
+
+export async function getPitchAvailabilitySchedule(pitchId: string): Promise<PitchAvailabilitySchedule | null> {
+  if (demoMode()) return null;
+  const sb = await createClient();
+  const { data } = await sb.from("pitch_availability_schedules").select("*").eq("pitch_id", pitchId).maybeSingle();
+  return data ? camelize<PitchAvailabilitySchedule>(data) : null;
+}
+
+export async function savePitchAvailabilitySchedule(
+  pitchId: string,
+  rules: GenerateSlotsRules,
+): Promise<{ ok: boolean; error?: string }> {
+  if (demoMode()) return { ok: true };
+  const sb = await createClient();
+  const { error } = await sb.from("pitch_availability_schedules").upsert({
+    pitch_id: pitchId,
+    rules: rules.rules ?? [],
+    slot_duration_minutes: rules.slotDurationMinutes ?? 60,
+    buffer_minutes: rules.bufferMinutes ?? 0,
+    days_ahead: rules.daysAhead,
+    enabled: true,
+    last_generated_at: new Date().toISOString(),
+  });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function togglePitchAvailabilityScheduleEnabled(
+  pitchId: string,
+): Promise<{ ok: boolean; enabled?: boolean; error?: string }> {
+  if (demoMode()) return { ok: true, enabled: true };
+  const sb = await createClient();
+  const { data: current, error: readError } = await sb
+    .from("pitch_availability_schedules")
+    .select("enabled")
+    .eq("pitch_id", pitchId)
+    .maybeSingle();
+  if (readError) return { ok: false, error: readError.message };
+  if (!current) return { ok: false, error: "No saved operating rules for this pitch yet." };
+
+  const nextEnabled = !current.enabled;
+  const { error } = await sb
+    .from("pitch_availability_schedules")
+    .update({ enabled: nextEnabled })
+    .eq("pitch_id", pitchId);
+  return error ? { ok: false, error: error.message } : { ok: true, enabled: nextEnabled };
+}
+
+/** Runs under the service role from the existing operations cron. It only
+ * regenerates each schedule twice daily, while the conflict checks preserve
+ * booked, held and manually blocked slots. */
+export async function replenishSavedPitchAvailability(): Promise<{ schedules: number; slotsCreated: number }> {
+  const admin = createAdminClient();
+  const { data: schedules, error } = await admin
+    .from("pitch_availability_schedules")
+    .select("pitch_id, rules, slot_duration_minutes, buffer_minutes, days_ahead, last_generated_at, pitch:pitches!inner(price_per_hour_kobo, peak_multiplier, active)")
+    .eq("enabled", true);
+  if (error) throw new Error(error.message);
+
+  let processed = 0;
+  let slotsCreated = 0;
+  const staleBefore = Date.now() - 12 * 60 * 60_000;
+  for (const schedule of schedules ?? []) {
+    if (schedule.last_generated_at && new Date(schedule.last_generated_at).getTime() > staleBefore) continue;
+    const pitch = Array.isArray(schedule.pitch) ? schedule.pitch[0] : schedule.pitch;
+    if (!pitch?.active) continue;
+
+    const result = await generateSlotsForAdmin(admin, {
+      pitchId: schedule.pitch_id,
+      basePriceKobo: Number(pitch.price_per_hour_kobo),
+      peakMultiplier: Number(pitch.peak_multiplier),
+      rules: {
+        daysAhead: Number(schedule.days_ahead),
+        slotDurationMinutes: Number(schedule.slot_duration_minutes),
+        bufferMinutes: Number(schedule.buffer_minutes),
+        rules: (schedule.rules ?? []) as WeeklySlotRule[],
+      },
+    });
+    if (!result.ok) throw new Error(result.error ?? "Could not replenish availability.");
+    await admin
+      .from("pitch_availability_schedules")
+      .update({ last_generated_at: new Date().toISOString() })
+      .eq("pitch_id", schedule.pitch_id);
+    processed++;
+    slotsCreated += result.created;
+  }
+  return { schedules: processed, slotsCreated };
+}
+
+async function generateSlotsForAdmin(
+  admin: ReturnType<typeof createAdminClient>,
+  input: { pitchId: string; basePriceKobo: number; peakMultiplier: number; rules: GenerateSlotsRules },
+): Promise<{ ok: boolean; created: number; error?: string }> {
+  const rules = input.rules.rules ?? [];
+  const now = new Date();
+  const duration = input.rules.slotDurationMinutes ?? 60;
+  const buffer = input.rules.bufferMinutes ?? 0;
+  const candidates: { startsAt: Date; endsAt: Date; priceKobo: number }[] = [];
+  for (let dayOffset = 0; dayOffset < input.rules.daysAhead; dayOffset++) {
+    const day = lagosCalendarDay(now, dayOffset);
+    for (const rule of rules) {
+      if (!rule.daysOfWeek.includes(day.dayOfWeek)) continue;
+      for (let minute = rule.openMinutes; minute + duration <= rule.closeMinutes; minute += duration + buffer) {
+        const startsAt = dateFromLagos(day.year, day.month, day.day, minute);
+        if (startsAt <= now) continue;
+        const isPeak = rule.peakPriceKobo && rule.peakStartMinutes !== null && rule.peakEndMinutes !== null
+          && rule.peakStartMinutes !== undefined && rule.peakEndMinutes !== undefined
+          && minute >= rule.peakStartMinutes && minute < rule.peakEndMinutes;
+        candidates.push({
+          startsAt,
+          endsAt: new Date(startsAt.getTime() + duration * 60_000),
+          priceKobo: isPeak ? rule.peakPriceKobo! : rule.basePriceKobo,
+        });
+      }
+    }
+  }
+  if (!candidates.length) return { ok: true, created: 0 };
+  const { data: existing, error: existingError } = await admin
+    .from("slots")
+    .select("starts_at, ends_at")
+    .eq("pitch_id", input.pitchId)
+    .gte("starts_at", now.toISOString())
+    .lte("starts_at", new Date(now.getTime() + (input.rules.daysAhead + 1) * 86_400_000).toISOString());
+  if (existingError) return { ok: false, created: 0, error: existingError.message };
+
+  const accepted: typeof candidates = [];
+  for (const candidate of candidates.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())) {
+    const candidateStart = candidate.startsAt.getTime() - buffer * 60_000;
+    const candidateEnd = candidate.endsAt.getTime() + buffer * 60_000;
+    const conflictsExisting = (existing ?? []).some((slot) => {
+      const start = new Date(slot.starts_at).getTime() - buffer * 60_000;
+      const end = new Date(slot.ends_at).getTime() + buffer * 60_000;
+      return candidateStart < end && candidateEnd > start;
+    });
+    const conflictsAccepted = accepted.some((slot) => {
+      const start = slot.startsAt.getTime() - buffer * 60_000;
+      const end = slot.endsAt.getTime() + buffer * 60_000;
+      return candidateStart < end && candidateEnd > start;
+    });
+    if (!conflictsExisting && !conflictsAccepted) accepted.push(candidate);
+  }
+  if (!accepted.length) return { ok: true, created: 0 };
+  const { error: insertError } = await admin.from("slots").insert(accepted.map((slot) => ({
+    pitch_id: input.pitchId,
+    during: `[${slot.startsAt.toISOString()},${slot.endsAt.toISOString()})`,
+    price_kobo: slot.priceKobo,
+    status: "open",
+  })));
+  return insertError ? { ok: false, created: 0, error: insertError.message } : { ok: true, created: accepted.length };
 }
 
 function lagosCalendarDay(base: Date, addDays: number): {

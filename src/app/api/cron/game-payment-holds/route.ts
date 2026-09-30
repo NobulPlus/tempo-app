@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMail } from "@/lib/mail/transport";
 import { accountUpdateEmail, gameCancelledEmail, gameHoldExpiredEmail } from "@/lib/mail/templates";
+import { replenishSavedPitchAvailability } from "@/lib/data/repo";
 
 /**
  * Expires payment holds — a player who joined a paid game but couldn't
@@ -85,6 +86,15 @@ export async function GET(request: Request) {
   }
 
   const queuedNotificationsEmailed = await deliverImportantNotifications(admin);
+  let availabilitySchedules = 0;
+  let availabilitySlotsCreated = 0;
+  try {
+    const replenished = await replenishSavedPitchAvailability();
+    availabilitySchedules = replenished.schedules;
+    availabilitySlotsCreated = replenished.slotsCreated;
+  } catch (error) {
+    console.error("[cron/game-payment-holds] availability replenishment failed:", error);
+  }
 
   return NextResponse.json({
     expired: expired?.length ?? 0,
@@ -94,6 +104,8 @@ export async function GET(request: Request) {
     notified,
     cancelledMinimumGamesNotified,
     queuedNotificationsEmailed,
+    availabilitySchedules,
+    availabilitySlotsCreated,
   });
 }
 
