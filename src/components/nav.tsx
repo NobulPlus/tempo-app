@@ -53,6 +53,10 @@ export function Nav({
     };
   }, [open]);
 
+  // The coming-soon page is the only reachable route while production is
+  // gated (see middleware.ts) — every nav link would just bounce back to it.
+  if (pathname === "/coming-soon") return null;
+
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 

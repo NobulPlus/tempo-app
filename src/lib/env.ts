@@ -3,5 +3,5 @@
  * placeholder marketing content (e.g. testimonials) out of the live site
  * while still letting it render on staging for review. */
 export function isLiveProduction(): boolean {
-  return process.env.VERCEL_ENV === "production";
+  return process.env.VERCEL_ENV === "production" || process.env.TEMPO_LAUNCH_GATE === "true";
 }

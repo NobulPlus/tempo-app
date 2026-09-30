@@ -8,8 +8,16 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "node scripts/seed.mjs",
+    "seed:staging": "node scripts/seed.mjs --staging",
+    "audit:production-samples": "node scripts/purge-production-samples.mjs --audit",
+    "purge:production-samples": "node scripts/purge-production-samples.mjs --purge",
     "db:migrations": "node scripts/supabase-migrations.mjs status",
     "db:migrations:push": "node scripts/supabase-migrations.mjs push",
+    "db:migrations:staging": "node scripts/supabase-migrations.mjs status --environment=staging",
+    "db:migrations:push:staging": "node scripts/supabase-migrations.mjs push --environment=staging",
+    "db:migrations:production": "node scripts/supabase-migrations.mjs status --environment=production",
+    "db:migrations:push:production": "node scripts/supabase-migrations.mjs push --environment=production",
+    "db:migrations:push:production:all": "node scripts/supabase-migrations.mjs push --environment=production --include-all",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

@@ -378,7 +378,8 @@ npm run type-check    # tsc --noEmit
 npm run lint           # eslint
 npm run db:migrations       # compare local migrations with the linked Supabase project
 npm run db:migrations:push  # apply pending migrations to the linked Supabase project
-npm run seed           # push seed data to a real Supabase project (needs SUPABASE_SERVICE_ROLE_KEY)
+npm run seed:staging   # push sample venues only to the staging project
+npm run audit:production-samples # inspect known sample venues in production; changes nothing
 ```
 
 Open <http://localhost:3000>. No keys, no accounts required for demo mode —
@@ -399,8 +400,33 @@ After that, use the migration commands instead of copy-pasting SQL:
 ```bash
 npm run db:migrations       # see what has/hasn't run remotely
 npm run db:migrations:push  # apply only pending migrations
-npm run seed
+npm run seed:staging
 ```
+
+## Staging and production
+
+Tempo should use two separate Supabase projects and two separate Vercel
+environments. **Preview/Staging** uses sandbox payment keys and may contain
+sample venues. **Production** uses live payment keys and must contain real
+marketplace data only.
+
+1. Create a second Supabase project for staging and copy `.env.staging.example`
+   to `.env.staging.local` with its credentials. Keep production maintenance
+   credentials in `.env.production.local`, based on `.env.production.example`.
+2. In Vercel, set the staging Supabase, sandbox payment, staging webhook and
+   staging site URL values for **Preview**. Set production values only for
+   **Production**.
+3. Before running migrations, link the intended database, then use the guarded
+   commands: `npm run db:migrations:push:staging` or
+   `npm run db:migrations:push:production`. The command refuses a mismatched
+   linked project.
+4. Seed only staging with `npm run seed:staging`. The seed script never reads
+   `.env.local` and refuses any target other than staging.
+5. Audit the live database with `npm run audit:production-samples`. If it finds
+   only empty known sample venues, remove them with
+   `npm run purge:production-samples -- --confirm=REMOVE_TEMPO_SAMPLE_DATA`.
+   The purge refuses to touch sample venues that have bookings, games or
+   settlement records.
 
 ---
 

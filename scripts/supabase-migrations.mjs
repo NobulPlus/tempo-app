@@ -5,6 +5,8 @@ import { spawnSync } from "node:child_process";
 
 const mode = process.argv[2] ?? "status";
 const validModes = new Set(["status", "push"]);
+const environment = process.argv.find((arg) => arg.startsWith("--environment="))?.split("=")[1] ?? null;
+const includeAll = process.argv.includes("--include-all");
 
 if (!validModes.has(mode)) {
   console.error("Usage: node scripts/supabase-migrations.mjs <status|push>");
@@ -37,7 +39,24 @@ if (duplicateVersions.length) {
   process.exit(1);
 }
 
-const projectRef = getProjectRef();
+if (environment && !["staging", "production"].includes(environment)) {
+  console.error("Environment must be staging or production.");
+  process.exit(1);
+}
+
+const projectRef = getProjectRef(environment);
+const linkedProjectRef = readLinkedProjectRef();
+if (environment && !projectRef) {
+  console.error(`Could not find a Supabase URL in .env.${environment}.local.`);
+  process.exit(1);
+}
+if (environment && linkedProjectRef && projectRef !== linkedProjectRef) {
+  console.error(`Refusing to run ${environment} migrations against the linked project.`);
+  console.error(`Expected: ${projectRef}`);
+  console.error(`Linked:   ${linkedProjectRef}`);
+  console.error(`Run: npx supabase link --project-ref ${projectRef}`);
+  process.exit(1);
+}
 const npx = "npx";
 const baseArgs = ["--yes", "supabase@latest"];
 
@@ -53,7 +72,7 @@ if (mode === "status") {
   console.log("Applying pending migrations to the linked Supabase project...");
   console.log("Supabase CLI will only push migrations that are not already recorded remotely.");
   console.log("");
-  runSupabase(["db", "push", "--linked"]);
+  runSupabase(["db", "push", "--linked", ...(includeAll ? ["--include-all"] : [])]);
 }
 
 function runSupabase(args) {
@@ -82,11 +101,16 @@ function runSupabase(args) {
   }
 }
 
-function getProjectRef() {
-  const env = readEnvFile(".env.local");
-  const url = env.NEXT_PUBLIC_SUPABASE_URL;
+function getProjectRef(environment) {
+  const env = readEnvFile(environment ? `.env.${environment}.local` : ".env.local");
+  const url = env.NEXT_PUBLIC_SUPABASE_URL ?? env[`${environment?.toUpperCase()}_SUPABASE_URL`];
   const match = url?.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co\/?$/i);
   return match?.[1] ?? null;
+}
+
+function readLinkedProjectRef() {
+  const path = "supabase/.temp/project-ref";
+  return existsSync(path) ? readFileSync(path, "utf8").trim() || null : null;
 }
 
 function readEnvFile(path) {

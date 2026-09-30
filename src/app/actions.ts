@@ -153,6 +153,34 @@ export async function joinWaitlist(
   };
 }
 
+/* ---------------------------------------------------- launch notify list -- */
+
+const launchNotifySchema = z.object({
+  email: z.string().trim().email("Enter a valid email address"),
+});
+
+export async function joinLaunchNotifyListAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = launchNotifySchema.safeParse({ email: formData.get("email") });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  if (isSupabaseConfigured()) {
+    const sb = await createClient();
+    const { error } = await sb
+      .from("launch_notify_signups")
+      .insert({ email: parsed.data.email.toLowerCase() });
+    if (error && error.code !== "23505") {
+      return { ok: false, error: "Couldn't save that — try again in a moment." };
+    }
+  }
+
+  return { ok: true, message: "You're on the list — we'll email you the moment we launch." };
+}
+
 /**
  * Venue-owner interest, via the same waitlist table as the player waitlist
  * above — just tagged role: 'venue_owner' so we know to follow up about

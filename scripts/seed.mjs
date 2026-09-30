@@ -1,9 +1,11 @@
 /**
  * Push the canonical seed data into a real Supabase project.
  *
- *   npm run seed
+ *   npm run seed:staging
  *
- * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local.
+ * Requires STAGING_SUPABASE_URL and STAGING_SUPABASE_SERVICE_ROLE_KEY in
+ * .env.staging.local. It deliberately never reads .env.local so it cannot
+ * seed the live database by accident.
  * The service role key bypasses row-level security — it is server-only and must
  * never be committed or exposed to the browser.
  *
@@ -15,7 +17,12 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 /* --------------------------------------------------- load .env.local ----- */
-const envPath = resolve(process.cwd(), ".env.local");
+if (!process.argv.includes("--staging")) {
+  console.error("\n  Refusing to seed without an explicit staging target.\n  Run: npm run seed:staging\n");
+  process.exit(1);
+}
+
+const envPath = resolve(process.cwd(), ".env.staging.local");
 if (existsSync(envPath)) {
   for (const line of readFileSync(envPath, "utf8").split("\n")) {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
@@ -25,13 +32,18 @@ if (existsSync(envPath)) {
   }
 }
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (process.env.TEMPO_ENV !== "staging") {
+  console.error("\n  .env.staging.local must include TEMPO_ENV=staging.\n");
+  process.exit(1);
+}
+
+const url = process.env.STAGING_SUPABASE_URL;
+const key = process.env.STAGING_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!url || !key) {
   console.error(
     "\n  Missing credentials.\n" +
-      "  Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env.local\n" +
+      "  Add STAGING_SUPABASE_URL and STAGING_SUPABASE_SERVICE_ROLE_KEY to .env.staging.local\n" +
       "  (Supabase dashboard → Project Settings → API)\n",
   );
   process.exit(1);

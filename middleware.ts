@@ -1,8 +1,23 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isLiveProduction } from "@/lib/env";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+/**
+ * Pre-launch lock: production sends every route to /coming-soon, full stop
+ * — no exceptions for existing accounts, by design. Staging/preview is
+ * unaffected (isLiveProduction() is false there), so the real app stays
+ * fully usable for the team and the client. API routes are excluded so
+ * payment webhooks and cron automation keep running behind the scenes.
+ */
+function comingSoonGate(request: NextRequest): NextResponse | null {
+  if (!isLiveProduction()) return null;
+  const { pathname } = request.nextUrl;
+  if (pathname === "/coming-soon" || pathname.startsWith("/api/")) return null;
+  return NextResponse.redirect(new URL("/coming-soon", request.url));
+}
 
 /**
  * Refreshes the Supabase session cookie on every request. Without this,
@@ -11,6 +26,9 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
  * No-ops entirely in demo mode (no Supabase configured).
  */
 export async function middleware(request: NextRequest) {
+  const gate = comingSoonGate(request);
+  if (gate) return gate;
+
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     return NextResponse.next();
   }

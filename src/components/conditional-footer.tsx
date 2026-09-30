@@ -15,7 +15,7 @@ import { usePathname } from "next/navigation";
  * renders <Footer /> on the server and passes the result in as children,
  * and this just decides whether to show it.
  */
-const HIDDEN_PREFIXES = ["/dashboard", "/wallet", "/venue", "/admin"];
+const HIDDEN_PREFIXES = ["/dashboard", "/wallet", "/venue", "/admin", "/coming-soon"];
 
 export function ConditionalFooter({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
