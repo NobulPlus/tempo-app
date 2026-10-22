@@ -16,6 +16,7 @@ import {
   WalletIcon,
   BuildingIcon,
   ChatIcon,
+  StarIcon,
 } from "./icons";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
@@ -28,6 +29,7 @@ const LINKS = [
   { href: "/", label: "Home", Icon: HomeIcon },
   { href: "/pitches", label: "Pitches", Icon: PitchIcon },
   { href: "/games", label: "Games", Icon: BallIcon },
+  { href: "/rewards", label: "Rewards", Icon: StarIcon },
 ];
 
 export function Nav({
