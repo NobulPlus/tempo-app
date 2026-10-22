@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { getHostPayoutOverview, getWalletBalance, getWalletTransactions } from "@/lib/data/repo";
@@ -32,12 +33,19 @@ export default async function WalletPage({
   return (
     <div className="py-12">
       <div className="container-t max-w-3xl">
-        <h1 className="font-display text-[clamp(26px,4.5vw,36px)] font-extrabold tracking-[-.02em]">
-          Your wallet
-        </h1>
-        <p className="mt-2 text-[15px] text-ink-soft">
-          Your Tempo credit ledger for refunds, reimbursements and hosting earnings.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="font-display text-[clamp(26px,4.5vw,36px)] font-extrabold tracking-[-.02em]">
+              Your wallet
+            </h1>
+            <p className="mt-2 text-[15px] text-ink-soft">
+              Your Tempo credit ledger for refunds, reimbursements and hosting earnings.
+            </p>
+          </div>
+          <Link href="/rewards" className="btn-t btn-ghost-t !py-2.5 !text-[13.5px]">
+            View rewards
+          </Link>
+        </div>
 
         {topup === "success" && (
           <p className="mt-4 flex items-center gap-2 rounded-lg border border-green/30 bg-green/10 px-4 py-3 text-[13.5px] text-green">

@@ -6,6 +6,7 @@ import { getGamesForUser } from "@/lib/data/repo";
 import { getMatchState } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { ArrowRightIcon, BallIcon, CalendarIcon, WalletIcon } from "@/components/icons";
+import { HostTierBadge } from "@/components/player/player-card";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,12 @@ export default async function HostManagePage() {
   const totalReimbursedKobo = hosted.reduce((sum, game) => sum + (game.hostReimbursedKobo ?? 0), 0);
   const totalEarningsKobo = hosted.reduce((sum, game) => sum + (game.hostEarningsKobo ?? 0), 0);
 
+  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+  const hostedLast30Days = hosted.filter((game) => {
+    const start = new Date(game.startsAt).getTime();
+    return game.status !== "cancelled" && start >= thirtyDaysAgo && start < now;
+  }).length;
+
   return (
     <div className="py-12">
       <div className="container-t">
@@ -46,9 +53,16 @@ export default async function HostManagePage() {
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-[clamp(30px,5vw,44px)] font-extrabold">Host dashboard</h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-[clamp(30px,5vw,44px)] font-extrabold">Host dashboard</h1>
+              <HostTierBadge tier={user.hostTier} />
+            </div>
             <p className="mt-2 max-w-2xl text-[16px] leading-relaxed text-ink-soft">
               Track the games you created, watch the roster fill up, and handle minimum decisions from each game page.
+            </p>
+            <p className="mt-1 text-[13px] text-ink-muted">
+              {hostedLast30Days} game{hostedLast30Days === 1 ? "" : "s"} hosted in the last 30 days
+              {user.hostTier !== "elite" && " — host more to climb tiers"}.
             </p>
           </div>
           <Link href="/host" className="btn-t btn-green-t !py-3 !text-[14px]">

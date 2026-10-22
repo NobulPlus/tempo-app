@@ -35,6 +35,7 @@ import type {
   Foot,
   BookingTransferOffer,
   PitchAvailabilitySchedule,
+  PlayerPointsSummary,
 } from "@/lib/types";
 
 /** The shape a `profiles` row has right after `camelize` — flat trait_*
@@ -824,8 +825,22 @@ function applyGameQuery(all: GameFull[], query: GameQuery): GameFull[] {
       }
       return true;
     })
-    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    .sort((a, b) => {
+      // Chronological order is still what makes this listing useful, so it
+      // stays the primary key. Gold/elite "priority placement" only kicks
+      // in as a secondary sort within the same calendar day — a Bronze
+      // host's game starting in an hour never gets buried behind a Gold
+      // host's game next week.
+      const dayA = a.startsAt.slice(0, 10);
+      const dayB = b.startsAt.slice(0, 10);
+      if (dayA !== dayB) return dayA.localeCompare(dayB);
+      const tierDiff = HOST_TIER_WEIGHT[b.host.hostTier] - HOST_TIER_WEIGHT[a.host.hostTier];
+      if (tierDiff !== 0) return tierDiff;
+      return a.startsAt.localeCompare(b.startsAt);
+    });
 }
+
+const HOST_TIER_WEIGHT: Record<string, number> = { elite: 3, gold: 2, silver: 1, bronze: 0 };
 
 export async function getGameBySlug(slug: string): Promise<GameFull | null> {
   if (!demoMode()) {
@@ -2260,6 +2275,34 @@ export async function getGamesForUser(userId: string): Promise<GameFull[]> {
     .filter((g) => mine.has(g.id) || g.hostId === userId)
     .map(hydrateGame)
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+}
+
+/* -------------------------------------------------- rewards & tiers ---- */
+
+export async function getPlayerPointsSummary(userId: string): Promise<PlayerPointsSummary> {
+  if (demoMode()) return { monthlyPoints: 0, lifetimePoints: 0 };
+  const sb = await createClient();
+  const { data } = await sb.from("player_point_entries").select("points, created_at").eq("user_id", userId);
+  const rows = data ?? [];
+  const monthKey = new Date().toISOString().slice(0, 7);
+  const monthlyPoints = rows
+    .filter((r) => String(r.created_at).slice(0, 7) === monthKey)
+    .reduce((sum, r) => sum + Number(r.points), 0);
+  const lifetimePoints = rows
+    .filter((r) => Number(r.points) > 0)
+    .reduce((sum, r) => sum + Number(r.points), 0);
+  return { monthlyPoints, lifetimePoints };
+}
+
+export async function redeemPoints(
+  userId: string,
+  pointsCost: number,
+): Promise<{ ok: true; creditedKobo: number } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Rewards aren't available in demo mode." };
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("redeem_points", { p_user: userId, p_points_cost: pointsCost });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, creditedKobo: Number(data) };
 }
 
 /* ------------------------------------------------------------------ venues */

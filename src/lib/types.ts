@@ -277,6 +277,18 @@ export interface PlayerProfile {
   peerRating: number | null;
   peerRatingCount: number;
   traits: PlayerTraits;
+  /** Set only by recompute_host_tier() — never client-writable. Derived from
+   * games hosted in the trailing 30 days. */
+  hostTier: HostTier;
+}
+
+/** Bronze/silver/gold/elite, based on games hosted in a rolling 30-day
+ * window — see recompute_host_tier() in 0061_rewards_and_host_tiers.sql. */
+export type HostTier = "bronze" | "silver" | "gold" | "elite";
+
+export interface PlayerPointsSummary {
+  monthlyPoints: number;
+  lifetimePoints: number;
 }
 
 /** Peer-voted attributes, 0–100. Earned, never self-declared. */
@@ -422,7 +434,7 @@ export interface MessageReport {
   reportedUser?: Pick<PlayerProfile, "fullName" | "handle">;
 }
 
-export type UserNotificationKind = "payment" | "waitlist_promoted" | "host_earnings" | "payout" | "game" | "system" | "booking";
+export type UserNotificationKind = "payment" | "waitlist_promoted" | "host_earnings" | "payout" | "game" | "system" | "booking" | "reward_earned" | "tier_promoted";
 
 export interface UserNotification {
   id: string;

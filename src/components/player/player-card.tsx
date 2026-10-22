@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { PlayerProfile, PlayerTraits } from "@/lib/types";
+import type { HostTier, PlayerProfile, PlayerTraits } from "@/lib/types";
 import { FlameIcon, StarIcon, ShieldIcon, BallIcon } from "@/components/icons";
 
 /* ---------------------------------------------------------------- traits -- */
@@ -178,6 +178,39 @@ export function PunctualityRing({ score, size = 64 }: { score: number; size?: nu
   );
 }
 
+/* ------------------------------------------------------------- host tier -- */
+
+const TIER_LABEL: Record<HostTier, string> = {
+  bronze: "Bronze host",
+  silver: "Silver host",
+  gold: "Gold host",
+  elite: "Elite host",
+};
+
+// Full literal class strings per tier — Tailwind's scanner can't see
+// classes assembled via string interpolation (e.g. `border-${colour}/35`),
+// so each combination is spelled out in full here instead.
+const TIER_STYLE: Record<Exclude<HostTier, "bronze">, { box: string; icon: string; text: string }> = {
+  silver: { box: "border-green/35 bg-green/10", icon: "text-green", text: "text-green" },
+  gold: { box: "border-gold/35 bg-gold/10", icon: "text-gold", text: "text-gold" },
+  elite: { box: "border-orange/35 bg-orange/10", icon: "text-orange", text: "text-orange" },
+};
+
+/** Bronze is every host's default — showing it on a player who's never
+ * hosted would be noise, so this only renders once someone's actually
+ * reached Silver by hosting 5+ games in a rolling 30 days. */
+export function HostTierBadge({ tier }: { tier: HostTier }) {
+  if (tier === "bronze") return null;
+  const style = TIER_STYLE[tier];
+
+  return (
+    <div className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 ${style.box}`}>
+      <ShieldIcon size={13} className={style.icon} />
+      <span className={`text-[12.5px] font-bold ${style.text}`}>{TIER_LABEL[tier]}</span>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------ full card --- */
 
 const POSITION_LABEL: Record<string, string> = {
@@ -258,8 +291,9 @@ export function PlayerCard({ player }: { player: PlayerProfile }) {
         </div>
       </div>
 
-      <div className="relative mt-3">
+      <div className="relative mt-3 flex flex-col gap-2">
         <StreakBadge weeks={player.streakWeeks} longest={player.longestStreakWeeks} />
+        <HostTierBadge tier={player.hostTier} />
       </div>
     </div>
   );

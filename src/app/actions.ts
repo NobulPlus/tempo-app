@@ -41,6 +41,7 @@ import {
   generateSlots,
   savePitchAvailabilitySchedule,
   togglePitchAvailabilityScheduleEnabled,
+  redeemPoints,
   setSlotStatus,
   uploadVenuePhoto,
   uploadIdentityDocument,
@@ -2388,6 +2389,28 @@ export async function togglePitchAvailabilityScheduleAction(
     message: result.enabled
       ? "Automatic availability resumed."
       : "Automatic availability paused. Existing slots stay untouched.",
+  };
+}
+
+/* -------------------------------------------------------- rewards ---- */
+
+export async function redeemPointsAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const pointsCost = Number(formData.get("pointsCost") ?? 0);
+  if (![100, 250, 500, 1000].includes(pointsCost)) {
+    return { ok: false, error: "Not a valid reward." };
+  }
+
+  const result = await redeemPoints(user.id, pointsCost);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/rewards");
+  revalidatePath("/wallet");
+  return {
+    ok: true,
+    message: `Redeemed — ${formatNaira(result.creditedKobo)} added to your Tempo credit.`,
   };
 }
 
