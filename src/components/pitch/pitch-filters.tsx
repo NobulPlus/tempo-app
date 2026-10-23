@@ -24,6 +24,7 @@ export function PitchFilters({ resultCount }: { resultCount: number }) {
   const [q, setQ] = useState(params.get("q") ?? "");
   const [locating, setLocating] = useState(false);
   const [locError, setLocError] = useState<string | null>(null);
+  const [showAllAreas, setShowAllAreas] = useState(false);
 
   const hasOrigin = Boolean(params.get("lat"));
 
@@ -78,6 +79,19 @@ export function PitchFilters({ resultCount }: { resultCount: number }) {
   const size = params.get("size") ?? "all";
   const sort = params.get("sort") ?? "near";
 
+  // ~37 areas all wrapping on their own line pushed every pitch result
+  // ~900px down a mobile screen — collapse to a manageable first page of
+  // chips, keeping whatever's currently selected visible even if it isn't
+  // in that first page.
+  const VISIBLE_AREA_COUNT = 9;
+  const defaultVisible = AREAS.slice(0, VISIBLE_AREA_COUNT);
+  const visibleAreas = showAllAreas
+    ? AREAS
+    : defaultVisible.includes(area as (typeof AREAS)[number]) || area === "all"
+      ? defaultVisible
+      : [...defaultVisible, area as (typeof AREAS)[number]];
+  const hiddenAreaCount = AREAS.length - visibleAreas.length;
+
   return (
     <div className="mt-8">
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -115,7 +129,7 @@ export function PitchFilters({ resultCount }: { resultCount: number }) {
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {AREAS.map((a) => (
+        {visibleAreas.map((a) => (
           <button
             key={a}
             onClick={() => update({ area: a })}
@@ -129,6 +143,22 @@ export function PitchFilters({ resultCount }: { resultCount: number }) {
             {a === "all" ? "All areas" : a}
           </button>
         ))}
+        {!showAllAreas && hiddenAreaCount > 0 && (
+          <button
+            onClick={() => setShowAllAreas(true)}
+            className="rounded-full border border-glass-border bg-glass px-4 py-2 text-[13.5px] text-green transition hover:border-green/35"
+          >
+            +{hiddenAreaCount} more areas
+          </button>
+        )}
+        {showAllAreas && (
+          <button
+            onClick={() => setShowAllAreas(false)}
+            className="rounded-full border border-glass-border bg-glass px-4 py-2 text-[13.5px] text-ink-soft transition hover:border-ink-muted/50"
+          >
+            Show fewer
+          </button>
+        )}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">

@@ -104,20 +104,18 @@ export default async function PitchPage({
               <Image src={photo} alt="" fill unoptimized className="object-cover" />
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/10 to-transparent" />
-            <div className="absolute left-5 top-5 flex flex-wrap gap-2">
+            <div className="absolute inset-x-5 top-5 flex flex-wrap gap-2">
               <span className="chip-t !bg-black/40">{resourceLabel}</span>
               <span className="chip-t !bg-black/40">{activityLabel}</span>
               <span className="chip-t !bg-black/40">{SURFACE_LABEL[pitch.surface]}</span>
               {pitch.covered && <span className="chip-t !bg-black/40">Covered</span>}
-            </div>
-            {venue.verified && (
-              <span className="absolute right-5 top-5">
+              {venue.verified && (
                 <span className="chip-t !border-green/35 !bg-black/40 !text-green">
                   <ShieldIcon size={13} />
                   Verified by Tempo
                 </span>
-              </span>
-            )}
+              )}
+            </div>
           </div>
 
           <div className="p-6 md:p-8">
