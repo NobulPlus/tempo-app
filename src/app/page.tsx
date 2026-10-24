@@ -458,7 +458,7 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* ================= WAITLIST / CTA ================= */}
+      {/* ================= CTA / WAITLIST ================= */}
       <section className="py-24">
         <div className="container-t">
           <Reveal
@@ -468,16 +468,12 @@ export default async function HomePage() {
             <span className="spokes-t" />
             <div className="relative mx-auto max-w-2xl">
               <h2 className="font-display text-[clamp(26px,4.5vw,40px)] font-extrabold tracking-[-.02em]">
-                We&apos;re just <span className="text-gradient-brand">getting started</span>
+                Ready to <span className="text-gradient-brand">play?</span>
               </h2>
               <p className="mt-4 text-[16.5px] leading-relaxed text-ink-soft">
-                Tempo is built for Lagos-wide discovery. If your regular spot isn&apos;t
-                here yet, tell us where you play and we&apos;ll go and get it verified.
+                Find an open game near you, or host your own — Tempo handles the
+                roster, the waitlist and the money.
               </p>
-
-              <div className="mt-8">
-                <WaitlistForm />
-              </div>
 
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
                 <Link href="/games" className="btn-t btn-green-t glow-brand">
@@ -486,6 +482,17 @@ export default async function HomePage() {
                 <Link href="/host" className="btn-t btn-ghost-t">
                   Host a game
                 </Link>
+              </div>
+
+              <div className="mt-10 border-t border-glass-border pt-8">
+                <p className="text-[14.5px] font-bold">Don&apos;t see your regular spot yet?</p>
+                <p className="mt-1 text-[13.5px] text-ink-soft">
+                  Tempo is built for Lagos-wide discovery — tell us where you play
+                  and we&apos;ll go get it verified.
+                </p>
+                <div className="mt-5">
+                  <WaitlistForm />
+                </div>
               </div>
             </div>
           </Reveal>

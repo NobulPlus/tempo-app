@@ -24,28 +24,29 @@ export function WaitlistForm() {
 
   return (
     <form action={formAction} className="mx-auto max-w-lg">
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted">
-            <MailIcon size={17} />
-          </span>
-          <input
-            name="contact"
-            required
-            placeholder="Email or 0801 234 5678"
-            aria-label="Email address or phone number"
-            autoComplete="email"
-            className="w-full rounded-full border border-glass-border bg-glass py-3.5 pl-11 pr-4 text-[14.5px] outline-none transition focus:border-green/50"
-            suppressHydrationWarning
-          />
-        </div>
+      <div className="relative">
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted">
+          <MailIcon size={17} />
+        </span>
+        <input
+          name="contact"
+          required
+          placeholder="Email or 0801 234 5678"
+          aria-label="Email address or phone number"
+          autoComplete="email"
+          className="w-full rounded-full border border-glass-border bg-glass py-3.5 pl-11 pr-4 text-[14.5px] outline-none transition focus:border-green/50"
+          suppressHydrationWarning
+        />
+      </div>
+
+      <div className="mt-3 flex flex-col gap-3 sm:flex-row">
         <input
           name="area"
           placeholder="Where do you play?"
           aria-label="Your area"
-          className="rounded-full border border-glass-border bg-glass px-5 py-3.5 text-[14.5px] outline-none transition focus:border-green/50 sm:w-44"
+          className="min-w-0 flex-1 rounded-full border border-glass-border bg-glass px-5 py-3.5 text-[14.5px] outline-none transition focus:border-green/50"
         />
-        <button type="submit" disabled={pending} className="btn-t btn-green-t !py-3.5">
+        <button type="submit" disabled={pending} className="btn-t btn-green-t shrink-0 !py-3.5">
           {pending ? "Adding…" : "Notify me"}
         </button>
       </div>
