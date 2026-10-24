@@ -3,11 +3,6 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { SearchIcon, PinIcon } from "@/components/icons";
-import { LAGOS_AREA_OPTIONS } from "@/lib/lagos";
-
-const AREAS = ["all", ...LAGOS_AREA_OPTIONS] as const;
-
-const SIZES = ["all", "5-a-side", "7-a-side", "11-a-side"];
 
 const SORTS = [
   { key: "near", label: "Nearest" },
@@ -15,7 +10,19 @@ const SORTS = [
   { key: "rated", label: "Top rated" },
 ];
 
-export function PitchFilters({ resultCount }: { resultCount: number }) {
+export function PitchFilters({
+  resultCount,
+  areas,
+  sizes,
+}: {
+  resultCount: number;
+  /** Only areas/sizes with at least one active pitch — never the full
+   * static Lagos area list, so every chip here actually returns results. */
+  areas: string[];
+  sizes: string[];
+}) {
+  const AREAS = ["all", ...areas];
+  const SIZES = ["all", ...sizes];
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -79,17 +86,17 @@ export function PitchFilters({ resultCount }: { resultCount: number }) {
   const size = params.get("size") ?? "all";
   const sort = params.get("sort") ?? "near";
 
-  // ~37 areas all wrapping on their own line pushed every pitch result
-  // ~900px down a mobile screen — collapse to a manageable first page of
-  // chips, keeping whatever's currently selected visible even if it isn't
-  // in that first page.
+  // With the full static Lagos area list this used to wrap to ~900px of
+  // chips before any mobile pitch result — now AREAS only ever contains
+  // areas with a real pitch in them, so this collapse rarely triggers, but
+  // stays in place for when there are enough real areas to need it again.
   const VISIBLE_AREA_COUNT = 9;
   const defaultVisible = AREAS.slice(0, VISIBLE_AREA_COUNT);
   const visibleAreas = showAllAreas
     ? AREAS
-    : defaultVisible.includes(area as (typeof AREAS)[number]) || area === "all"
+    : defaultVisible.includes(area) || area === "all"
       ? defaultVisible
-      : [...defaultVisible, area as (typeof AREAS)[number]];
+      : [...defaultVisible, area];
   const hiddenAreaCount = AREAS.length - visibleAreas.length;
 
   return (

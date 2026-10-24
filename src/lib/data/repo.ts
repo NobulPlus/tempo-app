@@ -2542,6 +2542,17 @@ export async function listAreas(): Promise<string[]> {
   return Array.from(new Set(store().venues.map((v) => v.area))).sort();
 }
 
+/** Distinct active pitch sizes — so the size filter only ever offers
+ * options that actually exist, same reasoning as listAreas(). */
+export async function listPitchSizes(): Promise<string[]> {
+  if (!demoMode()) {
+    const sb = await createClient();
+    const { data } = await sb.from("pitches").select("size").eq("active", true);
+    return Array.from(new Set((data ?? []).map((p) => p.size as string))).sort();
+  }
+  return Array.from(new Set(store().pitches.filter((p) => p.active).map((p) => p.size))).sort();
+}
+
 export async function getVenueStats(venueId: string) {
   if (!demoMode()) {
     const sb = await createClient();

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { listPitches } from "@/lib/data/repo";
+import { listPitches, listAreas, listPitchSizes } from "@/lib/data/repo";
 import { formatNaira } from "@/lib/format";
 import { PitchCard } from "@/components/pitch/pitch-card";
 import { PitchFilters } from "@/components/pitch/pitch-filters";
@@ -29,13 +29,17 @@ export default async function PitchesPage({
   const lng = one("lng");
   const origin = lat && lng ? { lat: Number(lat), lng: Number(lng) } : undefined;
 
-  const pitches = await listPitches({
-    q: one("q"),
-    area: one("area"),
-    size: one("size"),
-    sort: (one("sort") as "near" | "cheap" | "rated") ?? (origin ? "near" : "rated"),
-    origin,
-  });
+  const [pitches, areas, sizes] = await Promise.all([
+    listPitches({
+      q: one("q"),
+      area: one("area"),
+      size: one("size"),
+      sort: (one("sort") as "near" | "cheap" | "rated") ?? (origin ? "near" : "rated"),
+      origin,
+    }),
+    listAreas(),
+    listPitchSizes(),
+  ]);
   const featuredPitch = pitches[0];
   const featuredPhoto = featuredPitch?.photos?.[0] ?? featuredPitch?.venue.photos[0];
 
@@ -57,7 +61,7 @@ export default async function PitchesPage({
         </div>
 
         <Suspense fallback={<div className="mt-8 h-32" />}>
-          <PitchFilters resultCount={pitches.length} />
+          <PitchFilters resultCount={pitches.length} areas={areas} sizes={sizes} />
         </Suspense>
 
         {pitches.length === 0 ? (

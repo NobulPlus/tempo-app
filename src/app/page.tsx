@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { getPlatformStats, getUrgentGames, listPitches } from "@/lib/data/repo";
+import { getPlatformStats, getUrgentGames, listPitches, listAreas } from "@/lib/data/repo";
 import { formatNaira } from "@/lib/format";
 import { isLiveProduction } from "@/lib/env";
 import { testimonials } from "@/lib/mock/testimonials";
@@ -24,18 +24,18 @@ import {
   DoodlePlayIcon,
 } from "@/components/icons";
 import { WaitlistForm } from "@/components/waitlist-form";
-import { LAGOS_AREA_OPTIONS } from "@/lib/lagos";
 
 export const dynamic = "force-dynamic";
 
-const AREAS = LAGOS_AREA_OPTIONS.slice(0, 10);
-
 export default async function HomePage() {
-  const [stats, urgent, topPitches] = await Promise.all([
+  const [stats, urgent, topPitches, allAreas] = await Promise.all([
     getPlatformStats(),
     getUrgentGames(2),
     listPitches({ sort: "rated" }),
+    listAreas(),
   ]);
+  // Only areas with a real venue — never the full static Lagos list.
+  const AREAS = allAreas.slice(0, 10);
   const topPitch = topPitches[0];
   const topPitchPhoto = topPitch?.photos?.[0] ?? topPitch?.venue.photos[0];
 
