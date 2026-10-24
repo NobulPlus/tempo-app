@@ -178,9 +178,6 @@ export default async function HomePage() {
           {stats.verifiedVenues}
         </span>
         <div className="container-t relative">
-          <p className="mb-8 text-center font-display text-[13px] font-bold tracking-[2px] text-ink-muted">
-            THE NUMBERS NEVER LIE
-          </p>
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
             {[
               { value: stats.verifiedVenues, label: "Verified venues", hint: "Visited and inspected in person" },
