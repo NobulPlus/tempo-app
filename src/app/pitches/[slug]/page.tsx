@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { getPitchBySlug, listGames, getSlotsForPitch } from "@/lib/data/repo";
 import { GameCard } from "@/components/match/game-card";
 import { SlotPicker } from "@/components/pitch/slot-picker";
+import { PitchGallery } from "@/components/pitch/pitch-gallery";
 import { formatNaira } from "@/lib/format";
 import { estimateTravelMinutes } from "@/lib/match";
 import {
@@ -73,7 +73,7 @@ export default async function PitchPage({
   const [allGames, slots] = await Promise.all([listGames(), getSlotsForPitch(pitch.id)]);
   const gamesHere = allGames.filter((g) => g.pitchId === pitch.id);
   const { venue } = pitch;
-  const photo = pitch.photos?.[0] ?? venue.photos[0];
+  const photos = pitch.photos?.length ? pitch.photos : venue.photos;
   const resourceLabel = venueOptionLabel(RESOURCE_TYPE_OPTIONS, pitch.resourceType ?? "pitch");
   const activityLabel = venueOptionLabel(ACTIVITY_OPTIONS, pitch.activityType ?? "football");
   const featureValues = pitch.amenities?.length ? pitch.amenities : venue.amenities;
@@ -99,24 +99,23 @@ export default async function PitchPage({
         </nav>
 
         <div className="card-t relative overflow-hidden">
-          <div className="relative h-[210px] md:h-[280px]">
-            {photo && (
-              <Image src={photo} alt="" fill unoptimized className="object-cover" />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-bg-card via-bg-card/10 to-transparent" />
-            <div className="absolute inset-x-5 top-5 flex flex-wrap gap-2">
-              <span className="chip-t !bg-black/40">{resourceLabel}</span>
-              <span className="chip-t !bg-black/40">{activityLabel}</span>
-              <span className="chip-t !bg-black/40">{SURFACE_LABEL[pitch.surface]}</span>
-              {pitch.covered && <span className="chip-t !bg-black/40">Covered</span>}
-              {venue.verified && (
-                <span className="chip-t !border-green/35 !bg-black/40 !text-green">
-                  <ShieldIcon size={13} />
-                  Verified by Tempo
-                </span>
-              )}
-            </div>
-          </div>
+          <PitchGallery
+            photos={photos}
+            badges={
+              <>
+                <span className="chip-t !bg-black/40">{resourceLabel}</span>
+                <span className="chip-t !bg-black/40">{activityLabel}</span>
+                <span className="chip-t !bg-black/40">{SURFACE_LABEL[pitch.surface]}</span>
+                {pitch.covered && <span className="chip-t !bg-black/40">Covered</span>}
+                {venue.verified && (
+                  <span className="chip-t !border-green/35 !bg-black/40 !text-green">
+                    <ShieldIcon size={13} />
+                    Verified by Tempo
+                  </span>
+                )}
+              </>
+            }
+          />
 
           <div className="p-6 md:p-8">
             <div className="flex flex-wrap items-start justify-between gap-4">

@@ -60,6 +60,10 @@ const sb = createClient(url, key, { auth: { persistSession: false } });
 // here or a future seed run will silently bring the dummy data back.
 // Address/phone below are best-effort placeholders pending exact details
 // from the signed agreements, not verified contact info.
+function venuePhoto(slug, file) {
+  return `${process.env.STAGING_SUPABASE_URL}/storage/v1/object/public/venue-photos/seed/${slug}/${file}`;
+}
+
 const VENUES = [
   {
     slug: "astro-ikoyi",
@@ -74,7 +78,11 @@ const VENUES = [
     amenities: ["Floodlights", "Showers", "Parking", "Security", "Changing rooms"],
     description:
       "Nigeria's original 5-a-side ground — built in 2006 as the country's first purpose-made pitch of its kind, and still the benchmark every newer place gets compared to.",
-    photos: [`${process.env.STAGING_SUPABASE_URL}/storage/v1/object/public/venue-photos/seed/astro-ikoyi/astro-ikoyi-1.jpg`],
+    photos: [
+      venuePhoto("astro-ikoyi", "astro-ikoyi-1.jpg"),
+      venuePhoto("astro-ikoyi", "astro-ikoyi-2.jpg"),
+      venuePhoto("astro-ikoyi", "astro-ikoyi-3.jpg"),
+    ],
   },
   {
     slug: "upbeat-lekki",
@@ -89,7 +97,10 @@ const VENUES = [
     amenities: ["Floodlights", "Parking", "Security", "Cafe"],
     description:
       "Part of the Upbeat recreation complex on Admiralty Road — trampoline park and basketball court next door, so it's as much a hangout as a pitch.",
-    photos: [`${process.env.STAGING_SUPABASE_URL}/storage/v1/object/public/venue-photos/seed/upbeat-lekki/upbeat-lekki-1.jpg`],
+    photos: [
+      venuePhoto("upbeat-lekki", "upbeat-lekki-1.jpg"),
+      venuePhoto("upbeat-lekki", "upbeat-lekki-2.jpg"),
+    ],
   },
   {
     slug: "playground-lsp",
@@ -104,7 +115,10 @@ const VENUES = [
     amenities: ["Floodlights", "Parking", "Security"],
     description:
       "Leisure Sports Park — a multi-sport complex off the 4th Roundabout with padel, archery, paintball and basketball alongside the football court. Busy, social, more than just a pitch.",
-    photos: [`${process.env.STAGING_SUPABASE_URL}/storage/v1/object/public/venue-photos/seed/playground-lsp/playground-lsp-1.jpg`],
+    photos: [
+      venuePhoto("playground-lsp", "playground-lsp-1.jpg"),
+      venuePhoto("playground-lsp", "playground-lsp-2.jpg"),
+    ],
   },
 ];
 
