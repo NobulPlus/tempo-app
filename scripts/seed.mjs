@@ -149,6 +149,53 @@ const VENUES = [
     amenities: ["Floodlights", "Parking"],
     description: "Student-run pitch beside the polytechnic. Cheapest game in Lagos.",
   },
+  // Partner venues — address/phone are best-effort placeholders pending
+  // exact details from the signed agreements, not verified contact info.
+  {
+    slug: "astro-ikoyi",
+    name: "Astro Ikoyi",
+    area: "Ikoyi",
+    side: "island",
+    address: "Ikoyi, Lagos",
+    lat: 6.4531,
+    lng: 3.4367,
+    phone: "+2348012223344",
+    verified: true,
+    amenities: ["Floodlights", "Showers", "Parking", "Security", "Changing rooms"],
+    description:
+      "Nigeria's original 5-a-side ground — built in 2006 as the country's first purpose-made pitch of its kind, and still the benchmark every newer place gets compared to.",
+    photos: [`${process.env.STAGING_SUPABASE_URL}/storage/v1/object/public/venue-photos/seed/astro-ikoyi/astro-ikoyi-1.jpg`],
+  },
+  {
+    slug: "upbeat-lekki",
+    name: "Upbeat",
+    area: "Lekki Phase 1",
+    side: "island",
+    address: "Admiralty Road, Lekki Phase 1, Lagos",
+    lat: 6.4468,
+    lng: 3.4699,
+    phone: "+2348013334455",
+    verified: true,
+    amenities: ["Floodlights", "Parking", "Security", "Cafe"],
+    description:
+      "Part of the Upbeat recreation complex on Admiralty Road — trampoline park and basketball court next door, so it's as much a hangout as a pitch.",
+    photos: [`${process.env.STAGING_SUPABASE_URL}/storage/v1/object/public/venue-photos/seed/upbeat-lekki/upbeat-lekki-1.jpg`],
+  },
+  {
+    slug: "playground-lsp",
+    name: "Playground LSP",
+    area: "Lekki",
+    side: "island",
+    address: "39 Kusenla Road, Ikate Elegushi, Lekki, Lagos",
+    lat: 6.4452,
+    lng: 3.4821,
+    phone: "+2348014445566",
+    verified: true,
+    amenities: ["Floodlights", "Parking", "Security"],
+    description:
+      "Leisure Sports Park — a multi-sport complex off the 4th Roundabout with padel, archery, paintball and basketball alongside the football court. Busy, social, more than just a pitch.",
+    photos: [`${process.env.STAGING_SUPABASE_URL}/storage/v1/object/public/venue-photos/seed/playground-lsp/playground-lsp-1.jpg`],
+  },
 ];
 
 const PITCHES = [
@@ -161,6 +208,9 @@ const PITCHES = [
   ["teslim-balogun-turf", "teslim-balogun-turf-main", "Main Bowl", "11-a-side", "grass", 5_000_000, 1.5],
   ["gra-sports-club", "gra-sports-club-turf", "Club Turf", "7-a-side", "astro", 2_800_000, 1.2],
   ["yaba-tech-turf", "yaba-tech-turf-main", "The Turf", "5-a-side", "concrete", 1_200_000, 1.1],
+  ["astro-ikoyi", "astro-ikoyi-main", "Main Pitch", "5-a-side", "astro", 3_800_000, 1.3],
+  ["upbeat-lekki", "upbeat-lekki-pitch", "The Pitch", "5-a-side", "astro", 3_200_000, 1.3],
+  ["playground-lsp", "playground-lsp-court", "Football Court", "5-a-side", "concrete", 1_000_000, 1.2],
 ];
 
 async function main() {
@@ -173,7 +223,7 @@ async function main() {
       VENUES.map((v) => ({
         ...v,
         verified_at: v.verified ? new Date().toISOString() : null,
-        photos: [],
+        photos: v.photos ?? [],
       })),
       { onConflict: "slug" },
     )
