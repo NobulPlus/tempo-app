@@ -53,104 +53,14 @@ const sb = createClient(url, key, { auth: { persistSession: false } });
 
 /* ------------------------------------------------------------- venues ---- */
 
+// Real partner venues only — the earlier fictional placeholder venues
+// (Paradise Park Arena, The Yard Lekki, Sabi Sports Centre, Onikan Sports
+// Hub, Teslim Balogun Turf, GRA Sports Club, Yaba Tech Turf) were removed
+// from staging once real venues existed to replace them; don't re-add them
+// here or a future seed run will silently bring the dummy data back.
+// Address/phone below are best-effort placeholders pending exact details
+// from the signed agreements, not verified contact info.
 const VENUES = [
-  {
-    slug: "paradise-park-arena",
-    name: "Paradise Park Arena",
-    area: "Ikoyi",
-    side: "island",
-    address: "12 Glover Road, Ikoyi, Lagos",
-    lat: 6.4541,
-    lng: 3.4348,
-    phone: "+2348031234567",
-    verified: true,
-    amenities: ["Floodlights", "Showers", "Parking", "Security", "First aid", "Bibs"],
-    description:
-      "Two full-size astro pitches behind the old tennis club. Gated, well lit, and the only place in Ikoyi where you can reliably get a game after 9pm.",
-  },
-  {
-    slug: "the-yard-lekki",
-    name: "The Yard, Lekki",
-    area: "Lekki Phase 1",
-    side: "island",
-    address: "Admiralty Way, Lekki Phase 1, Lagos",
-    lat: 6.4478,
-    lng: 3.4723,
-    phone: "+2348027654321",
-    verified: true,
-    amenities: ["Floodlights", "Showers", "Parking", "Security", "Cafe"],
-    description:
-      "The busiest five-a-side spot on the Island. Three courts, floodlit until midnight.",
-  },
-  {
-    slug: "sabi-sports-centre",
-    name: "Sabi Sports Centre",
-    area: "Victoria Island",
-    side: "island",
-    address: "Ozumba Mbadiwe Avenue, Victoria Island, Lagos",
-    lat: 6.4281,
-    lng: 3.4219,
-    phone: "+2348039876543",
-    verified: true,
-    amenities: ["Floodlights", "Showers", "Parking", "Air conditioning", "Security"],
-    description:
-      "Indoor, air-conditioned, and the only pitch in Lagos where the rain is somebody else's problem.",
-  },
-  {
-    slug: "onikan-sports-hub",
-    name: "Onikan Sports Hub",
-    area: "Onikan",
-    side: "island",
-    address: "Cathedral Street, Onikan, Lagos Island",
-    lat: 6.4433,
-    lng: 3.4064,
-    phone: "+2348051112233",
-    verified: true,
-    amenities: ["Floodlights", "Parking", "Security", "Changing rooms"],
-    description: "Old-school Lagos Island ground, resurfaced in 2025.",
-  },
-  {
-    slug: "teslim-balogun-turf",
-    name: "Teslim Balogun Turf",
-    area: "Surulere",
-    side: "mainland",
-    address: "Teslim Balogun Stadium complex, Surulere, Lagos",
-    lat: 6.4969,
-    lng: 3.3481,
-    phone: "+2348064445566",
-    verified: true,
-    amenities: ["Floodlights", "Showers", "Parking", "Security", "Stands", "First aid"],
-    description:
-      "Full eleven-a-side natural grass inside the stadium complex. Proper football, proper dugouts.",
-  },
-  {
-    slug: "gra-sports-club",
-    name: "GRA Sports Club",
-    area: "Ikeja GRA",
-    side: "mainland",
-    address: "Isaac John Street, Ikeja GRA, Lagos",
-    lat: 6.5833,
-    lng: 3.35,
-    phone: "+2348077778899",
-    verified: true,
-    amenities: ["Floodlights", "Parking", "Bar", "Security"],
-    description: "Members' club with the best surface north of the bridge.",
-  },
-  {
-    slug: "yaba-tech-turf",
-    name: "Yaba Tech Turf",
-    area: "Yaba",
-    side: "mainland",
-    address: "Herbert Macaulay Way, Yaba, Lagos",
-    lat: 6.5095,
-    lng: 3.3711,
-    phone: "+2348090001122",
-    verified: false,
-    amenities: ["Floodlights", "Parking"],
-    description: "Student-run pitch beside the polytechnic. Cheapest game in Lagos.",
-  },
-  // Partner venues — address/phone are best-effort placeholders pending
-  // exact details from the signed agreements, not verified contact info.
   {
     slug: "astro-ikoyi",
     name: "Astro Ikoyi",
@@ -199,15 +109,6 @@ const VENUES = [
 ];
 
 const PITCHES = [
-  ["paradise-park-arena", "paradise-park-arena-pitch-a", "Pitch A", "7-a-side", "astro", 4_000_000, 1.3],
-  ["paradise-park-arena", "paradise-park-arena-pitch-b", "Pitch B", "5-a-side", "astro", 3_000_000, 1.3],
-  ["the-yard-lekki", "the-yard-lekki-court-1", "Court 1", "5-a-side", "astro", 3_000_000, 1.4],
-  ["the-yard-lekki", "the-yard-lekki-court-2", "Court 2", "7-a-side", "astro", 3_800_000, 1.4],
-  ["sabi-sports-centre", "sabi-sports-centre-indoor", "Indoor Arena", "5-a-side", "indoor", 4_500_000, 1.25],
-  ["onikan-sports-hub", "onikan-sports-hub-main", "Main Pitch", "7-a-side", "astro", 2_200_000, 1.2],
-  ["teslim-balogun-turf", "teslim-balogun-turf-main", "Main Bowl", "11-a-side", "grass", 5_000_000, 1.5],
-  ["gra-sports-club", "gra-sports-club-turf", "Club Turf", "7-a-side", "astro", 2_800_000, 1.2],
-  ["yaba-tech-turf", "yaba-tech-turf-main", "The Turf", "5-a-side", "concrete", 1_200_000, 1.1],
   ["astro-ikoyi", "astro-ikoyi-main", "Main Pitch", "5-a-side", "astro", 3_800_000, 1.3],
   ["upbeat-lekki", "upbeat-lekki-pitch", "The Pitch", "5-a-side", "astro", 3_200_000, 1.3],
   ["playground-lsp", "playground-lsp-court", "Football Court", "5-a-side", "concrete", 1_000_000, 1.2],
