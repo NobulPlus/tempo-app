@@ -26,11 +26,9 @@ export async function GET(request: Request) {
   const [
     { data: expired, error },
     { data: settledGames, error: settlementError },
-    { data: bookingHoldsExpired, error: bookingHoldsError },
   ] = await Promise.all([
     admin.rpc("expire_unpaid_game_holds"),
     admin.rpc("settle_ended_host_games"),
-    admin.rpc("expire_booking_slot_holds"),
   ]);
   if (error) {
     console.error("[cron/game-payment-holds] rpc failed:", error);
@@ -40,6 +38,17 @@ export async function GET(request: Request) {
     console.error("[cron/game-payment-holds] host settlement rpc failed:", settlementError);
     return NextResponse.json({ error: settlementError.message }, { status: 500 });
   }
+  // Expire the checkout intent before reassigning its slot. Otherwise a
+  // re-assigned slot would leave its old paid-intent record pending forever.
+  const { data: expiredCheckoutIntents, error: checkoutIntentError } = await admin.rpc(
+    "expire_external_slot_payment_intents",
+  );
+  if (checkoutIntentError) {
+    console.error("[cron/game-payment-holds] checkout intent expiry failed:", checkoutIntentError);
+    return NextResponse.json({ error: checkoutIntentError.message }, { status: 500 });
+  }
+
+  const { data: bookingHoldsExpired, error: bookingHoldsError } = await admin.rpc("expire_booking_slot_holds");
   if (bookingHoldsError) {
     console.error("[cron/game-payment-holds] booking slot hold expiry failed:", bookingHoldsError);
     return NextResponse.json({ error: bookingHoldsError.message }, { status: 500 });
@@ -100,6 +109,7 @@ export async function GET(request: Request) {
     expired: expired?.length ?? 0,
     hostGamesSettled: settledGames ?? 0,
     bookingSlotHoldsExpired: bookingHoldsExpired ?? 0,
+    externalCheckoutIntentsExpired: expiredCheckoutIntents ?? 0,
     staleMinimumGamesCancelled: staleMinimumGames?.length ?? 0,
     notified,
     cancelledMinimumGamesNotified,
@@ -116,7 +126,7 @@ async function deliverImportantNotifications(admin: ReturnType<typeof createAdmi
   const { data: rows, error } = await admin
     .from("user_notifications")
     .select("id, user_id, kind, title, body, href")
-    .in("kind", ["waitlist_promoted", "host_earnings"])
+    .in("kind", ["waitlist_promoted", "host_earnings", "booking"])
     .is("email_sent_at", null)
     .order("created_at", { ascending: true })
     .limit(50);
@@ -139,7 +149,7 @@ async function deliverImportantNotifications(admin: ReturnType<typeof createAdmi
         fullName: profile?.full_name ?? "there",
         title: row.title,
         body: row.body,
-        ctaLabel: row.kind === "waitlist_promoted" ? "View game" : "View wallet",
+        ctaLabel: row.kind === "waitlist_promoted" ? "View game" : row.kind === "booking" ? "View booking" : "View wallet",
         ctaUrl: `${site}${row.href ?? "/dashboard"}`,
       });
       if (!await sendMail({ to: email, ...content })) continue;

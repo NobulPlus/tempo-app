@@ -806,8 +806,13 @@ export async function createBookingAction(
   if (isSupabaseConfigured()) {
     const slot = await getSlot(slotId);
     if (!slot) return { ok: false, error: "That slot no longer exists." };
-    if (slot.status !== "open") return { ok: false, error: "Sorry — someone just took that slot." };
+    const hasActiveHold =
+      slot.status === "held" &&
+      slot.heldForUserId === user.id &&
+      Boolean(slot.heldUntil && new Date(slot.heldUntil).getTime() > Date.now());
+    if (slot.status !== "open" && !hasActiveHold) return { ok: false, error: "Sorry — someone just took that slot." };
     if (new Date(slot.startsAt).getTime() <= Date.now()) return { ok: false, error: "That time has already passed." };
+    if (formData.get("agree") !== "on") return { ok: false, error: "Accept the Terms before continuing." };
     const totalKobo = slot.priceKobo + Math.round(slot.priceKobo * 0.05);
 
     if (provider === "wallet") {
@@ -1033,27 +1038,42 @@ async function startExactPayment(input: {
   if (!authUser?.email) return { ok: false, error: "Your account has no email on file." };
 
   const reference = `${input.referencePrefix}-${generateReference().replace("TMP-", "")}`;
-  const admin = createAdminClient();
-  const { error } = await admin.from("action_payment_intents").insert({
-    reference,
-    user_id: user.id,
-    kind: input.kind,
-    provider: input.provider,
-    amount_kobo: input.amountKobo,
-    slot_id: input.slotId ?? null,
-    game_id: input.gameId ?? null,
-    participant_id: input.participantId ?? null,
-    payload: input.payload ?? {},
-  });
-  if (error) return { ok: false, error: friendlyPaymentSetupError(error.message) };
+  let checkoutReference = reference;
+
+  if (input.slotId && (input.kind === "booking" || input.kind === "host_game")) {
+    const { data, error } = await sb.rpc("start_external_slot_payment", {
+      p_reference: reference,
+      p_kind: input.kind,
+      p_provider: input.provider,
+      p_amount_kobo: input.amountKobo,
+      p_slot_id: input.slotId,
+      p_payload: input.payload ?? {},
+    });
+    if (error) return { ok: false, error: friendlyPaymentSetupError(error.message) };
+    checkoutReference = (data as { reference: string }).reference;
+  } else {
+    const admin = createAdminClient();
+    const { error } = await admin.from("action_payment_intents").insert({
+      reference,
+      user_id: user.id,
+      kind: input.kind,
+      provider: input.provider,
+      amount_kobo: input.amountKobo,
+      slot_id: input.slotId ?? null,
+      game_id: input.gameId ?? null,
+      participant_id: input.participantId ?? null,
+      payload: input.payload ?? {},
+    });
+    if (error) return { ok: false, error: friendlyPaymentSetupError(error.message) };
+  }
 
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const callback = `${site}/wallet/callback${input.provider === "korapay" ? `?provider=korapay&tempo_reference=${encodeURIComponent(reference)}` : ""}`;
+  const callback = `${site}/wallet/callback${input.provider === "korapay" ? `?provider=korapay&tempo_reference=${encodeURIComponent(checkoutReference)}` : ""}`;
 
   const payment =
     input.provider === "korapay"
       ? await initializeKorapayPayment({
-          reference,
+          reference: checkoutReference,
           amountKobo: input.amountKobo,
           email: authUser.email,
           name: user.fullName,
@@ -1063,7 +1083,7 @@ async function startExactPayment(input: {
           metadata: { kind: input.kind },
         })
       : await initializeFlutterwavePayment({
-          reference,
+          reference: checkoutReference,
           amountKobo: input.amountKobo,
           email: authUser.email,
           name: user.fullName,
@@ -2859,15 +2879,13 @@ export async function reportMessageAction(_prev: ActionState, formData: FormData
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "AUTH_REQUIRED" };
 
-  const reportedUserId = String(formData.get("reportedUserId") ?? "");
   const source = String(formData.get("source") ?? "") as MessageReportSource;
-  const contextId = String(formData.get("contextId") ?? "");
-  const messageSnapshot = String(formData.get("messageSnapshot") ?? "");
+  const messageId = String(formData.get("messageId") ?? "");
   const reason = String(formData.get("reason") ?? "").trim();
-  if (!reportedUserId || !contextId || !reason) return { ok: false, error: "Tell us what happened." };
+  if (!messageId || !reason) return { ok: false, error: "Tell us what happened." };
   if (source !== "game_chat" && source !== "direct_message") return { ok: false, error: "Invalid report." };
 
-  const result = await reportMessage({ reporterId: user.id, reportedUserId, source, contextId, messageSnapshot, reason });
+  const result = await reportMessage({ source, messageId, reason });
   if (!result.ok) return { ok: false, error: result.error };
 
   return { ok: true, message: "Reported — an admin will review it." };

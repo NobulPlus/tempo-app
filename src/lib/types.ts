@@ -28,7 +28,9 @@ export type WalletTxnType =
   | "host_reimbursement"
   | "host_game_earnings"
   | "host_withdrawal"
-  | "host_withdrawal_reversal";
+  | "host_withdrawal_reversal"
+  | "reward_credit"
+  | "host_perk_credit";
 export type WalletTxnStatus = "pending" | "completed" | "failed";
 
 export interface WalletTransaction {

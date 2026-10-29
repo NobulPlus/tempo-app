@@ -9,15 +9,11 @@ import type { MessageReportSource } from "@/lib/types";
 const initial: ActionState = {};
 
 export function ReportMessageButton({
-  reportedUserId,
   source,
-  contextId,
-  messageSnapshot,
+  messageId,
 }: {
-  reportedUserId: string;
   source: MessageReportSource;
-  contextId: string;
-  messageSnapshot: string;
+  messageId: string;
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(reportMessageAction, initial);
@@ -47,10 +43,8 @@ export function ReportMessageButton({
       className="mt-1.5 flex items-center gap-1.5 rounded-lg border border-glass-border bg-glass p-1.5"
       onSubmit={() => setTimeout(() => setOpen(false), 0)}
     >
-      <input type="hidden" name="reportedUserId" value={reportedUserId} />
       <input type="hidden" name="source" value={source} />
-      <input type="hidden" name="contextId" value={contextId} />
-      <input type="hidden" name="messageSnapshot" value={messageSnapshot} />
+      <input type="hidden" name="messageId" value={messageId} />
       <input
         name="reason"
         required

@@ -12,7 +12,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * tx_ref, then verifies the returned provider transaction before crediting.
  */
 const MAX_PER_RUN = 50;
-const LOOKBACK_HOURS = 72;
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -21,7 +20,6 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
-  const since = new Date(Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000).toISOString();
   const [topups, actions] = await Promise.all([
     admin
       .from("wallet_transactions")
@@ -29,7 +27,6 @@ export async function GET(request: Request) {
       .eq("type", "topup")
       .eq("status", "pending")
       .eq("provider", "korapay")
-      .gte("created_at", since)
       .order("created_at", { ascending: true })
       .limit(MAX_PER_RUN),
     admin
@@ -37,7 +34,6 @@ export async function GET(request: Request) {
       .select("reference")
       .eq("status", "pending")
       .eq("provider", "korapay")
-      .gte("created_at", since)
       .order("created_at", { ascending: true })
       .limit(MAX_PER_RUN),
   ]);
@@ -95,8 +91,8 @@ export async function GET(request: Request) {
   }
 
   const [flutterwaveTopups, flutterwaveActions] = await Promise.all([
-    admin.from("wallet_transactions").select("reference, created_at").eq("type", "topup").eq("status", "pending").eq("provider", "flutterwave").gte("created_at", since).order("created_at", { ascending: true }).limit(MAX_PER_RUN),
-    admin.from("action_payment_intents").select("reference, created_at").eq("status", "pending").eq("provider", "flutterwave").gte("created_at", since).order("created_at", { ascending: true }).limit(MAX_PER_RUN),
+    admin.from("wallet_transactions").select("reference, created_at").eq("type", "topup").eq("status", "pending").eq("provider", "flutterwave").order("created_at", { ascending: true }).limit(MAX_PER_RUN),
+    admin.from("action_payment_intents").select("reference, created_at").eq("status", "pending").eq("provider", "flutterwave").order("created_at", { ascending: true }).limit(MAX_PER_RUN),
   ]);
   if (flutterwaveTopups.error || flutterwaveActions.error) {
     return NextResponse.json({ error: flutterwaveTopups.error?.message ?? flutterwaveActions.error?.message }, { status: 500 });

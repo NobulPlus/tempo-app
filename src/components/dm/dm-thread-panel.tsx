@@ -138,10 +138,8 @@ export function DmThreadPanel({
                   {formatDayShort(m.createdAt)} · {formatTime(m.createdAt)}
                   {!mine && (
                     <ReportMessageButton
-                      reportedUserId={m.senderId}
                       source="direct_message"
-                      contextId={thread.id}
-                      messageSnapshot={m.body}
+                      messageId={m.id}
                     />
                   )}
                 </div>

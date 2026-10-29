@@ -104,10 +104,8 @@ export function GameChatPanel({
               </div>
               {!mine && (
                 <ReportMessageButton
-                  reportedUserId={m.userId}
                   source="game_chat"
-                  contextId={gameId}
-                  messageSnapshot={m.body}
+                  messageId={m.id}
                 />
               )}
             </div>

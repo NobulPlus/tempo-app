@@ -3071,22 +3071,16 @@ export async function unblockUser(blockerId: string, blockedId: string): Promise
 }
 
 export async function reportMessage(input: {
-  reporterId: string;
-  reportedUserId: string;
   source: MessageReportSource;
-  contextId: string;
-  messageSnapshot: string;
+  messageId: string;
   reason: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   if (demoMode()) return { ok: false, error: "Not available in demo mode." };
   const sb = await createClient();
-  const { error } = await sb.from("message_reports").insert({
-    reporter_id: input.reporterId,
-    reported_user_id: input.reportedUserId,
-    source: input.source,
-    context_id: input.contextId,
-    message_snapshot: input.messageSnapshot,
-    reason: input.reason,
+  const { error } = await sb.rpc("report_message", {
+    p_source: input.source,
+    p_message_id: input.messageId,
+    p_reason: input.reason,
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
