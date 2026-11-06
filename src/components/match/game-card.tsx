@@ -4,6 +4,7 @@ import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { PinIcon, ClockIcon, StarIcon, BallDetailedIcon } from "@/components/icons";
 import { Countdown, FillBar, HeatPill, GuaranteePill, SpotPips } from "./match-day";
 import type { GameFull } from "@/lib/data/repo";
+import { gameVenueSummary } from "@/lib/data/repo";
 
 const LEVEL_STYLE: Record<string, string> = {
   casual: "!border-blue/30 !bg-blue/10 !text-blue",
@@ -13,6 +14,7 @@ const LEVEL_STYLE: Record<string, string> = {
 
 export function GameCard({ game }: { game: GameFull }) {
   const state = getMatchState(game);
+  const venue = gameVenueSummary(game);
 
   return (
     <article className="card-t card-t-hover relative flex flex-col overflow-hidden p-5">
@@ -23,6 +25,9 @@ export function GameCard({ game }: { game: GameFull }) {
           {game.level[0].toUpperCase() + game.level.slice(1)}
         </span>
         <GuaranteePill guaranteed={state.guaranteed} minimum={game.minimumToGuarantee} />
+        {!venue.verified && (
+          <span className="chip-t !border-orange/35 !bg-orange/10 !text-orange">Not verified by Tempo</span>
+        )}
         <span className="ml-auto">
           <HeatPill state={state} />
         </span>
@@ -36,7 +41,7 @@ export function GameCard({ game }: { game: GameFull }) {
 
       <div className="relative mt-1.5 flex items-center gap-1.5 text-[13.5px] text-ink-soft">
         <PinIcon size={14} />
-        {game.pitch.venue.name} · {game.pitch.venue.area} · {game.pitch.size}
+        {venue.name} · {venue.area} · {venue.size}
       </div>
 
       <p className="relative mt-3 line-clamp-2 text-[14px] leading-relaxed text-ink-soft">
@@ -102,6 +107,7 @@ export function GameCard({ game }: { game: GameFull }) {
 /** Compact variant for the homepage "kicking off soon" rail. */
 export function GameCardMini({ game }: { game: GameFull }) {
   const state = getMatchState(game);
+  const venue = gameVenueSummary(game);
   return (
     <Link
       href={`/games/${game.slug}`}
@@ -112,7 +118,7 @@ export function GameCardMini({ game }: { game: GameFull }) {
         <div className="min-w-0">
           <div className="truncate text-[15px] font-bold">{game.title}</div>
           <div className="mt-0.5 truncate text-[12.5px] text-ink-soft">
-            {game.pitch.venue.area} · {formatTime(game.startsAt)}
+            {venue.area} · {formatTime(game.startsAt)}
           </div>
         </div>
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green/10 text-green">

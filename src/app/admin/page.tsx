@@ -7,6 +7,7 @@ import {
   listWaitlist,
   getFinanceSummary,
   listMessageReports,
+  gameVenueSummary,
 } from "@/lib/data/repo";
 import { getMatchState } from "@/lib/match";
 import { formatRelativeDay, formatTime, formatNaira } from "@/lib/format";
@@ -192,7 +193,7 @@ export default async function AdminOverviewPage() {
                 <span className="min-w-0">
                   <span className="block truncate text-[14.5px] font-semibold">{game.title}</span>
                   <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-ink-muted">
-                    <span>{game.pitch.venue.area}</span>
+                    <span>{gameVenueSummary(game).area}</span>
                     <span className="inline-flex items-center gap-1">
                       <ClockIcon size={12} />
                       {formatRelativeDay(game.startsAt)} {formatTime(game.startsAt)}

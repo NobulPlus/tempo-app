@@ -11,10 +11,12 @@ import {
   splitKobo,
 } from "@/lib/format";
 import type { Slot } from "@/lib/types";
+import { LAGOS_AREA_OPTIONS } from "@/lib/lagos";
 import {
   CalendarIcon,
   ClockIcon,
   PinIcon,
+  PitchIcon,
   SearchIcon,
   ShieldIcon,
   UsersIcon,
@@ -72,8 +74,15 @@ export function HostForm({
   const initialSlot = initialSlotId ? slots.find((s) => s.id === initialSlotId) : null;
 
   const [slotId, setSlotId] = useState(initialSlot?.id ?? "");
-  const [mode, setMode] = useState<"new" | "existing">("new");
+  const [mode, setMode] = useState<"new" | "existing" | "off_platform">("new");
   const [bookingId, setBookingId] = useState("");
+  const [venueName, setVenueName] = useState("");
+  const [venueArea, setVenueArea] = useState("");
+  const [venueAddress, setVenueAddress] = useState("");
+  const [offDate, setOffDate] = useState("");
+  const [offStartTime, setOffStartTime] = useState("");
+  const [offDurationMinutes, setOffDurationMinutes] = useState(90);
+  const [offPlatformAgree, setOffPlatformAgree] = useState(false);
   const [level, setLevel] = useState<string>("casual");
   const [capacity, setCapacity] = useState(10);
   const [preconfirmed, setPreconfirmed] = useState(7);
@@ -86,6 +95,24 @@ export function HostForm({
 
   const slot = useMemo(() => slots.find((s) => s.id === slotId), [slots, slotId]);
   const booking = useMemo(() => existingBookings.find((item) => item.id === bookingId), [existingBookings, bookingId]);
+
+  const offStartsAt = useMemo(() => {
+    if (!offDate || !offStartTime) return "";
+    const d = new Date(`${offDate}T${offStartTime}:00`);
+    return Number.isNaN(d.getTime()) ? "" : d.toISOString();
+  }, [offDate, offStartTime]);
+  const offEndsAt = useMemo(() => {
+    if (!offStartsAt) return "";
+    return new Date(new Date(offStartsAt).getTime() + offDurationMinutes * 60_000).toISOString();
+  }, [offStartsAt, offDurationMinutes]);
+  const offPlatformReady = Boolean(
+    venueName.trim().length >= 2 &&
+      venueArea &&
+      venueAddress.trim().length >= 5 &&
+      offStartsAt &&
+      offEndsAt &&
+      offPlatformAgree,
+  );
 
   const areaOptions = useMemo(() => {
     return [...new Set(slots.map((s) => s.area).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -132,7 +159,7 @@ export function HostForm({
       <div className="space-y-6">
         <section className="card-t p-5">
           <p className="text-[12px] font-bold uppercase tracking-[.12em] text-green">How are you hosting?</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <OptionRow
               selected={mode === "new"}
               onClick={() => setMode("new")}
@@ -144,6 +171,12 @@ export function HostForm({
               onClick={() => setMode("existing")}
               label="Fill an existing session"
               hint="Publish the remaining spaces from a booking you already made."
+            />
+            <OptionRow
+              selected={mode === "off_platform"}
+              onClick={() => setMode("off_platform")}
+              label="Host at your own venue"
+              hint="Somewhere not on Tempo yet — you're responsible for the booking."
             />
           </div>
         </section>
@@ -170,6 +203,136 @@ export function HostForm({
               ))}
             </div>
             <input type="hidden" name="existingBookingId" value={bookingId} />
+          </section>
+        ) : mode === "off_platform" ? (
+          <section className="card-t p-6">
+            <h2 className="text-[18px] font-bold">Your venue</h2>
+            <p className="mt-1.5 text-[13.5px] text-ink-soft">
+              Tempo hasn&apos;t verified this venue. You&apos;re responsible for having it booked and
+              available for your players — this just publishes the roster, chat and payments.
+            </p>
+            <div className="mt-4 space-y-4">
+              <div>
+                <label htmlFor="venueName" className="mb-1.5 block text-[13px] font-semibold text-ink-soft">
+                  Venue name
+                </label>
+                <input
+                  id="venueName"
+                  name="venueName"
+                  required
+                  minLength={2}
+                  maxLength={120}
+                  value={venueName}
+                  onChange={(event) => setVenueName(event.target.value)}
+                  placeholder="e.g. Chisco Astro Turf"
+                  className="w-full rounded-xl border border-white/12 bg-white/4 px-4 py-3.5 text-[15px] outline-none transition focus:border-green/50"
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="venueArea" className="mb-1.5 block text-[13px] font-semibold text-ink-soft">
+                    Area
+                  </label>
+                  <select
+                    id="venueArea"
+                    name="venueArea"
+                    required
+                    value={venueArea}
+                    onChange={(event) => setVenueArea(event.target.value)}
+                    className="w-full rounded-xl border border-white/12 bg-white/4 px-3 py-3.5 text-[15px] outline-none transition focus:border-green/50"
+                  >
+                    <option value="" disabled>
+                      Choose an area
+                    </option>
+                    {LAGOS_AREA_OPTIONS.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="offDate" className="mb-1.5 block text-[13px] font-semibold text-ink-soft">
+                    Date
+                  </label>
+                  <input
+                    id="offDate"
+                    type="date"
+                    required
+                    value={offDate}
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={(event) => setOffDate(event.target.value)}
+                    className="w-full rounded-xl border border-white/12 bg-white/4 px-4 py-3.5 text-[15px] outline-none transition focus:border-green/50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="venueAddress" className="mb-1.5 block text-[13px] font-semibold text-ink-soft">
+                  Address or landmark
+                </label>
+                <textarea
+                  id="venueAddress"
+                  name="venueAddress"
+                  required
+                  minLength={5}
+                  maxLength={240}
+                  rows={2}
+                  value={venueAddress}
+                  onChange={(event) => setVenueAddress(event.target.value)}
+                  placeholder="Street address, or a clear landmark players can find"
+                  className="w-full rounded-xl border border-white/12 bg-white/4 px-4 py-3.5 text-[15px] outline-none transition focus:border-green/50"
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="offStartTime" className="mb-1.5 block text-[13px] font-semibold text-ink-soft">
+                    Start time
+                  </label>
+                  <input
+                    id="offStartTime"
+                    type="time"
+                    required
+                    value={offStartTime}
+                    onChange={(event) => setOffStartTime(event.target.value)}
+                    className="w-full rounded-xl border border-white/12 bg-white/4 px-4 py-3.5 text-[15px] outline-none transition focus:border-green/50"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="offDuration" className="mb-1.5 block text-[13px] font-semibold text-ink-soft">
+                    Duration
+                  </label>
+                  <select
+                    id="offDuration"
+                    value={offDurationMinutes}
+                    onChange={(event) => setOffDurationMinutes(Number(event.target.value))}
+                    className="w-full rounded-xl border border-white/12 bg-white/4 px-3 py-3.5 text-[15px] outline-none transition focus:border-green/50"
+                  >
+                    {[60, 90, 120, 180, 240].map((minutes) => (
+                      <option key={minutes} value={minutes}>
+                        {minutes % 60 === 0 ? `${minutes / 60}h` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <label className="flex items-start gap-3 text-[13.5px] leading-relaxed text-ink-soft">
+                <input
+                  type="checkbox"
+                  name="offPlatformAgree"
+                  checked={offPlatformAgree}
+                  onChange={(event) => setOffPlatformAgree(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#00e676]"
+                />
+                I understand Tempo hasn&apos;t verified this venue. I&apos;m responsible for having it
+                booked and available for my players.
+              </label>
+            </div>
+            <input type="hidden" name="startsAt" value={offStartsAt} />
+            <input type="hidden" name="endsAt" value={offEndsAt} />
           </section>
         ) : (
         <section className="card-t overflow-hidden p-0">
@@ -458,6 +621,33 @@ export function HostForm({
                 <div className="text-[15px] font-bold">{booking.venueName}</div>
                 <div className="mt-2 text-[12.5px] text-ink-soft">{booking.area} · {booking.pitchName} · {formatRelativeDay(booking.startsAt)} · {formatTime(booking.startsAt)}–{formatTime(booking.endsAt)}</div>
               </div>
+            ) : mode === "off_platform" && venueName ? (
+              <div className="rounded-2xl border border-orange/25 bg-orange/8 p-4">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange/14 text-orange">
+                    <PitchIcon size={20} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-[15px] font-bold">{venueName}</div>
+                    <div className="mt-1 text-[12.5px] text-ink-soft">{venueArea || "Area not set"}</div>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2 text-[12.5px] text-ink-soft">
+                  {venueAddress && (
+                    <span className="flex items-start gap-1.5">
+                      <PinIcon size={14} className="mt-0.5 shrink-0" />
+                      {venueAddress}
+                    </span>
+                  )}
+                  {offStartsAt && offEndsAt && (
+                    <span className="flex items-center gap-1.5">
+                      <ClockIcon size={14} />
+                      {formatRelativeDay(offStartsAt)} · {formatTime(offStartsAt)}–{formatTime(offEndsAt)}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-3 text-[11.5px] text-orange">Not verified by Tempo — you&apos;re responsible for this booking.</p>
+              </div>
             ) : slot ? (
               <div className="rounded-2xl border border-green/25 bg-green/8 p-4">
                 <div className="text-[15px] font-bold">{slot.venueName}</div>
@@ -537,8 +727,23 @@ export function HostForm({
               )}
             </fieldset>}
 
-            <button type="submit" disabled={pending || (mode === "new" ? !slotId : !bookingId)} className="btn-t btn-green-t mt-5 w-full">
-              {pending ? "Opening checkout..." : mode === "existing" ? "Publish remaining spaces" : slot ? `Pay ${formatNaira(hostTotalKobo)} & publish` : "Publish game"}
+            <button
+              type="submit"
+              disabled={
+                pending ||
+                (mode === "new" ? !slotId : mode === "existing" ? !bookingId : !offPlatformReady)
+              }
+              className="btn-t btn-green-t mt-5 w-full"
+            >
+              {pending
+                ? "Opening checkout..."
+                : mode === "existing"
+                  ? "Publish remaining spaces"
+                  : mode === "off_platform"
+                    ? "Publish game"
+                    : slot
+                      ? `Pay ${formatNaira(hostTotalKobo)} & publish`
+                      : "Publish game"}
             </button>
           </div>
         </div>

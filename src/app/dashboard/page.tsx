@@ -8,6 +8,7 @@ import {
   getWalletBalance,
   getIdentityVerification,
   getVenueOwnerApplication,
+  gameVenueSummary,
 } from "@/lib/data/repo";
 import { getMatchState } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
@@ -136,7 +137,7 @@ export default async function DashboardPage() {
                   <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-[14px] text-ink-soft">
                     <span className="flex items-center gap-1.5">
                       <PinIcon size={14} />
-                      {nextUp.pitch.venue.name}
+                      {gameVenueSummary(nextUp).name}
                     </span>
                     <span className="flex items-center gap-1.5">
                       <ClockIcon size={14} />
@@ -175,7 +176,7 @@ export default async function DashboardPage() {
                 key: g.id,
                 href: `/games/${g.slug}`,
                 title: g.title,
-                meta: `${g.pitch.venue.name} · ${formatRelativeDay(g.startsAt)} ${formatTime(g.startsAt)}${suffix}`,
+                meta: `${gameVenueSummary(g).name} · ${formatRelativeDay(g.startsAt)} ${formatTime(g.startsAt)}${suffix}`,
                 right: formatNaira(g.pricePerPlayerKobo),
               };
             })}

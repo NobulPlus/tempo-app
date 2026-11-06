@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { getGamesForUser } from "@/lib/data/repo";
+import { getGamesForUser, gameVenueSummary } from "@/lib/data/repo";
 import { getMatchState } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime } from "@/lib/format";
 import { ArrowRightIcon, BallIcon, CalendarIcon, WalletIcon } from "@/components/icons";
@@ -166,7 +166,7 @@ function GameList({
                   )}
                 </div>
                 <p className="mt-1 text-[13px] text-ink-soft">
-                  {game.pitch.venue.name} · {formatRelativeDay(game.startsAt)} · {formatTime(game.startsAt)}
+                  {gameVenueSummary(game).name} · {formatRelativeDay(game.startsAt)} · {formatTime(game.startsAt)}
                 </p>
               </div>
               <div className="text-left sm:text-right">

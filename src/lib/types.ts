@@ -193,10 +193,17 @@ export interface Booking {
   slot?: Slot;
 }
 
+export interface OffPlatformVenue {
+  name: string;
+  area: string;
+  address: string;
+}
+
 export interface Game {
   id: string;
   slug: string;
-  pitchId: string;
+  /** Null for a game hosted at a venue that isn't on Tempo — see offPlatformVenue. */
+  pitchId: string | null;
   hostId: string;
   bookingId?: string | null;
   title: string;
@@ -214,6 +221,8 @@ export interface Game {
   preconfirmedPlayerCount?: number;
   /** A game published from an already-confirmed Tempo pitch booking. */
   isExistingSession?: boolean;
+  /** Host-entered venue for a game not tied to a Tempo pitch — not verified by Tempo. */
+  offPlatformVenue?: OffPlatformVenue | null;
   hostPaidKobo?: number;
   hostReimbursedKobo?: number;
   hostPitchCostKobo?: number;
@@ -222,7 +231,7 @@ export interface Game {
   minimumDecisionDeadline?: string | null;
   minimumDecisionStatus?: "pending" | "go_ahead" | "cancelled" | "not_needed";
   createdAt: string;
-  pitch?: Pitch;
+  pitch?: Pitch | null;
   host?: PlayerProfile;
   participants?: GameParticipant[];
   /** Derived */

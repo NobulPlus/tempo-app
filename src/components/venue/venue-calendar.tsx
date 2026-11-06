@@ -56,7 +56,9 @@ export function VenueCalendar({ bookings, games }: { bookings: Booking[]; games:
       kind: "game",
       id: g.id,
       startsAt: g.startsAt,
-      pitchName: g.pitch.name,
+      // getGamesForVenue() only ever returns games tied to one of this
+      // venue's real pitches, so pitch is always present here.
+      pitchName: g.pitch!.name,
       title: g.title,
       sub: `${g.filled}/${g.capacity} filled · hosted by ${g.host.fullName}`,
       href: `/games/${g.slug}`,

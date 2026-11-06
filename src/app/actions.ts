@@ -64,6 +64,7 @@ import {
   reportMessage,
   reviewMessageReport,
   markUserNotificationsRead,
+  gameVenueSummary,
 } from "@/lib/data/repo";
 import type { UserRole, PitchSize, PitchSurface, MessageReportSource, PlayerProfile } from "@/lib/types";
 import { normalisePhone, formatNaira, generateReference, formatDayShort, formatTime } from "@/lib/format";
@@ -719,7 +720,7 @@ async function notifyGameCancelled(gameId: string, slug: string) {
         const content = gameCancelledEmail({
           fullName: profile.fullName,
           title: game.title,
-          venueName: game.pitch.venue.name,
+          venueName: gameVenueSummary(game).name,
           kickoffISO: game.startsAt,
           refundedKobo: Math.max(0, Number(row.amount_kobo ?? 0)),
         });
@@ -1392,6 +1393,11 @@ const hostSchema = z.object({
   pricePerPlayerNaira: z.coerce.number().int().min(0).max(200000),
   bibsProvided: z.coerce.boolean().optional(),
   preconfirmedPlayerCount: z.coerce.number().int().min(1).optional(),
+  venueName: z.string().min(2).max(120).optional(),
+  venueArea: z.string().min(2).max(60).optional(),
+  venueAddress: z.string().min(5).max(240).optional(),
+  startsAt: z.string().optional(),
+  endsAt: z.string().optional(),
 });
 
 export async function createGameAction(
@@ -1414,6 +1420,11 @@ export async function createGameAction(
     pricePerPlayerNaira: formData.get("pricePerPlayerNaira"),
     bibsProvided: formData.get("bibsProvided") === "on",
     preconfirmedPlayerCount: formData.get("preconfirmedPlayerCount") || undefined,
+    venueName: formData.get("venueName") || undefined,
+    venueArea: formData.get("venueArea") || undefined,
+    venueAddress: formData.get("venueAddress") || undefined,
+    startsAt: formData.get("startsAt") || undefined,
+    endsAt: formData.get("endsAt") || undefined,
   });
 
   if (!parsed.success) {
@@ -1421,14 +1432,75 @@ export async function createGameAction(
   }
   const v = parsed.data;
   const isExistingSession = Boolean(v.existingBookingId);
+  const isOffPlatform = Boolean(v.venueName);
   const preconfirmedPlayerCount = v.preconfirmedPlayerCount ?? 0;
-  if (!isExistingSession && !v.slotId) return { ok: false, error: "Pick a time slot." };
+  if (!isExistingSession && !isOffPlatform && !v.slotId) return { ok: false, error: "Pick a time slot." };
   if (isExistingSession && !v.preconfirmedPlayerCount) return { ok: false, error: "Enter the players already confirmed." };
   if (isExistingSession && preconfirmedPlayerCount >= v.capacity) {
     return { ok: false, error: "Leave at least one space for Tempo players." };
   }
   if (v.minimumToGuarantee > v.capacity) {
     return { ok: false, error: "The guarantee number can't be higher than capacity." };
+  }
+  if (isOffPlatform) {
+    if (!v.venueArea || !v.venueAddress) return { ok: false, error: "Enter the venue's area and address." };
+    if (!v.startsAt || !v.endsAt) return { ok: false, error: "Pick a start and end time." };
+    if (formData.get("offPlatformAgree") !== "on") {
+      return { ok: false, error: "Confirm you understand this venue isn't verified by Tempo." };
+    }
+  }
+
+  if (isOffPlatform && isSupabaseConfigured()) {
+    const sb = await createClient();
+    const { data, error } = await sb.rpc("host_off_platform_game", {
+      p_title: v.title,
+      p_description: v.description ?? "",
+      p_level: v.level,
+      p_capacity: v.capacity,
+      p_minimum_to_guarantee: v.minimumToGuarantee,
+      p_price_per_player_kobo: v.pricePerPlayerNaira * 100,
+      p_bibs_provided: Boolean(v.bibsProvided),
+      p_venue_name: v.venueName,
+      p_venue_area: v.venueArea,
+      p_venue_address: v.venueAddress,
+      p_starts_at: v.startsAt,
+      p_ends_at: v.endsAt,
+    });
+    if (error) return { ok: false, error: error.message };
+    revalidatePath("/games");
+    revalidatePath("/dashboard");
+    redirect(`/games/${(data as { slug: string }).slug}`);
+  }
+
+  if (isOffPlatform && !isSupabaseConfigured()) {
+    const s = store();
+    const gameId = `g-${Date.now()}`;
+    const slug = `${v.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${Date.now().toString(36).slice(-4)}`;
+    s.games.push({
+      id: gameId, slug, pitchId: null, hostId: user.id,
+      title: v.title, description: v.description ?? "", level: v.level,
+      startsAt: v.startsAt!, endsAt: v.endsAt!, capacity: v.capacity,
+      minimumToGuarantee: v.minimumToGuarantee, pricePerPlayerKobo: v.pricePerPlayerNaira * 100,
+      status: "open", bibsProvided: Boolean(v.bibsProvided),
+      offPlatformVenue: { name: v.venueName!, area: v.venueArea!, address: v.venueAddress! },
+      hostPaidKobo: 0, hostReimbursedKobo: 0,
+      minimumDecisionDeadline: new Date(Math.max(Date.now(), new Date(v.startsAt!).getTime() - 6 * 60 * 60 * 1000)).toISOString(),
+      minimumDecisionStatus: 1 >= v.minimumToGuarantee ? "not_needed" : "pending",
+      createdAt: new Date().toISOString(),
+    });
+    s.participants.push({
+      id: `gp-${slug}-${user.id}`,
+      gameId,
+      userId: user.id,
+      joinedAt: new Date().toISOString(),
+      paidKobo: 0,
+      status: "confirmed",
+      checkInCode: `GME-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
+      attendanceStatus: "booked",
+    });
+    revalidatePath("/", "layout");
+    revalidatePath("/games");
+    redirect(`/games/${slug}`);
   }
 
   if (isExistingSession && isSupabaseConfigured()) {

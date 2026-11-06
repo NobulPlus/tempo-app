@@ -714,10 +714,43 @@ export async function getSlot(id: string): Promise<(Slot & { pitch: PitchWithVen
 /* -------------------------------------------------------------------- games */
 
 export interface GameFull extends Game {
-  pitch: PitchWithVenue;
+  pitch: PitchWithVenue | null;
   host: PlayerProfile;
   participants: (GameParticipant & { player: PlayerProfile })[];
   filled: number;
+}
+
+/** How to show a game's venue regardless of whether it's a real Tempo pitch
+ * or a host-entered, unverified one. Every display site should read the
+ * venue through this instead of reaching into `game.pitch.venue` directly. */
+export interface GameVenueSummary {
+  name: string;
+  area: string;
+  size: string;
+  side: "island" | "mainland" | null;
+  verified: boolean;
+  href?: string;
+}
+
+export function gameVenueSummary(game: Pick<GameFull, "pitch" | "offPlatformVenue">): GameVenueSummary {
+  if (game.pitch) {
+    return {
+      name: game.pitch.venue.name,
+      area: game.pitch.venue.area,
+      size: game.pitch.size,
+      side: game.pitch.venue.side,
+      verified: true,
+      href: `/pitches/${game.pitch.slug}`,
+    };
+  }
+  const v = game.offPlatformVenue;
+  return {
+    name: v?.name ?? "Host-provided venue",
+    area: v?.area ?? "",
+    size: "Host-arranged venue",
+    side: null,
+    verified: false,
+  };
 }
 
 const GAME_SELECT = `*, pitch:pitches(${PITCH_SELECT}), host:profiles(*), game_participants(*, player:profiles!game_participants_user_id_fkey(*))`;
@@ -726,10 +759,13 @@ interface RawParticipantRow extends Omit<GameParticipant, "player"> {
   player: Record<string, unknown>;
 }
 
-interface RawGameRow extends Omit<Game, "participants" | "filled" | "host" | "pitch"> {
-  pitch: PitchWithVenue;
+interface RawGameRow extends Omit<Game, "participants" | "filled" | "host" | "pitch" | "offPlatformVenue"> {
+  pitch: PitchWithVenue | null;
   host: Record<string, unknown>;
   gameParticipants?: RawParticipantRow[];
+  venueName?: string | null;
+  venueArea?: string | null;
+  venueAddress?: string | null;
 }
 
 /** Reshapes a raw `games` row (with embedded pitch/host/participants) into
@@ -745,6 +781,11 @@ function mapGameRow(row: Record<string, unknown>): GameFull {
     ...c,
     host: mapProfileRow(c.host),
     participants,
+    offPlatformVenue: c.pitch
+      ? null
+      : c.venueName
+        ? { name: c.venueName, area: c.venueArea ?? "", address: c.venueAddress ?? "" }
+        : null,
     // A payment hold occupies a real spot, same as a fully-paid one.
     filled:
       (c.preconfirmedPlayerCount ?? 0) +
@@ -754,8 +795,8 @@ function mapGameRow(row: Record<string, unknown>): GameFull {
 
 function hydrateGame(g: Omit<Game, "participants" | "filled">): GameFull {
   const s = store();
-  const pitchRaw = s.pitches.find((p) => p.id === g.pitchId)!;
-  const pitch = hydratePitch(pitchRaw);
+  const pitchRaw = g.pitchId ? s.pitches.find((p) => p.id === g.pitchId) : undefined;
+  const pitch = pitchRaw ? hydratePitch(pitchRaw) : null;
   const host = s.profiles.find((p) => p.id === g.hostId)!;
   const participants = s.participants
     .filter((p) => p.gameId === g.id && p.status !== "withdrawn")
@@ -810,8 +851,10 @@ function applyGameQuery(all: GameFull[], query: GameQuery): GameFull[] {
       const start = new Date(g.startsAt).getTime();
       if (g.status === "cancelled") return false;
       if (!query.includeePast && new Date(g.endsAt).getTime() < now) return false;
+      const venue = gameVenueSummary(g);
       if (level !== "all" && g.level !== level) return false;
-      if (side !== "all" && g.pitch.venue.side !== side) return false;
+      // An off-platform venue has no known side — don't let a side filter hide it.
+      if (side !== "all" && venue.side !== null && venue.side !== side) return false;
 
       // A real date filter — the prototype's "This Week" silently matched everything.
       if (when === "today" && (start < startOfDay(0) || start >= startOfDay(1))) return false;
@@ -820,7 +863,7 @@ function applyGameQuery(all: GameFull[], query: GameQuery): GameFull[] {
 
       if (q) {
         const hay =
-          `${g.title} ${g.description} ${g.pitch.venue.name} ${g.pitch.venue.area} ${g.host.fullName}`.toLowerCase();
+          `${g.title} ${g.description} ${venue.name} ${venue.area} ${g.host.fullName}`.toLowerCase();
         if (!hay.includes(q.toLowerCase())) return false;
       }
       return true;
@@ -2099,7 +2142,7 @@ export async function getGamesForVenue(venueId: string): Promise<GameFull[]> {
   const s = store();
   const pitchIds = new Set(s.pitches.filter((p) => p.venueId === venueId).map((p) => p.id));
   return s.games
-    .filter((g) => pitchIds.has(g.pitchId))
+    .filter((g) => g.pitchId && pitchIds.has(g.pitchId))
     .map(hydrateGame)
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 }
@@ -2588,7 +2631,7 @@ export async function getVenueStats(venueId: string) {
   const upcoming = slots.filter((sl) => new Date(sl.startsAt).getTime() > Date.now());
   const booked = upcoming.filter((sl) => sl.status === "booked");
   const revenueKobo = booked.reduce((sum, sl) => sum + sl.priceKobo, 0);
-  const games = s.games.filter((g) => pitchIds.includes(g.pitchId));
+  const games = s.games.filter((g) => g.pitchId && pitchIds.includes(g.pitchId));
 
   return {
     pitchCount: pitchIds.length,

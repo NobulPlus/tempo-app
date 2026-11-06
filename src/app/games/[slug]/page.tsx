@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { canManageGameAttendance, getGameBySlug, getGameChatMessages, getGameCheckInCode, getGameCheckInCodes, getWalletBalance, listGames } from "@/lib/data/repo";
+import { canManageGameAttendance, getGameBySlug, getGameChatMessages, getGameCheckInCode, getGameCheckInCodes, getWalletBalance, listGames, gameVenueSummary } from "@/lib/data/repo";
 import { getCurrentUser } from "@/lib/session";
 import { getMatchState, estimateTravelMinutes, leaveByTime } from "@/lib/match";
 import { formatNaira, formatRelativeDay, formatTime, splitKobo } from "@/lib/format";
@@ -29,10 +29,11 @@ export async function generateMetadata({
   const { slug } = await params;
   const game = await getGameBySlug(slug);
   if (!game) return { title: "Game not found" };
+  const venue = gameVenueSummary(game);
 
   return {
-    title: `${game.title} — ${game.pitch.venue.area}`,
-    description: `${game.level} ${game.pitch.size} at ${game.pitch.venue.name}, ${formatRelativeDay(game.startsAt)} ${formatTime(game.startsAt)}. ${formatNaira(game.pricePerPlayerKobo)} per player.`,
+    title: `${game.title} — ${venue.area}`,
+    description: `${game.level} ${venue.size} at ${venue.name}, ${formatRelativeDay(game.startsAt)} ${formatTime(game.startsAt)}. ${formatNaira(game.pricePerPlayerKobo)} per player.`,
   };
 }
 
@@ -55,11 +56,12 @@ export default async function GamePage({
 
   const user = await getCurrentUser();
   const state = getMatchState(game);
+  const venue = gameVenueSummary(game);
   const nearbyAlternatives = state.spotsLeft === 0
     ? (await listGames()).filter((candidate) => {
         const candidateState = getMatchState(candidate);
         return candidate.id !== game.id && candidateState.spotsLeft > 0 &&
-          candidate.pitch.venue.area === game.pitch.venue.area &&
+          gameVenueSummary(candidate).area === venue.area &&
           Math.abs(new Date(candidate.startsAt).getTime() - new Date(game.startsAt).getTime()) <= 3 * 60 * 60 * 1000;
       }).slice(0, 3)
     : [];
@@ -81,9 +83,9 @@ export default async function GamePage({
 
   const kickoff = new Date(game.startsAt);
   const travel = estimateTravelMinutes(
-    game.pitch.venue.side === "island" ? 8 : 11,
+    venue.side === "island" ? 8 : 11,
     kickoff,
-    game.pitch.venue.side === "island",
+    venue.side === "island",
   );
   const leaveBy = leaveByTime(kickoff, travel);
 
@@ -107,7 +109,7 @@ export default async function GamePage({
 
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://playtempo11.com";
   const shareText = encodeURIComponent(
-    `${game.title} — ${game.pitch.venue.name}, ${formatRelativeDay(game.startsAt)} ${formatTime(game.startsAt)}. ${state.spotsLeft} spots left, ${formatNaira(game.pricePerPlayerKobo)} each. Join: ${site}/games/${game.slug}`,
+    `${game.title} — ${venue.name}, ${formatRelativeDay(game.startsAt)} ${formatTime(game.startsAt)}. ${state.spotsLeft} spots left, ${formatNaira(game.pricePerPlayerKobo)} each. Join: ${site}/games/${game.slug}`,
   );
 
   return (
@@ -118,7 +120,7 @@ export default async function GamePage({
             Games
           </Link>
           <span>/</span>
-          <span className="text-ink-soft">{game.pitch.venue.area}</span>
+          <span className="text-ink-soft">{venue.area}</span>
         </nav>
 
         <div className="grid gap-6 lg:grid-cols-[1.55fr_1fr]">
@@ -131,6 +133,11 @@ export default async function GamePage({
                 <GuaranteePill guaranteed={state.guaranteed} minimum={game.minimumToGuarantee} />
                 <span className="chip-t capitalize">{game.level}</span>
                 {game.bibsProvided && <span className="chip-t">Bibs provided</span>}
+                {!venue.verified && (
+                  <span className="chip-t !border-orange/35 !bg-orange/10 !text-orange">
+                    Host-provided venue · not verified by Tempo
+                  </span>
+                )}
               </div>
 
               <h1 className="relative mt-4 font-display text-[clamp(26px,4.5vw,40px)] font-extrabold leading-tight tracking-[-.02em]">
@@ -138,20 +145,33 @@ export default async function GamePage({
               </h1>
 
               <div className="relative mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[14.5px] text-ink-soft">
-                <Link
-                  href={`/pitches/${game.pitch.slug}`}
-                  className="flex items-center gap-1.5 transition hover:text-green"
-                >
-                  <PinIcon size={15} />
-                  {game.pitch.venue.name}, {game.pitch.venue.area}
-                </Link>
+                {venue.verified ? (
+                  <Link
+                    href={venue.href!}
+                    className="flex items-center gap-1.5 transition hover:text-green"
+                  >
+                    <PinIcon size={15} />
+                    {venue.name}, {venue.area}
+                  </Link>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <PinIcon size={15} />
+                    {venue.name}, {venue.area}
+                  </span>
+                )}
                 <span className="flex items-center gap-1.5">
                   <ClockIcon size={15} />
                   {formatRelativeDay(game.startsAt)} · {formatTime(game.startsAt)}–
                   {formatTime(game.endsAt)}
                 </span>
-                <span className="chip-t">{game.pitch.size}</span>
+                <span className="chip-t">{venue.size}</span>
               </div>
+
+              {!venue.verified && game.offPlatformVenue?.address && (
+                <p className="relative mt-2 text-[13px] text-ink-muted">
+                  {game.offPlatformVenue.address} — entered by the host, not verified by Tempo.
+                </p>
+              )}
 
               <p className="relative mt-5 text-[15.5px] leading-relaxed text-ink-soft">
                 {game.description}
@@ -361,9 +381,11 @@ export default async function GamePage({
               <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
                 About {travel} minutes in {kickoff.getHours() >= 16 ? "evening" : "current"} traffic,
                 plus 10 to change.
-                {game.pitch.venue.side === "island"
-                  ? " This one's on the Island — add time if you're crossing."
-                  : " Mainland venue."}
+                {!venue.verified
+                  ? " Estimated — confirm the exact address with your host."
+                  : venue.side === "island"
+                    ? " This one's on the Island — add time if you're crossing."
+                    : " Mainland venue."}
               </p>
             </div>
 
@@ -390,9 +412,9 @@ export default async function GamePage({
               <h3 className="text-[15px] font-bold">What&apos;s included</h3>
               <ul className="mt-3 space-y-2 text-[13.5px] text-ink-soft">
                 {[
-                  "Pitch hire for the full slot",
+                  venue.verified ? "Pitch hire for the full slot" : "Venue arranged directly by the host",
                   game.bibsProvided ? "Bibs provided" : "Bring light and dark tops",
-                  game.pitch.floodlights ? "Floodlights" : "Daylight only",
+                  game.pitch ? (game.pitch.floodlights ? "Floodlights" : "Daylight only") : "Lighting arranged by the host",
                   "Full refund if the game is cancelled",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2">
