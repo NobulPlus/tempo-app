@@ -20,6 +20,8 @@ const ICON: Record<NotificationType | UserNotificationKind, typeof BellIcon> = {
   booking: ClockIcon,
   reward_earned: CheckIcon,
   tier_promoted: FlameIcon,
+  squad_game_scheduled: UsersIcon,
+  squad_invite_accepted: UsersIcon,
 };
 
 function timeAgo(iso: string): string {

@@ -138,6 +138,11 @@ export default async function GamePage({
                     Host-provided venue · not verified by Tempo
                   </span>
                 )}
+                {game.squad && (
+                  <Link href={`/squads/${game.squad.slug}`} className="chip-t !border-blue/30 !bg-blue/10 !text-blue">
+                    {game.squad.name}
+                  </Link>
+                )}
               </div>
 
               <h1 className="relative mt-4 font-display text-[clamp(26px,4.5vw,40px)] font-extrabold leading-tight tracking-[-.02em]">

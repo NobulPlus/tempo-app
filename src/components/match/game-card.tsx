@@ -28,6 +28,9 @@ export function GameCard({ game }: { game: GameFull }) {
         {!venue.verified && (
           <span className="chip-t !border-orange/35 !bg-orange/10 !text-orange">Not verified by Tempo</span>
         )}
+        {game.squad && (
+          <span className="chip-t !border-blue/30 !bg-blue/10 !text-blue">{game.squad.name}</span>
+        )}
         <span className="ml-auto">
           <HeatPill state={state} />
         </span>

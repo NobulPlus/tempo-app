@@ -223,6 +223,10 @@ export interface Game {
   isExistingSession?: boolean;
   /** Host-entered venue for a game not tied to a Tempo pitch — not verified by Tempo. */
   offPlatformVenue?: OffPlatformVenue | null;
+  /** Set when this game belongs to a squad — private to its members. */
+  squadId?: string | null;
+  recurringTemplateId?: string | null;
+  squad?: { slug: string; name: string } | null;
   hostPaidKobo?: number;
   hostReimbursedKobo?: number;
   hostPitchCostKobo?: number;
@@ -445,7 +449,44 @@ export interface MessageReport {
   reportedUser?: Pick<PlayerProfile, "fullName" | "handle">;
 }
 
-export type UserNotificationKind = "payment" | "waitlist_promoted" | "host_earnings" | "payout" | "game" | "system" | "booking" | "reward_earned" | "tier_promoted";
+export type UserNotificationKind = "payment" | "waitlist_promoted" | "host_earnings" | "payout" | "game" | "system" | "booking" | "reward_earned" | "tier_promoted" | "squad_game_scheduled" | "squad_invite_accepted";
+
+export interface Squad {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  area: string | null;
+  ownerId: string;
+  createdAt: string;
+}
+
+export interface SquadMember {
+  squadId: string;
+  userId: string;
+  role: "owner" | "member";
+  joinedAt: string;
+  player?: PlayerProfile;
+}
+
+export interface SquadRecurringTemplate {
+  id: string;
+  squadId: string;
+  dayOfWeek: number;
+  startMinute: number;
+  durationMinutes: number;
+  capacity: number;
+  minimumToGuarantee: number;
+  pricePerPlayerKobo: number;
+  bibsProvided: boolean;
+  venueMode: "pitch" | "off_platform";
+  pitchId: string | null;
+  venueName: string | null;
+  venueArea: string | null;
+  venueAddress: string | null;
+  enabled: boolean;
+  lastGeneratedOccurrence: string | null;
+}
 
 export interface UserNotification {
   id: string;

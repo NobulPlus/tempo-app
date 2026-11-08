@@ -126,7 +126,7 @@ async function deliverImportantNotifications(admin: ReturnType<typeof createAdmi
   const { data: rows, error } = await admin
     .from("user_notifications")
     .select("id, user_id, kind, title, body, href")
-    .in("kind", ["waitlist_promoted", "host_earnings", "booking"])
+    .in("kind", ["waitlist_promoted", "host_earnings", "booking", "squad_game_scheduled"])
     .is("email_sent_at", null)
     .order("created_at", { ascending: true })
     .limit(50);
@@ -149,7 +149,12 @@ async function deliverImportantNotifications(admin: ReturnType<typeof createAdmi
         fullName: profile?.full_name ?? "there",
         title: row.title,
         body: row.body,
-        ctaLabel: row.kind === "waitlist_promoted" ? "View game" : row.kind === "booking" ? "View booking" : "View wallet",
+        ctaLabel:
+          row.kind === "waitlist_promoted" || row.kind === "squad_game_scheduled"
+            ? "View game"
+            : row.kind === "booking"
+              ? "View booking"
+              : "View wallet",
         ctaUrl: `${site}${row.href ?? "/dashboard"}`,
       });
       if (!await sendMail({ to: email, ...content })) continue;

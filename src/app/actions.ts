@@ -65,6 +65,14 @@ import {
   reviewMessageReport,
   markUserNotificationsRead,
   gameVenueSummary,
+  createSquad,
+  createSquadInvite,
+  joinSquadByCode,
+  leaveSquad,
+  removeSquadMember,
+  saveSquadRecurringTemplate,
+  toggleSquadRecurringTemplateEnabled,
+  getSquadBySlug,
 } from "@/lib/data/repo";
 import type { UserRole, PitchSize, PitchSurface, MessageReportSource, PlayerProfile } from "@/lib/types";
 import { normalisePhone, formatNaira, generateReference, formatDayShort, formatTime } from "@/lib/format";
@@ -2979,6 +2987,167 @@ export async function reviewMessageReportAction(_prev: ActionState, formData: Fo
 
   revalidatePath("/admin/reports");
   return { ok: true, message: action === "suspend_user" ? "Report reviewed — user suspended." : "Report dismissed." };
+}
+
+/* -------------------------------------------------------------------- squads */
+
+export async function createSquadAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const area = String(formData.get("area") ?? "").trim() || null;
+  if (name.length < 2) return { ok: false, error: "Give your squad a name." };
+
+  const result = await createSquad(name, description, area);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/squads");
+  redirect(`/squads/${result.squad.slug}`);
+}
+
+export type SquadInviteActionState = ActionState & { code?: string };
+
+export async function createSquadInviteAction(
+  _prev: SquadInviteActionState,
+  formData: FormData,
+): Promise<SquadInviteActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const squadId = String(formData.get("squadId") ?? "");
+  if (!squadId) return { ok: false, error: "Missing squad." };
+
+  const result = await createSquadInvite(squadId);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  return { ok: true, message: "Invite link created.", code: result.code };
+}
+
+export async function joinSquadByCodeAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const code = String(formData.get("code") ?? "").trim();
+  if (!code) return { ok: false, error: "Missing invite code." };
+
+  const result = await joinSquadByCode(code);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/squads");
+  redirect(`/squads/${result.squad.slug}`);
+}
+
+export async function leaveSquadAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const squadId = String(formData.get("squadId") ?? "");
+  const result = await leaveSquad(squadId);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/squads");
+  redirect("/squads");
+}
+
+export async function removeSquadMemberAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const squadId = String(formData.get("squadId") ?? "");
+  const memberId = String(formData.get("memberId") ?? "");
+  const result = await removeSquadMember(squadId, memberId);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  const squad = await getSquadBySlug(String(formData.get("squadSlug") ?? ""));
+  if (squad) revalidatePath(`/squads/${squad.slug}`);
+  return { ok: true, message: "Member removed." };
+}
+
+const squadTemplateSchema = z.object({
+  squadId: z.string().min(1),
+  templateId: z.string().optional(),
+  dayOfWeek: z.coerce.number().int().min(0).max(6),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/, "Pick a start time"),
+  durationMinutes: z.coerce.number().int().min(30).max(240),
+  capacity: z.coerce.number().int().min(4).max(30),
+  minimumToGuarantee: z.coerce.number().int().min(2),
+  pricePerPlayerNaira: z.coerce.number().int().min(0).max(200000),
+  bibsProvided: z.coerce.boolean().optional(),
+  venueMode: z.enum(["pitch", "off_platform"]),
+  pitchId: z.string().optional(),
+  venueName: z.string().min(2).max(120).optional(),
+  venueArea: z.string().min(2).max(60).optional(),
+  venueAddress: z.string().min(5).max(240).optional(),
+});
+
+export async function saveSquadRecurringTemplateAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const parsed = squadTemplateSchema.safeParse({
+    squadId: formData.get("squadId"),
+    templateId: formData.get("templateId") || undefined,
+    dayOfWeek: formData.get("dayOfWeek"),
+    startTime: formData.get("startTime"),
+    durationMinutes: formData.get("durationMinutes"),
+    capacity: formData.get("capacity"),
+    minimumToGuarantee: formData.get("minimumToGuarantee"),
+    pricePerPlayerNaira: formData.get("pricePerPlayerNaira"),
+    bibsProvided: formData.get("bibsProvided") === "on",
+    venueMode: formData.get("venueMode"),
+    pitchId: formData.get("pitchId") || undefined,
+    venueName: formData.get("venueName") || undefined,
+    venueArea: formData.get("venueArea") || undefined,
+    venueAddress: formData.get("venueAddress") || undefined,
+  });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form" };
+  const v = parsed.data;
+  if (v.minimumToGuarantee > v.capacity) return { ok: false, error: "The guarantee number can't be higher than capacity." };
+  if (v.venueMode === "pitch" && !v.pitchId) return { ok: false, error: "Choose a pitch." };
+  if (v.venueMode === "off_platform" && (!v.venueName || !v.venueArea || !v.venueAddress)) {
+    return { ok: false, error: "Enter the venue name, area and address." };
+  }
+
+  const [hh, mm] = v.startTime.split(":").map(Number);
+  const result = await saveSquadRecurringTemplate({
+    squadId: v.squadId,
+    templateId: v.templateId ?? null,
+    dayOfWeek: v.dayOfWeek,
+    startMinute: hh * 60 + mm,
+    durationMinutes: v.durationMinutes,
+    capacity: v.capacity,
+    minimumToGuarantee: v.minimumToGuarantee,
+    pricePerPlayerKobo: v.pricePerPlayerNaira * 100,
+    bibsProvided: Boolean(v.bibsProvided),
+    venueMode: v.venueMode,
+    pitchId: v.venueMode === "pitch" ? v.pitchId : null,
+    venueName: v.venueMode === "off_platform" ? v.venueName : null,
+    venueArea: v.venueMode === "off_platform" ? v.venueArea : null,
+    venueAddress: v.venueMode === "off_platform" ? v.venueAddress : null,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  const squad = await getSquadBySlug(String(formData.get("squadSlug") ?? ""));
+  if (squad) revalidatePath(`/squads/${squad.slug}`);
+  return { ok: true, message: "Weekly schedule saved." };
+}
+
+export async function toggleSquadRecurringTemplateEnabledAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const templateId = String(formData.get("templateId") ?? "");
+  const result = await toggleSquadRecurringTemplateEnabled(templateId);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  const squad = await getSquadBySlug(String(formData.get("squadSlug") ?? ""));
+  if (squad) revalidatePath(`/squads/${squad.slug}`);
+  return { ok: true, message: result.enabled ? "Weekly schedule enabled." : "Weekly schedule paused." };
 }
 
 export async function signOut() {

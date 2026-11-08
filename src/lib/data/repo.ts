@@ -36,6 +36,9 @@ import type {
   BookingTransferOffer,
   PitchAvailabilitySchedule,
   PlayerPointsSummary,
+  Squad,
+  SquadMember,
+  SquadRecurringTemplate,
 } from "@/lib/types";
 
 /** The shape a `profiles` row has right after `camelize` — flat trait_*
@@ -649,7 +652,7 @@ async function generateSlotsForAdmin(
   return insertError ? { ok: false, created: 0, error: insertError.message } : { ok: true, created: accepted.length };
 }
 
-function lagosCalendarDay(base: Date, addDays: number): {
+export function lagosCalendarDay(base: Date, addDays: number): {
   year: number;
   month: number;
   day: number;
@@ -664,7 +667,7 @@ function lagosCalendarDay(base: Date, addDays: number): {
   };
 }
 
-function dateFromLagos(year: number, month: number, day: number, minutes: number): Date {
+export function dateFromLagos(year: number, month: number, day: number, minutes: number): Date {
   return new Date(Date.UTC(year, month, day, Math.floor(minutes / 60) - 1, minutes % 60, 0, 0));
 }
 
@@ -753,15 +756,16 @@ export function gameVenueSummary(game: Pick<GameFull, "pitch" | "offPlatformVenu
   };
 }
 
-const GAME_SELECT = `*, pitch:pitches(${PITCH_SELECT}), host:profiles(*), game_participants(*, player:profiles!game_participants_user_id_fkey(*))`;
+const GAME_SELECT = `*, pitch:pitches(${PITCH_SELECT}), host:profiles(*), squad:squads(slug, name), game_participants(*, player:profiles!game_participants_user_id_fkey(*))`;
 
 interface RawParticipantRow extends Omit<GameParticipant, "player"> {
   player: Record<string, unknown>;
 }
 
-interface RawGameRow extends Omit<Game, "participants" | "filled" | "host" | "pitch" | "offPlatformVenue"> {
+interface RawGameRow extends Omit<Game, "participants" | "filled" | "host" | "pitch" | "offPlatformVenue" | "squad"> {
   pitch: PitchWithVenue | null;
   host: Record<string, unknown>;
+  squad?: { slug: string; name: string } | { slug: string; name: string }[] | null;
   gameParticipants?: RawParticipantRow[];
   venueName?: string | null;
   venueArea?: string | null;
@@ -780,6 +784,7 @@ function mapGameRow(row: Record<string, unknown>): GameFull {
   return {
     ...c,
     host: mapProfileRow(c.host),
+    squad: Array.isArray(c.squad) ? c.squad[0] ?? null : c.squad ?? null,
     participants,
     offPlatformVenue: c.pitch
       ? null
@@ -827,7 +832,10 @@ export async function listGames(query: GameQuery = {}): Promise<GameFull[]> {
   const all = !demoMode()
     ? await (async () => {
         const sb = await createClient();
-        const { data } = await sb.from("games").select(GAME_SELECT);
+        // Squad games belong on the squad's own page, not the public feed —
+        // RLS already blocks non-members from reading another squad's rows,
+        // but a member's own squad game shouldn't be mixed in here either.
+        const { data } = await sb.from("games").select(GAME_SELECT).is("squad_id", null);
         return (data ?? []).map(mapGameRow);
       })()
     : store().games.map(hydrateGame);
@@ -3193,6 +3201,183 @@ export async function getIdentityDocumentUrl(documentPath: string): Promise<stri
   const sb = await createClient();
   const { data } = await sb.storage.from(IDENTITY_BUCKET).createSignedUrl(documentPath, 60 * 10);
   return data?.signedUrl ?? null;
+}
+
+/* -------------------------------------------------------------------- squads */
+
+export async function listMySquads(userId: string): Promise<(Squad & { role: "owner" | "member" })[]> {
+  if (demoMode()) return [];
+  const sb = await createClient();
+  const { data } = await sb
+    .from("squad_members")
+    .select("role, squad:squads(*)")
+    .eq("user_id", userId);
+  return (data ?? [])
+    .map((row) => {
+      const squadRow = Array.isArray(row.squad) ? row.squad[0] : row.squad;
+      return { ...camelize<Squad>(squadRow as Record<string, unknown>), role: row.role as "owner" | "member" };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getSquadBySlug(slug: string): Promise<Squad | null> {
+  if (demoMode()) return null;
+  const sb = await createClient();
+  const { data } = await sb.from("squads").select("*").eq("slug", slug).maybeSingle();
+  return data ? camelize<Squad>(data) : null;
+}
+
+export async function getSquadMembers(squadId: string): Promise<SquadMember[]> {
+  if (demoMode()) return [];
+  const sb = await createClient();
+  const { data } = await sb
+    .from("squad_members")
+    .select("*, player:profiles!squad_members_user_id_fkey(*)")
+    .eq("squad_id", squadId)
+    .order("joined_at", { ascending: true });
+  return (data ?? []).map((row) => {
+    const c = camelize<Omit<SquadMember, "player"> & { player: Record<string, unknown> }>(row);
+    return { ...c, player: mapProfileRow(c.player) };
+  });
+}
+
+export async function getSquadRecurringTemplates(squadId: string): Promise<SquadRecurringTemplate[]> {
+  if (demoMode()) return [];
+  const sb = await createClient();
+  const { data } = await sb
+    .from("squad_recurring_templates")
+    .select("*")
+    .eq("squad_id", squadId)
+    .order("day_of_week", { ascending: true });
+  return (data ?? []).map((row) => camelize<SquadRecurringTemplate>(row));
+}
+
+/** A squad's own games — never surfaced on the public /games feed. */
+export async function getSquadGames(squadId: string): Promise<GameFull[]> {
+  if (demoMode()) return [];
+  const sb = await createClient();
+  const { data } = await sb
+    .from("games")
+    .select(GAME_SELECT)
+    .eq("squad_id", squadId)
+    .order("starts_at", { ascending: true });
+  return (data ?? []).map(mapGameRow);
+}
+
+/** No-auth preview for an invite link — works for a logged-out visitor. */
+export async function getSquadPreviewByCode(
+  code: string,
+): Promise<{ squadId: string; name: string; area: string | null; memberCount: number } | null> {
+  if (demoMode()) return null;
+  const sb = await createClient();
+  const { data } = await sb.rpc("get_squad_preview_by_code", { p_code: code });
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+  return {
+    squadId: row.squad_id as string,
+    name: row.name as string,
+    area: (row.area as string | null) ?? null,
+    memberCount: Number(row.member_count ?? 0),
+  };
+}
+
+export async function createSquad(
+  name: string,
+  description: string,
+  area: string | null,
+): Promise<{ ok: true; squad: Squad } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Squads aren't available in demo mode." };
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("create_squad", { p_name: name, p_description: description, p_area: area });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, squad: camelize<Squad>(data as Record<string, unknown>) };
+}
+
+export async function createSquadInvite(
+  squadId: string,
+): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Squads aren't available in demo mode." };
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("create_squad_invite", { p_squad_id: squadId });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, code: (data as { code: string }).code };
+}
+
+export async function joinSquadByCode(
+  code: string,
+): Promise<{ ok: true; squad: Squad } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Squads aren't available in demo mode." };
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("join_squad_by_code", { p_code: code });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, squad: camelize<Squad>(data as Record<string, unknown>) };
+}
+
+export async function leaveSquad(squadId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Squads aren't available in demo mode." };
+  const sb = await createClient();
+  const { error } = await sb.rpc("leave_squad", { p_squad_id: squadId });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function removeSquadMember(
+  squadId: string,
+  userId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Squads aren't available in demo mode." };
+  const sb = await createClient();
+  const { error } = await sb.rpc("remove_squad_member", { p_squad_id: squadId, p_user_id: userId });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function saveSquadRecurringTemplate(input: {
+  squadId: string;
+  templateId?: string | null;
+  dayOfWeek: number;
+  startMinute: number;
+  durationMinutes: number;
+  capacity: number;
+  minimumToGuarantee: number;
+  pricePerPlayerKobo: number;
+  bibsProvided: boolean;
+  venueMode: "pitch" | "off_platform";
+  pitchId?: string | null;
+  venueName?: string | null;
+  venueArea?: string | null;
+  venueAddress?: string | null;
+}): Promise<{ ok: true; template: SquadRecurringTemplate } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Squads aren't available in demo mode." };
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("save_squad_recurring_template", {
+    p_squad_id: input.squadId,
+    p_template_id: input.templateId ?? null,
+    p_day_of_week: input.dayOfWeek,
+    p_start_minute: input.startMinute,
+    p_duration_minutes: input.durationMinutes,
+    p_capacity: input.capacity,
+    p_minimum_to_guarantee: input.minimumToGuarantee,
+    p_price_per_player_kobo: input.pricePerPlayerKobo,
+    p_bibs_provided: input.bibsProvided,
+    p_venue_mode: input.venueMode,
+    p_pitch_id: input.pitchId ?? null,
+    p_venue_name: input.venueName ?? null,
+    p_venue_area: input.venueArea ?? null,
+    p_venue_address: input.venueAddress ?? null,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, template: camelize<SquadRecurringTemplate>(data as Record<string, unknown>) };
+}
+
+export async function toggleSquadRecurringTemplateEnabled(
+  templateId: string,
+): Promise<{ ok: true; enabled: boolean } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Squads aren't available in demo mode." };
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("toggle_squad_recurring_template_enabled", { p_template_id: templateId });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, enabled: Boolean((data as { enabled: boolean }).enabled) };
 }
 
 export async function listIdentityVerificationsAdmin(status?: KycStatus): Promise<IdentityVerification[]> {
