@@ -24,11 +24,13 @@ export default async function GamesPage({
   const sp = await searchParams;
   const one = (k: string) => (Array.isArray(sp[k]) ? sp[k][0] : sp[k]) as string | undefined;
 
+  const sport = (one("sport") as "all" | "football" | "other") ?? "all";
   const games = await listGames({
     q: one("q"),
     level: (one("level") as SkillLevel) ?? "all",
     when: (one("when") as "all" | "today" | "tomorrow" | "week") ?? "all",
     side: (one("side") as "all" | "island" | "mainland") ?? "all",
+    sport,
   });
 
   return (
@@ -81,13 +83,50 @@ export default async function GamesPage({
               </Reveal>
             )}
 
-            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {(games.length > 1 ? games.slice(1) : games).map((g, i) => (
-                <Reveal key={g.id} delay={Math.min(i, 6) * 60}>
-                  <GameCard game={g} />
-                </Reveal>
-              ))}
-            </div>
+            {(() => {
+              const rest = games.length > 1 ? games.slice(1) : games;
+              if (sport !== "all") {
+                return (
+                  <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {rest.map((g, i) => (
+                      <Reveal key={g.id} delay={Math.min(i, 6) * 60}>
+                        <GameCard game={g} />
+                      </Reveal>
+                    ))}
+                  </div>
+                );
+              }
+              const football = rest.filter((g) => g.activityType === "football");
+              const other = rest.filter((g) => g.activityType !== "football");
+              return (
+                <>
+                  {football.length > 0 && (
+                    <div className="mt-8">
+                      <h2 className="text-[13px] font-bold tracking-[1.5px] text-ink-muted">FOOTBALL</h2>
+                      <div className="mt-3 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                        {football.map((g, i) => (
+                          <Reveal key={g.id} delay={Math.min(i, 6) * 60}>
+                            <GameCard game={g} />
+                          </Reveal>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {other.length > 0 && (
+                    <div className="mt-10">
+                      <h2 className="text-[13px] font-bold tracking-[1.5px] text-ink-muted">OTHER SPORTS</h2>
+                      <div className="mt-3 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                        {other.map((g, i) => (
+                          <Reveal key={g.id} delay={Math.min(i, 6) * 60}>
+                            <GameCard game={g} />
+                          </Reveal>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
       </div>

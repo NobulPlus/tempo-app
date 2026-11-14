@@ -24,6 +24,12 @@ const SIDES = [
   { key: "mainland", label: "Mainland" },
 ];
 
+const SPORTS = [
+  { key: "all", label: "All sports" },
+  { key: "football", label: "Football" },
+  { key: "other", label: "Other sports" },
+];
+
 export function GameFilters({ resultCount }: { resultCount: number }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -88,6 +94,7 @@ export function GameFilters({ resultCount }: { resultCount: number }) {
 
       <div className="mt-4 flex flex-wrap gap-2">{group(WHENS, "when")}</div>
       <div className="mt-2.5 flex flex-wrap gap-2">{group(LEVELS, "level")}</div>
+      <div className="mt-2.5 flex flex-wrap gap-2">{group(SPORTS, "sport")}</div>
 
       <div className="mt-2.5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">{group(SIDES, "side")}</div>

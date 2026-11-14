@@ -5,6 +5,7 @@ import { getPlayerPointsSummary } from "@/lib/data/repo";
 import { StarIcon, ShieldIcon, BallIcon, UsersIcon, PinIcon } from "@/components/icons";
 import { PointsLadder } from "@/components/rewards/points-ladder";
 import { TierStaircase } from "@/components/rewards/tier-staircase";
+import { LifetimeRewards } from "@/components/rewards/lifetime-rewards";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +22,9 @@ const EARN = [
 
 export default async function RewardsPage() {
   const user = await getCurrentUser();
-  const { monthlyPoints, lifetimePoints } = user
+  const { monthlyPoints, lifetimePoints, claimedLifetimeMilestones } = user
     ? await getPlayerPointsSummary(user.id)
-    : { monthlyPoints: 0, lifetimePoints: 0 };
+    : { monthlyPoints: 0, lifetimePoints: 0, claimedLifetimeMilestones: [] };
 
   return (
     <div className="py-12">
@@ -91,6 +92,14 @@ export default async function RewardsPage() {
 
             <div className="mt-5">
               <PointsLadder monthlyPoints={monthlyPoints} loggedIn={Boolean(user)} />
+            </div>
+
+            <div className="mt-6">
+              <LifetimeRewards
+                lifetimePoints={lifetimePoints}
+                claimedMilestones={claimedLifetimeMilestones}
+                loggedIn={Boolean(user)}
+              />
             </div>
           </section>
 

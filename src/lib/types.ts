@@ -209,6 +209,8 @@ export interface Game {
   title: string;
   description: string;
   level: SkillLevel;
+  /** Defaults to "football". One of ACTIVITY_OPTIONS (src/lib/venue-options.ts). */
+  activityType: string;
   startsAt: string;
   endsAt: string;
   capacity: number;
@@ -304,6 +306,7 @@ export type HostTier = "bronze" | "silver" | "gold" | "elite";
 export interface PlayerPointsSummary {
   monthlyPoints: number;
   lifetimePoints: number;
+  claimedLifetimeMilestones: number[];
 }
 
 /** Peer-voted attributes, 0–100. Earned, never self-declared. */

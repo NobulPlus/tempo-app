@@ -108,6 +108,7 @@ export function HostReimbursementCard({
   hostReimbursedKobo,
   hostPitchCostKobo,
   hostEarningsKobo,
+  isOffPlatform = false,
 }: {
   gameId: string;
   slug: string;
@@ -115,6 +116,7 @@ export function HostReimbursementCard({
   hostReimbursedKobo: number;
   hostPitchCostKobo?: number;
   hostEarningsKobo?: number;
+  isOffPlatform?: boolean;
 }) {
   const [state, action, pending] = useActionState(settleGameHostReimbursementAction, initial);
   useActionToast(state);
@@ -128,19 +130,23 @@ export function HostReimbursementCard({
     <div className="card-t p-6">
       <h3 className="flex items-center gap-2 text-[15px] font-bold">
         <WalletIcon size={17} className="text-green" />
-        Your pitch deposit
+        {isOffPlatform ? "Your host earnings" : "Your pitch deposit"}
       </h3>
-      <div className="mt-3 flex items-end justify-between text-[13px]">
-        <span className="text-ink-soft">Recovered</span>
-        <span className="font-semibold">
-          {formatNaira(hostReimbursedKobo)} <span className="text-ink-muted">of {formatNaira(pitchCost)}</span>
-        </span>
-      </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/8">
-        <div className="h-full rounded-full bg-green transition-all" style={{ width: `${percent}%` }} />
-      </div>
+      {!isOffPlatform && (
+        <>
+          <div className="mt-3 flex items-end justify-between text-[13px]">
+            <span className="text-ink-soft">Recovered</span>
+            <span className="font-semibold">
+              {formatNaira(hostReimbursedKobo)} <span className="text-ink-muted">of {formatNaira(pitchCost)}</span>
+            </span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/8">
+            <div className="h-full rounded-full bg-green transition-all" style={{ width: `${percent}%` }} />
+          </div>
+        </>
+      )}
 
-      {remaining <= 0 ? (
+      {remaining <= 0 && !isOffPlatform ? (
         <p className="mt-3 flex items-center gap-1.5 text-[12.5px] text-green">
           <CheckIcon size={13} />
           Pitch cost recovered{earnings > 0 ? ` · ${formatNaira(earnings)} earned` : ""}.
@@ -150,11 +156,12 @@ export function HostReimbursementCard({
           <input type="hidden" name="gameId" value={gameId} />
           <input type="hidden" name="slug" value={slug} />
           <button type="submit" disabled={pending} className="btn-t btn-ghost-t w-full !py-2.5 !text-[13px]">
-            {pending ? "Checking…" : "Check for reimbursement"}
+          {pending ? "Checking…" : isOffPlatform ? "Settle host earnings" : "Check for reimbursement"}
           </button>
           <p className="mt-2 text-[11.5px] text-ink-muted">
-            The booking fee is not part of the recovery. Any player money above
-            the pitch cost is paid to you as hosting earnings.
+            {isOffPlatform
+              ? "Player payments are released to your Tempo credit after the game ends."
+              : "The booking fee is not part of the recovery. Any player money above the pitch cost is paid to you as hosting earnings."}
           </p>
         </form>
       )}

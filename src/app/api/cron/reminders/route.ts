@@ -71,7 +71,7 @@ export async function GET(request: Request) {
     const { data: participants } = await admin
       .from("game_participants")
       .select(
-        `id, user_id, game:games!inner(title, slug, starts_at, pitch:pitches(name, venue:venues(name, address)))`,
+        `id, user_id, game:games!inner(title, slug, starts_at, venue_name, venue_address, pitch:pitches(name, venue:venues(name, address)))`,
       )
       .eq("status", "confirmed")
       .is(win.column, null)
@@ -82,12 +82,14 @@ export async function GET(request: Request) {
       const game = Array.isArray(row.game) ? row.game[0] : row.game;
       const pitch = Array.isArray(game?.pitch) ? game.pitch[0] : game?.pitch;
       const venue = Array.isArray(pitch?.venue) ? pitch.venue[0] : pitch?.venue;
-      if (!game || !pitch || !venue) continue;
+      const venueName = venue?.name ?? game?.venue_name;
+      const address = venue?.address ?? game?.venue_address;
+      if (!game || !venueName || !address) continue;
 
       const sent = await sendReminderIfPossible(admin, row.user_id, {
         title: game.title,
-        venueName: venue.name,
-        address: venue.address,
+        venueName,
+        address,
         kickoffISO: game.starts_at,
         minutesUntil: win.minutesUntil,
         viewUrl: `${site()}/games/${game.slug}`,

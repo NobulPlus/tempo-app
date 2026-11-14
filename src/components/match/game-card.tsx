@@ -5,6 +5,7 @@ import { PinIcon, ClockIcon, StarIcon, BallDetailedIcon } from "@/components/ico
 import { Countdown, FillBar, HeatPill, GuaranteePill, SpotPips } from "./match-day";
 import type { GameFull } from "@/lib/data/repo";
 import { gameVenueSummary } from "@/lib/data/repo";
+import { ACTIVITY_OPTIONS, venueOptionLabel } from "@/lib/venue-options";
 
 const LEVEL_STYLE: Record<string, string> = {
   casual: "!border-blue/30 !bg-blue/10 !text-blue",
@@ -21,6 +22,7 @@ export function GameCard({ game }: { game: GameFull }) {
       <span className="spokes-t" />
 
       <div className="relative flex flex-wrap items-center gap-2">
+        <span className="chip-t">{venueOptionLabel(ACTIVITY_OPTIONS, game.activityType)}</span>
         <span className={`chip-t !border ${LEVEL_STYLE[game.level]}`}>
           {game.level[0].toUpperCase() + game.level.slice(1)}
         </span>

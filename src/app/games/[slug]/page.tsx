@@ -308,6 +308,7 @@ export default async function GamePage({
                 hostReimbursedKobo={game.hostReimbursedKobo ?? 0}
                 hostPitchCostKobo={game.hostPitchCostKobo}
                 hostEarningsKobo={game.hostEarningsKobo}
+                isOffPlatform={!game.pitch}
               />
             )}
 

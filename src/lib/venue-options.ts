@@ -1,5 +1,6 @@
 export const ACTIVITY_OPTIONS = [
   { value: "football", label: "Football" },
+  { value: "netball", label: "Netball" },
   { value: "basketball", label: "Basketball" },
   { value: "tennis", label: "Tennis" },
   { value: "padel", label: "Padel" },

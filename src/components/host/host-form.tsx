@@ -12,6 +12,7 @@ import {
 } from "@/lib/format";
 import type { Slot } from "@/lib/types";
 import { LAGOS_AREA_OPTIONS } from "@/lib/lagos";
+import { ACTIVITY_OPTIONS, venueOptionLabel } from "@/lib/venue-options";
 import {
   CalendarIcon,
   ClockIcon,
@@ -32,6 +33,7 @@ export interface HostSlotOption extends Slot {
   area: string;
   pitchName: string;
   size: string;
+  activityType: string;
 }
 
 export interface ExistingBookingOption {
@@ -43,6 +45,7 @@ export interface ExistingBookingOption {
   venueName: string;
   area: string;
   pitchName: string;
+  activityType: string;
 }
 
 const LEVELS = [
@@ -79,13 +82,14 @@ export function HostForm({
   const [venueName, setVenueName] = useState("");
   const [venueArea, setVenueArea] = useState("");
   const [venueAddress, setVenueAddress] = useState("");
+  const [activityType, setActivityType] = useState("football");
   const [offDate, setOffDate] = useState("");
   const [offStartTime, setOffStartTime] = useState("");
   const [offDurationMinutes, setOffDurationMinutes] = useState(90);
   const [offPlatformAgree, setOffPlatformAgree] = useState(false);
   const [level, setLevel] = useState<string>("casual");
   const [capacity, setCapacity] = useState(10);
-  const [preconfirmed, setPreconfirmed] = useState(7);
+  const [preconfirmed, setPreconfirmed] = useState(0);
   const [minimum, setMinimum] = useState(8);
   const [dateKey, setDateKey] = useState(initialSlot ? slotDateKey(initialSlot.startsAt) : "all");
   const [area, setArea] = useState("all");
@@ -284,6 +288,25 @@ export function HostForm({
                   placeholder="Street address, or a clear landmark players can find"
                   className="w-full rounded-xl border border-white/12 bg-white/4 px-4 py-3.5 text-[15px] outline-none transition focus:border-green/50"
                 />
+              </div>
+
+              <div>
+                <label htmlFor="activityType" className="mb-1.5 block text-[13px] font-semibold text-ink-soft">
+                  Sport
+                </label>
+                <select
+                  id="activityType"
+                  name="activityType"
+                  value={activityType}
+                  onChange={(event) => setActivityType(event.target.value)}
+                  className="w-full rounded-xl border border-white/12 bg-white/4 px-3 py-3.5 text-[15px] outline-none transition focus:border-green/50"
+                >
+                  {ACTIVITY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -551,20 +574,24 @@ export function HostForm({
               }}
             />
 
-            {mode === "existing" && (
-              <div>
-                <NumberField
-                  id="preconfirmedPlayerCount"
-                  name="preconfirmedPlayerCount"
-                  label="Players already confirmed"
-                  min={1}
-                  max={Math.max(1, capacity - 1)}
-                  value={preconfirmed}
-                  onChange={(value) => setPreconfirmed(Math.min(Math.max(1, value), capacity - 1))}
-                />
-                <p className="mt-1.5 text-[12px] text-ink-muted">Include yourself and everyone already committed. Tempo will publish only the remaining spaces.</p>
-              </div>
-            )}
+            <div>
+              <NumberField
+                id="preconfirmedPlayerCount"
+                name="preconfirmedPlayerCount"
+                label={mode === "existing" ? "Players already confirmed" : "Other players already confirmed"}
+                min={mode === "existing" ? 1 : 0}
+                max={Math.max(mode === "existing" ? 1 : 0, capacity - 1)}
+                value={preconfirmed}
+                onChange={(value) =>
+                  setPreconfirmed(Math.min(Math.max(mode === "existing" ? 1 : 0, value), capacity - 1))
+                }
+              />
+              <p className="mt-1.5 text-[12px] text-ink-muted">
+                {mode === "existing"
+                  ? "Include yourself and everyone already committed. Tempo will publish only the remaining spaces."
+                  : "Not counting yourself — anyone you've already got outside Tempo. The rest of the spots publish for anyone to join."}
+              </p>
+            </div>
 
             <div>
               <NumberField
@@ -618,19 +645,25 @@ export function HostForm({
           <div className="p-6">
             {mode === "existing" && booking ? (
               <div className="rounded-2xl border border-green/25 bg-green/8 p-4">
-                <div className="text-[15px] font-bold">{booking.venueName}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[15px] font-bold">{booking.venueName}</div>
+                  <span className="chip-t !text-[11px]">{venueOptionLabel(ACTIVITY_OPTIONS, booking.activityType)}</span>
+                </div>
                 <div className="mt-2 text-[12.5px] text-ink-soft">{booking.area} · {booking.pitchName} · {formatRelativeDay(booking.startsAt)} · {formatTime(booking.startsAt)}–{formatTime(booking.endsAt)}</div>
               </div>
             ) : mode === "off_platform" && venueName ? (
               <div className="rounded-2xl border border-orange/25 bg-orange/8 p-4">
-                <div className="flex items-start gap-3">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange/14 text-orange">
-                    <PitchIcon size={20} />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-[15px] font-bold">{venueName}</div>
-                    <div className="mt-1 text-[12.5px] text-ink-soft">{venueArea || "Area not set"}</div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange/14 text-orange">
+                      <PitchIcon size={20} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-[15px] font-bold">{venueName}</div>
+                      <div className="mt-1 text-[12.5px] text-ink-soft">{venueArea || "Area not set"}</div>
+                    </div>
                   </div>
+                  <span className="chip-t shrink-0 !text-[11px]">{venueOptionLabel(ACTIVITY_OPTIONS, activityType)}</span>
                 </div>
                 <div className="mt-3 grid gap-2 text-[12.5px] text-ink-soft">
                   {venueAddress && (
@@ -650,7 +683,10 @@ export function HostForm({
               </div>
             ) : slot ? (
               <div className="rounded-2xl border border-green/25 bg-green/8 p-4">
-                <div className="text-[15px] font-bold">{slot.venueName}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[15px] font-bold">{slot.venueName}</div>
+                  <span className="chip-t !text-[11px]">{venueOptionLabel(ACTIVITY_OPTIONS, slot.activityType)}</span>
+                </div>
                 <div className="mt-2 grid gap-2 text-[12.5px] text-ink-soft">
                   <span className="flex items-center gap-1.5">
                     <PinIcon size={14} />

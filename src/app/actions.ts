@@ -42,6 +42,7 @@ import {
   savePitchAvailabilitySchedule,
   togglePitchAvailabilityScheduleEnabled,
   redeemPoints,
+  claimLifetimeReward,
   setSlotStatus,
   uploadVenuePhoto,
   uploadIdentityDocument,
@@ -576,7 +577,7 @@ export async function settleGameHostReimbursementAction(
     message:
       result.reimbursedKobo > 0
         ? `${formatNaira(result.reimbursedKobo)} moved back to the host wallet.`
-        : "No new host reimbursement is due yet.",
+        : "No new host funds are due yet.",
   };
 }
 
@@ -1400,12 +1401,13 @@ const hostSchema = z.object({
   minimumToGuarantee: z.coerce.number().int().min(2),
   pricePerPlayerNaira: z.coerce.number().int().min(0).max(200000),
   bibsProvided: z.coerce.boolean().optional(),
-  preconfirmedPlayerCount: z.coerce.number().int().min(1).optional(),
+  preconfirmedPlayerCount: z.coerce.number().int().min(0).optional(),
   venueName: z.string().min(2).max(120).optional(),
   venueArea: z.string().min(2).max(60).optional(),
   venueAddress: z.string().min(5).max(240).optional(),
   startsAt: z.string().optional(),
   endsAt: z.string().optional(),
+  activityType: z.string().refine((value) => ACTIVITY_VALUES.includes(value), "Choose a valid sport").optional(),
 });
 
 export async function createGameAction(
@@ -1433,6 +1435,7 @@ export async function createGameAction(
     venueAddress: formData.get("venueAddress") || undefined,
     startsAt: formData.get("startsAt") || undefined,
     endsAt: formData.get("endsAt") || undefined,
+    activityType: formData.get("activityType") || undefined,
   });
 
   if (!parsed.success) {
@@ -1445,6 +1448,11 @@ export async function createGameAction(
   if (!isExistingSession && !isOffPlatform && !v.slotId) return { ok: false, error: "Pick a time slot." };
   if (isExistingSession && !v.preconfirmedPlayerCount) return { ok: false, error: "Enter the players already confirmed." };
   if (isExistingSession && preconfirmedPlayerCount >= v.capacity) {
+    return { ok: false, error: "Leave at least one space for Tempo players." };
+  }
+  // "new" and off-platform modes also seat the host as a confirmed player,
+  // so the bound leaves room for them too — existing-session doesn't.
+  if (!isExistingSession && preconfirmedPlayerCount > v.capacity - 1) {
     return { ok: false, error: "Leave at least one space for Tempo players." };
   }
   if (v.minimumToGuarantee > v.capacity) {
@@ -1473,6 +1481,8 @@ export async function createGameAction(
       p_venue_address: v.venueAddress,
       p_starts_at: v.startsAt,
       p_ends_at: v.endsAt,
+      p_activity_type: v.activityType ?? "football",
+      p_preconfirmed_player_count: preconfirmedPlayerCount,
     });
     if (error) return { ok: false, error: error.message };
     revalidatePath("/games");
@@ -1492,8 +1502,9 @@ export async function createGameAction(
       status: "open", bibsProvided: Boolean(v.bibsProvided),
       offPlatformVenue: { name: v.venueName!, area: v.venueArea!, address: v.venueAddress! },
       hostPaidKobo: 0, hostReimbursedKobo: 0,
+      preconfirmedPlayerCount, activityType: v.activityType ?? "football",
       minimumDecisionDeadline: new Date(Math.max(Date.now(), new Date(v.startsAt!).getTime() - 6 * 60 * 60 * 1000)).toISOString(),
-      minimumDecisionStatus: 1 >= v.minimumToGuarantee ? "not_needed" : "pending",
+      minimumDecisionStatus: 1 + preconfirmedPlayerCount >= v.minimumToGuarantee ? "not_needed" : "pending",
       createdAt: new Date().toISOString(),
     });
     s.participants.push({
@@ -1538,12 +1549,14 @@ export async function createGameAction(
       if (s.games.some((game) => game.bookingId === booking.id)) return { ok: false, error: "You have already published this booking." };
       const gameId = `g-${Date.now()}`;
       const slug = `${v.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${Date.now().toString(36).slice(-4)}`;
+      const bookingPitch = s.pitches.find((p) => p.id === booking.slot!.pitchId);
       s.games.push({
         id: gameId, slug, pitchId: booking.slot.pitchId, hostId: user.id, bookingId: booking.id,
         title: v.title, description: v.description ?? "", level: v.level,
         startsAt: booking.slot.startsAt, endsAt: booking.slot.endsAt, capacity: v.capacity,
         minimumToGuarantee: v.minimumToGuarantee, pricePerPlayerKobo: v.pricePerPlayerNaira * 100,
         status: "open", bibsProvided: Boolean(v.bibsProvided), preconfirmedPlayerCount,
+        activityType: bookingPitch?.activityType ?? "football",
         isExistingSession: true, hostPaidKobo: booking.totalKobo, hostReimbursedKobo: 0,
         minimumDecisionDeadline: new Date(Math.max(Date.now(), new Date(booking.slot.startsAt).getTime() - 6 * 60 * 60 * 1000)).toISOString(),
         minimumDecisionStatus: preconfirmedPlayerCount >= v.minimumToGuarantee ? "not_needed" : "pending",
@@ -1593,10 +1606,12 @@ export async function createGameAction(
       bibsProvided: Boolean(v.bibsProvided),
       hostPaidKobo: hostTotalKobo,
       hostReimbursedKobo: 0,
+      preconfirmedPlayerCount,
+      activityType: s.pitches.find((p) => p.id === slot.pitchId)?.activityType ?? "football",
       minimumDecisionDeadline: new Date(
         Math.max(Date.now(), new Date(slot.startsAt).getTime() - 6 * 60 * 60 * 1000),
       ).toISOString(),
-      minimumDecisionStatus: v.minimumToGuarantee <= 1 ? "not_needed" : "pending",
+      minimumDecisionStatus: 1 + preconfirmedPlayerCount >= v.minimumToGuarantee ? "not_needed" : "pending",
       createdAt: new Date().toISOString(),
     });
 
@@ -1654,6 +1669,7 @@ export async function createGameAction(
       p_minimum_to_guarantee: v.minimumToGuarantee,
       p_price_per_player_kobo: v.pricePerPlayerNaira * 100,
       p_bibs_provided: Boolean(v.bibsProvided),
+      p_preconfirmed_player_count: preconfirmedPlayerCount,
     });
 
     if (error) {
@@ -2511,6 +2527,27 @@ export async function redeemPointsAction(_prev: ActionState, formData: FormData)
   return {
     ok: true,
     message: `Redeemed — ${formatNaira(result.creditedKobo)} added to your Tempo credit.`,
+  };
+}
+
+export async function claimLifetimeRewardAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "AUTH_REQUIRED" };
+
+  const milestone = Number(formData.get("milestone") ?? 0);
+  if (![1000, 3000].includes(milestone)) return { ok: false, error: "Not a valid lifetime reward." };
+
+  const result = await claimLifetimeReward(milestone);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/rewards");
+  revalidatePath("/wallet");
+  return {
+    ok: true,
+    message:
+      result.creditedKobo > 0
+        ? `${formatNaira(result.creditedKobo)} lifetime reward added to your Tempo credit.`
+        : "You've already claimed this lifetime reward.",
   };
 }
 

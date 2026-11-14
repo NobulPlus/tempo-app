@@ -579,7 +579,9 @@ export const profiles: PlayerProfile[] = [
 
 /* -------------------------------------------------------------------- games */
 
-interface SeedGame extends Omit<Game, "participants" | "filled"> {
+interface SeedGame extends Omit<Game, "participants" | "filled" | "activityType"> {
+  /** Every seed game is football; omitted entries default to that in hydrateGame(). */
+  activityType?: string;
   participantIds: string[];
   waitlistIds?: string[];
 }

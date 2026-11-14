@@ -811,6 +811,7 @@ function hydrateGame(g: Omit<Game, "participants" | "filled">): GameFull {
 
   return {
     ...g,
+    activityType: g.activityType ?? "football",
     pitch,
     host,
     participants,
@@ -825,6 +826,8 @@ export interface GameQuery {
   level?: SkillLevel | "all";
   when?: "all" | "today" | "tomorrow" | "week";
   side?: "all" | "island" | "mainland";
+  /** Binary, matching how the listing groups itself — not a per-sport filter. */
+  sport?: "all" | "football" | "other";
   includeePast?: boolean;
 }
 
@@ -844,7 +847,7 @@ export async function listGames(query: GameQuery = {}): Promise<GameFull[]> {
 }
 
 function applyGameQuery(all: GameFull[], query: GameQuery): GameFull[] {
-  const { q, level = "all", when = "all", side = "all" } = query;
+  const { q, level = "all", when = "all", side = "all", sport = "all" } = query;
   const now = Date.now();
 
   const startOfDay = (offset: number) => {
@@ -861,6 +864,8 @@ function applyGameQuery(all: GameFull[], query: GameQuery): GameFull[] {
       if (!query.includeePast && new Date(g.endsAt).getTime() < now) return false;
       const venue = gameVenueSummary(g);
       if (level !== "all" && g.level !== level) return false;
+      if (sport === "football" && g.activityType !== "football") return false;
+      if (sport === "other" && g.activityType === "football") return false;
       // An off-platform venue has no known side — don't let a side filter hide it.
       if (side !== "all" && venue.side !== null && venue.side !== side) return false;
 
@@ -2331,9 +2336,16 @@ export async function getGamesForUser(userId: string): Promise<GameFull[]> {
 /* -------------------------------------------------- rewards & tiers ---- */
 
 export async function getPlayerPointsSummary(userId: string): Promise<PlayerPointsSummary> {
-  if (demoMode()) return { monthlyPoints: 0, lifetimePoints: 0 };
+  if (demoMode()) return { monthlyPoints: 0, lifetimePoints: 0, claimedLifetimeMilestones: [] };
   const sb = await createClient();
-  const { data } = await sb.from("player_point_entries").select("points, created_at").eq("user_id", userId);
+  const [{ data }, { data: lifetimeRewards }] = await Promise.all([
+    sb.from("player_point_entries").select("points, created_at").eq("user_id", userId),
+    sb
+      .from("wallet_transactions")
+      .select("reference")
+      .eq("user_id", userId)
+      .like("reference", `lifetime-reward:${userId}:%`),
+  ]);
   const rows = data ?? [];
   const monthKey = new Date().toISOString().slice(0, 7);
   const monthlyPoints = rows
@@ -2342,7 +2354,10 @@ export async function getPlayerPointsSummary(userId: string): Promise<PlayerPoin
   const lifetimePoints = rows
     .filter((r) => Number(r.points) > 0)
     .reduce((sum, r) => sum + Number(r.points), 0);
-  return { monthlyPoints, lifetimePoints };
+  const claimedLifetimeMilestones = (lifetimeRewards ?? [])
+    .map((row) => Number(String(row.reference).split(":").at(-1)))
+    .filter((milestone) => milestone === 1000 || milestone === 3000);
+  return { monthlyPoints, lifetimePoints, claimedLifetimeMilestones };
 }
 
 export async function redeemPoints(
@@ -2352,6 +2367,16 @@ export async function redeemPoints(
   if (demoMode()) return { ok: false, error: "Rewards aren't available in demo mode." };
   const sb = await createClient();
   const { data, error } = await sb.rpc("redeem_points", { p_user: userId, p_points_cost: pointsCost });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, creditedKobo: Number(data) };
+}
+
+export async function claimLifetimeReward(
+  milestone: number,
+): Promise<{ ok: true; creditedKobo: number } | { ok: false; error: string }> {
+  if (demoMode()) return { ok: false, error: "Rewards aren't available in demo mode." };
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("claim_lifetime_reward", { p_milestone: milestone });
   if (error) return { ok: false, error: error.message };
   return { ok: true, creditedKobo: Number(data) };
 }

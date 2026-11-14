@@ -41,6 +41,7 @@ export default async function HostPage({
           area: p.venue.area,
           pitchName: p.name,
           size: p.size,
+          activityType: p.activityType ?? "football",
         }));
     }),
   );
@@ -122,6 +123,7 @@ export default async function HostPage({
                 venueName: booking.slot!.pitch.venue.name,
                 area: booking.slot!.pitch.venue.area,
                 pitchName: booking.slot!.pitch.name,
+                activityType: booking.slot!.pitch.activityType ?? "football",
               }))}
           />
         </div>
