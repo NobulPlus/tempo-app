@@ -159,11 +159,11 @@ export function HostForm({
   const canUseCredit = Boolean(slot && walletBalanceKobo >= hostTotalKobo);
 
   return (
-    <form action={action} className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(330px,.75fr)]">
-      <div className="space-y-6">
+    <form action={action} className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(330px,.75fr)]">
+      <div className="min-w-0 space-y-6">
         <section className="card-t p-5">
           <p className="text-[12px] font-bold uppercase tracking-[.12em] text-green">How are you hosting?</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
             <OptionRow
               selected={mode === "new"}
               onClick={() => setMode("new")}
@@ -635,7 +635,7 @@ export function HostForm({
         </section>
       </div>
 
-      <aside className="xl:sticky xl:top-24 xl:self-start">
+      <aside className="min-w-0 xl:sticky xl:top-24 xl:self-start">
         <div className="card-t overflow-hidden p-0">
           <div className="border-b border-white/10 p-6">
             <p className="text-[12px] font-bold uppercase tracking-[.12em] text-green">Game preview</p>
