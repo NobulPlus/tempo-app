@@ -22,35 +22,44 @@ export default async function SquadsPage() {
   return (
     <div className="py-12">
       <div className="container-t max-w-3xl">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-[12px] font-bold uppercase tracking-[.14em] text-orange">Private groups</p>
-            <h1 className="mt-2 text-[clamp(30px,5vw,48px)] font-extrabold tracking-[-.03em]">
-              Your <span className="text-orange">squads</span>
-            </h1>
-            <p className="mt-3 max-w-xl text-[15.5px] leading-relaxed text-ink-soft">
-              A squad is a private group with its own weekly game, roster and schedule — invite your
-              regulars and Tempo handles the rest.
-            </p>
-          </div>
-          <Link href="/squads/new" className="btn-t btn-green-t !py-3 !text-[14px]">
-            Create a squad
-          </Link>
-        </div>
+        <p className="text-[12px] font-bold uppercase tracking-[.14em] text-orange">Private groups</p>
+        <h1 className="mt-2 text-[clamp(30px,5vw,48px)] font-extrabold tracking-[-.03em]">
+          Your <span className="text-orange">squads</span>
+        </h1>
 
-        <div className="mt-6 max-w-sm">
-          <JoinByCodeBox />
-        </div>
+        {squads.length === 0 ? (
+          <div className="card-t relative mt-6 overflow-hidden p-10 text-center">
+            <span className="spokes-t" />
+            <span className="relative mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-orange/12 text-orange">
+              <GroupIcon size={26} />
+            </span>
+            <p className="relative mt-5 max-w-md mx-auto text-[15.5px] leading-relaxed text-ink-soft">
+              A squad is a private group with its own weekly game, roster and schedule — invite
+              your regulars and Tempo handles the rest.
+            </p>
+            <Link href="/squads/new" className="btn-t btn-green-t relative mt-6 !px-7 !py-3 !text-[14px]">
+              Create a squad
+            </Link>
+            <div className="relative mt-5">
+              <JoinByCodeBox />
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="max-w-xl text-[15.5px] leading-relaxed text-ink-soft">
+              Invite your regulars and Tempo handles the weekly game for you.
+            </p>
+            <div className="flex items-center gap-4">
+              <JoinByCodeBox />
+              <Link href="/squads/new" className="btn-t btn-green-t !py-2.5 !px-5 !text-[13.5px]">
+                Create a squad
+              </Link>
+            </div>
+          </div>
+        )}
 
         <div className="mt-8 space-y-3">
-          {squads.length === 0 ? (
-            <div className="card-t p-8 text-center">
-              <GroupIcon size={28} className="mx-auto text-ink-muted" />
-              <p className="mt-3 text-[14.5px] text-ink-soft">
-                You&apos;re not in a squad yet. Create one, or join with an invite link from a friend.
-              </p>
-            </div>
-          ) : (
+          {squads.length > 0 &&
             squads.map((squad) => (
               <Link
                 key={squad.id}
@@ -72,8 +81,7 @@ export default async function SquadsPage() {
                   )}
                 </div>
               </Link>
-            ))
-          )}
+            ))}
         </div>
       </div>
     </div>
