@@ -2101,6 +2101,7 @@ export async function createVenueAction(
   if (invalidLocation) return { ok: false, error: invalidLocation };
 
   const photos = venuePhotosFromForm(formData);
+  if (photos.length === 0) return { ok: false, error: "Add at least one photo before creating your venue." };
   for (const photo of photos) {
     const invalid = validateVenuePhoto(photo);
     if (invalid) return { ok: false, error: invalid };

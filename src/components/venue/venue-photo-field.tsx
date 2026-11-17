@@ -7,11 +7,13 @@ export function VenuePhotoField({
   hint,
   name = "photo",
   multiple = false,
+  required = false,
 }: {
   label: string;
   hint?: string;
   name?: string;
   multiple?: boolean;
+  required?: boolean;
 }) {
   const [previews, setPreviews] = useState<string[]>([]);
   const inputId = useId();
@@ -34,6 +36,7 @@ export function VenuePhotoField({
           type="file"
           accept="image/*"
           multiple={multiple}
+          required={required}
           onChange={(event) => {
             const files = Array.from(event.target.files ?? []);
             setPreviews((current) => {

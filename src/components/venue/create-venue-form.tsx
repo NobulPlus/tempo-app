@@ -48,6 +48,7 @@ export function CreateVenueForm() {
         label="Venue photos"
         hint="Upload up to 8 clear photos. The first photo becomes the cover."
         multiple
+        required
       />
 
       <TextAreaField
