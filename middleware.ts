@@ -23,7 +23,12 @@ function comingSoonGate(request: NextRequest): NextResponse | null {
   // Preview URL must always remain a usable staging environment.
   if (!localGateEnabled && (!isLiveProduction() || !isPublicTempoDomain)) return null;
   const { pathname } = request.nextUrl;
-  if (pathname === "/coming-soon" || pathname.startsWith("/api/")) return null;
+  if (
+    pathname === "/coming-soon" ||
+    pathname.startsWith("/api/") ||
+    pathname === "/manifest.webmanifest"
+  )
+    return null;
   return NextResponse.redirect(new URL("/coming-soon", request.url));
 }
 

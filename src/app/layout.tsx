@@ -5,6 +5,7 @@ import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { ConditionalFooter } from "@/components/conditional-footer";
 import { ToastProvider } from "@/components/toast/toast-provider";
+import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { getCurrentUser } from "@/lib/session";
 import { demoMode, getWalletBalance, getUnreadDmThreadCount, getUserNotifications } from "@/lib/data/repo";
 
@@ -65,6 +66,11 @@ export const metadata: Metadata = {
   },
   robots: { index: true, follow: true },
   alternates: { canonical: SITE },
+  appleWebApp: {
+    capable: true,
+    title: "Tempo",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
@@ -117,6 +123,8 @@ export default async function RootLayout({
             <Footer />
           </ConditionalFooter>
         </ToastProvider>
+
+        <InstallPrompt />
       </body>
     </html>
   );
