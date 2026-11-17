@@ -2,6 +2,8 @@ import { VenueVerificationBoard } from "@/components/admin/venue-verification-bo
 import { listVenues, getVenueVerificationHistory } from "@/lib/data/repo";
 import type { VenueVerificationEvent } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminVenuesPage() {
   const venues = await listVenues();
   const unverified = venues.filter((v) => !v.verified);

@@ -2,6 +2,8 @@ import { listVenueOwnerApplicationsAdmin, listWaitlist } from "@/lib/data/repo";
 import { LeadBoard } from "@/components/admin/lead-board";
 import { VenueOwnerApplicationBoard } from "@/components/admin/venue-owner-application-board";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminLeadsPage() {
   const [applications, leads] = await Promise.all([
     listVenueOwnerApplicationsAdmin(),

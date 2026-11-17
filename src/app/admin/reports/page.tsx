@@ -1,6 +1,8 @@
 import { listMessageReports } from "@/lib/data/repo";
 import { MessageReportBoard } from "@/components/admin/message-report-board";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminReportsPage() {
   const reports = await listMessageReports();
   const pending = reports.filter((r) => r.status === "pending");

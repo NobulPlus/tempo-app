@@ -2,6 +2,8 @@ import { getFinanceSummary, listHostPayoutRequestsAdmin, listWalletsAdmin, listW
 import { FinanceBoard } from "@/components/admin/finance-board";
 import { HostPayoutBoard } from "@/components/admin/host-payout-board";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminFinancePage() {
   const [summary, wallets, transactions, hostPayoutRequests] = await Promise.all([
     getFinanceSummary(),

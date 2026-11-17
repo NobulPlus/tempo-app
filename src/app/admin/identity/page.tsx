@@ -1,6 +1,8 @@
 import { listIdentityVerificationsAdmin, getIdentityDocumentUrl } from "@/lib/data/repo";
 import { IdentityReviewBoard } from "@/components/admin/identity-review-board";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminIdentityPage() {
   const verifications = await listIdentityVerificationsAdmin();
   const pending = verifications.filter((v) => v.status === "pending");

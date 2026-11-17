@@ -22,6 +22,8 @@ import {
 } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminOverviewPage() {
   const [venues, profiles, applications, leads, games, finance, messageReports] = await Promise.all([
     listVenues(),
